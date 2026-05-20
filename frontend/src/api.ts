@@ -1,0 +1,50 @@
+import type { Bot, Me, PanelUser } from './types'
+
+function token(): string | null {
+  return localStorage.getItem('token')
+}
+
+function authHeaders(): HeadersInit {
+  const t = token()
+  return {
+    'Content-Type': 'application/json',
+    ...(t ? { Authorization: `Bearer ${t}` } : {}),
+  }
+}
+
+async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(path, { ...init, headers: authHeaders() })
+  if (res.status === 401) {
+    localStorage.removeItem('token')
+    window.location.href = '/'
+    throw new Error('Unauthorized')
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ detail: 'Request failed' }))
+    throw new Error(body.detail ?? 'Request failed')
+  }
+  return res.json() as Promise<T>
+}
+
+export const api = {
+  me: () => req<Me>('/api/me'),
+
+  bots: () => req<Record<string, Bot>>('/api/bots'),
+  restartBot: (key: string) => req<{ status: string }>(`/api/bots/${key}/restart`, { method: 'POST' }),
+  stopBot: (key: string) => req<{ status: string }>(`/api/bots/${key}/stop`, { method: 'POST' }),
+
+  users: () => req<PanelUser[]>('/api/users'),
+  createUser: (data: { discord_id: number; discord_name: string; is_admin: boolean; can_view_logs: boolean }) =>
+    req<{ status: string }>('/api/users', { method: 'POST', body: JSON.stringify(data) }),
+  updateUser: (discord_id: number, data: { is_admin: boolean; can_view_logs: boolean }) =>
+    req<{ status: string }>(`/api/users/${discord_id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteUser: (discord_id: number) =>
+    req<{ status: string }>(`/api/users/${discord_id}`, { method: 'DELETE' }),
+}
+
+export function wsLogsUrl(): string {
+  const t = token() ?? ''
+  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  const host = window.location.host
+  return `${proto}://${host}/ws/logs?token=${encodeURIComponent(t)}`
+}
