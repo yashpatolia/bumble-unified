@@ -34,9 +34,9 @@ export const api = {
   stopBot: (key: string) => req<{ status: string }>(`/api/bots/${key}/stop`, { method: 'POST' }),
 
   users: () => req<PanelUser[]>('/api/users'),
-  createUser: (data: { discord_id: string; discord_name: string; is_admin: boolean; can_view_logs: boolean }) =>
+  createUser: (data: { discord_id: string; discord_name: string; is_admin: boolean; can_view_logs: boolean; can_control_bots: boolean }) =>
     req<{ status: string }>('/api/users', { method: 'POST', body: JSON.stringify(data) }),
-  updateUser: (discord_id: string, data: { is_admin: boolean; can_view_logs: boolean }) =>
+  updateUser: (discord_id: string, data: { is_admin: boolean; can_view_logs: boolean; can_control_bots: boolean }) =>
     req<{ status: string }>(`/api/users/${discord_id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteUser: (discord_id: string) =>
     req<{ status: string }>(`/api/users/${discord_id}`, { method: 'DELETE' }),

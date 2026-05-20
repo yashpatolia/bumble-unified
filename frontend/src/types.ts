@@ -3,6 +3,7 @@ export interface Me {
   discord_name: string
   is_admin: boolean
   can_view_logs: boolean
+  can_control_bots: boolean
   avatar_url: string
 }
 
@@ -19,6 +20,7 @@ export interface PanelUser {
   discord_name: string
   is_admin: boolean
   can_view_logs: boolean
+  can_control_bots: boolean
 }
 
 export interface LogRecord {

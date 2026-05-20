@@ -69,7 +69,7 @@ def create_app(client) -> FastAPI:
             return RedirectResponse("/?error=not_authorized")
 
         manager.upsert_panel_user_name(discord_id, discord_name)
-        token = create_token(discord_id, discord_name, bool(panel_user[2]), bool(panel_user[3]), avatar_url)
+        token = create_token(discord_id, discord_name, bool(panel_user[2]), bool(panel_user[3]), bool(panel_user[4]), avatar_url)
         return RedirectResponse(f"/?token={token}")
 
     # --- Current user ---
@@ -82,6 +82,7 @@ def create_app(client) -> FastAPI:
             "discord_name": claims["name"],
             "is_admin": claims["admin"],
             "can_view_logs": claims["logs"],
+            "can_control_bots": claims.get("bots", False),
             "avatar_url": claims.get("avatar", ""),
         }
 

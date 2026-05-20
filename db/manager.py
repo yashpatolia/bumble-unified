@@ -125,32 +125,38 @@ class DatabaseManager:
         with self.connection() as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS panel_users (
-                    discord_id    INTEGER PRIMARY KEY,
-                    discord_name  TEXT NOT NULL,
-                    is_admin      INTEGER DEFAULT 0,
-                    can_view_logs INTEGER DEFAULT 1
+                    discord_id       INTEGER PRIMARY KEY,
+                    discord_name     TEXT NOT NULL,
+                    is_admin         INTEGER DEFAULT 0,
+                    can_view_logs    INTEGER DEFAULT 1,
+                    can_control_bots INTEGER DEFAULT 0
                 )
             """)
+            # Migrate existing tables that lack the new column
+            try:
+                conn.execute("ALTER TABLE panel_users ADD COLUMN can_control_bots INTEGER DEFAULT 0")
+            except Exception:
+                pass
 
     def get_panel_user(self, discord_id: int) -> Optional[tuple]:
-        """Returns (discord_id, discord_name, is_admin, can_view_logs) or None."""
+        """Returns (discord_id, discord_name, is_admin, can_view_logs, can_control_bots) or None."""
         with self.connection() as conn:
             return conn.execute(
-                "SELECT discord_id, discord_name, is_admin, can_view_logs FROM panel_users WHERE discord_id = ?",
+                "SELECT discord_id, discord_name, is_admin, can_view_logs, can_control_bots FROM panel_users WHERE discord_id = ?",
                 (discord_id,)
             ).fetchone()
 
     def get_all_panel_users(self) -> list:
         with self.connection() as conn:
             return conn.execute(
-                "SELECT discord_id, discord_name, is_admin, can_view_logs FROM panel_users"
+                "SELECT discord_id, discord_name, is_admin, can_view_logs, can_control_bots FROM panel_users"
             ).fetchall()
 
-    def create_panel_user(self, discord_id: int, discord_name: str, is_admin: bool = False, can_view_logs: bool = True) -> None:
+    def create_panel_user(self, discord_id: int, discord_name: str, is_admin: bool = False, can_view_logs: bool = True, can_control_bots: bool = False) -> None:
         with self.connection() as conn:
             conn.execute(
-                "INSERT OR IGNORE INTO panel_users (discord_id, discord_name, is_admin, can_view_logs) VALUES (?, ?, ?, ?)",
-                (discord_id, discord_name, int(is_admin), int(can_view_logs))
+                "INSERT OR IGNORE INTO panel_users (discord_id, discord_name, is_admin, can_view_logs, can_control_bots) VALUES (?, ?, ?, ?, ?)",
+                (discord_id, discord_name, int(is_admin), int(can_view_logs), int(can_control_bots))
             )
 
     def upsert_panel_user_name(self, discord_id: int, discord_name: str) -> None:
@@ -160,11 +166,11 @@ class DatabaseManager:
                 (discord_name, discord_id)
             )
 
-    def update_panel_user_permissions(self, discord_id: int, is_admin: bool, can_view_logs: bool) -> None:
+    def update_panel_user_permissions(self, discord_id: int, is_admin: bool, can_view_logs: bool, can_control_bots: bool) -> None:
         with self.connection() as conn:
             conn.execute(
-                "UPDATE panel_users SET is_admin = ?, can_view_logs = ? WHERE discord_id = ?",
-                (int(is_admin), int(can_view_logs), discord_id)
+                "UPDATE panel_users SET is_admin = ?, can_view_logs = ?, can_control_bots = ? WHERE discord_id = ?",
+                (int(is_admin), int(can_view_logs), int(can_control_bots), discord_id)
             )
 
     def delete_panel_user(self, discord_id: int) -> None:

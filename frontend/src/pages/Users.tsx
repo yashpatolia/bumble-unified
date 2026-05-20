@@ -8,9 +8,10 @@ interface FormState {
   discord_name: string
   is_admin: boolean
   can_view_logs: boolean
+  can_control_bots: boolean
 }
 
-const defaultForm = (): FormState => ({ discord_id: '', discord_name: '', is_admin: false, can_view_logs: true })
+const defaultForm = (): FormState => ({ discord_id: '', discord_name: '', is_admin: false, can_view_logs: true, can_control_bots: false })
 
 export default function Users() {
   const { me } = useAuth()
@@ -39,7 +40,7 @@ export default function Users() {
 
   const openEdit = (u: PanelUser) => {
     setEditTarget(u)
-    setForm({ discord_id: String(u.discord_id), discord_name: u.discord_name, is_admin: u.is_admin, can_view_logs: u.can_view_logs })
+    setForm({ discord_id: String(u.discord_id), discord_name: u.discord_name, is_admin: u.is_admin, can_view_logs: u.can_view_logs, can_control_bots: u.can_control_bots })
     setError(null)
     setShowModal(true)
   }
@@ -49,10 +50,10 @@ export default function Users() {
     setError(null)
     try {
       if (editTarget) {
-        await api.updateUser(editTarget.discord_id, { is_admin: form.is_admin, can_view_logs: form.can_view_logs })
+        await api.updateUser(editTarget.discord_id, { is_admin: form.is_admin, can_view_logs: form.can_view_logs, can_control_bots: form.can_control_bots })
       } else {
         if (!/^\d{17,20}$/.test(form.discord_id.trim())) { setError('Invalid Discord ID'); return }
-        await api.createUser({ discord_id: form.discord_id.trim(), discord_name: form.discord_name.trim() || 'Unknown', is_admin: form.is_admin, can_view_logs: form.can_view_logs })
+        await api.createUser({ discord_id: form.discord_id.trim(), discord_name: form.discord_name.trim() || 'Unknown', is_admin: form.is_admin, can_view_logs: form.can_view_logs, can_control_bots: form.can_control_bots })
       }
       setShowModal(false)
       load()
@@ -168,6 +169,15 @@ export default function Users() {
                   type="checkbox"
                   checked={form.can_view_logs}
                   onChange={e => setForm(f => ({ ...f, can_view_logs: e.target.checked }))}
+                />
+              </div>
+              <div className="toggle-row">
+                <label htmlFor="perm-bots">Control Bots (start/stop/restart)</label>
+                <input
+                  id="perm-bots"
+                  type="checkbox"
+                  checked={form.can_control_bots}
+                  onChange={e => setForm(f => ({ ...f, can_control_bots: e.target.checked }))}
                 />
               </div>
               <div className="toggle-row">

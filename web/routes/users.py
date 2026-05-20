@@ -12,11 +12,13 @@ class CreateUser(BaseModel):
     discord_name: str
     is_admin: bool = False
     can_view_logs: bool = True
+    can_control_bots: bool = False
 
 
 class UpdateUser(BaseModel):
     is_admin: bool
     can_view_logs: bool
+    can_control_bots: bool = False
 
 
 def _row_to_dict(row: tuple) -> dict:
@@ -25,6 +27,7 @@ def _row_to_dict(row: tuple) -> dict:
         "discord_name": row[1],
         "is_admin": bool(row[2]),
         "can_view_logs": bool(row[3]),
+        "can_control_bots": bool(row[4]),
     }
 
 
@@ -38,7 +41,7 @@ def create_user(body: CreateUser, _=Depends(require_admin)):
     discord_id = int(body.discord_id)
     if manager.get_panel_user(discord_id):
         raise HTTPException(status_code=409, detail="User already exists")
-    manager.create_panel_user(discord_id, body.discord_name, body.is_admin, body.can_view_logs)
+    manager.create_panel_user(discord_id, body.discord_name, body.is_admin, body.can_view_logs, body.can_control_bots)
     return {"status": "created"}
 
 
@@ -48,7 +51,7 @@ def update_user(discord_id: int, body: UpdateUser, request: Request, claims=Depe
         raise HTTPException(status_code=400, detail="Cannot remove your own admin access")
     if not manager.get_panel_user(discord_id):
         raise HTTPException(status_code=404, detail="User not found")
-    manager.update_panel_user_permissions(discord_id, body.is_admin, body.can_view_logs)
+    manager.update_panel_user_permissions(discord_id, body.is_admin, body.can_view_logs, body.can_control_bots)
     return {"status": "updated"}
 
 

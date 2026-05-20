@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from web.auth import require_admin
+from web.auth import require_admin, require_bot_control
 
 router = APIRouter(prefix="/api/bots", tags=["bots"])
 
@@ -33,7 +33,7 @@ def get_bots(request: Request, _=Depends(require_admin)):
 
 
 @router.post("/{key}/restart")
-async def restart_bot(key: str, request: Request, _=Depends(require_admin)):
+async def restart_bot(key: str, request: Request, _=Depends(require_bot_control)):
     client = _client(request)
     if key not in client.guild_configs:
         raise HTTPException(status_code=404, detail="Unknown bot key")
@@ -42,7 +42,7 @@ async def restart_bot(key: str, request: Request, _=Depends(require_admin)):
 
 
 @router.post("/{key}/stop")
-def stop_bot(key: str, request: Request, _=Depends(require_admin)):
+def stop_bot(key: str, request: Request, _=Depends(require_bot_control)):
     client = _client(request)
     if key not in client.guild_configs:
         raise HTTPException(status_code=404, detail="Unknown bot key")

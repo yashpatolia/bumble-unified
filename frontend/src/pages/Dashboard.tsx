@@ -79,32 +79,34 @@ export default function Dashboard() {
                   {bot.connected ? 'Online' : 'Offline'}
                 </div>
               </div>
-              <div className="bot-actions">
-                {bot.connected ? (
+              {(me?.is_admin || me?.can_control_bots) && (
+                <div className="bot-actions">
+                  {bot.connected ? (
+                    <button
+                      className="btn btn-danger"
+                      disabled={!!acting[bot.key]}
+                      onClick={() => act(bot.key, 'stop')}
+                    >
+                      {acting[bot.key] === 'stop' ? 'Stopping...' : 'Stop'}
+                    </button>
+                  ) : (
+                    <button
+                      className="btn btn-primary"
+                      disabled={!!acting[bot.key]}
+                      onClick={() => act(bot.key, 'start')}
+                    >
+                      {acting[bot.key] === 'start' ? 'Starting...' : 'Start'}
+                    </button>
+                  )}
                   <button
-                    className="btn btn-danger"
+                    className="btn btn-ghost"
                     disabled={!!acting[bot.key]}
-                    onClick={() => act(bot.key, 'stop')}
+                    onClick={() => act(bot.key, 'restart')}
                   >
-                    {acting[bot.key] === 'stop' ? 'Stopping...' : 'Stop'}
+                    {acting[bot.key] === 'restart' ? 'Restarting...' : 'Restart'}
                   </button>
-                ) : (
-                  <button
-                    className="btn btn-primary"
-                    disabled={!!acting[bot.key]}
-                    onClick={() => act(bot.key, 'start')}
-                  >
-                    {acting[bot.key] === 'start' ? 'Starting...' : 'Start'}
-                  </button>
-                )}
-                <button
-                  className="btn btn-ghost"
-                  disabled={!!acting[bot.key]}
-                  onClick={() => act(bot.key, 'restart')}
-                >
-                  {acting[bot.key] === 'restart' ? 'Restarting...' : 'Restart'}
-                </button>
-              </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
