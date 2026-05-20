@@ -34,6 +34,7 @@ logging.basicConfig(
 class GuildState:
     """Runtime state for a single Minecraft guild bot."""
     bot: Any = None
+    connected: bool = False
     guild_list: list = field(default_factory=list)
     save_guild_list: bool = False
     guild_invite: Optional[str] = None

@@ -19,6 +19,7 @@ class GuildConnections(commands.Cog):
 
         @Once(state.bot, "spawn")
         def on_spawn(this):
+            state.connected = True
             logging.info(f"[{config.short_name}] Connected to {config.mc_options['host']}")
             embed = discord.Embed(
                 description=f"**{config.short_name} Bridge Connected to:** `{config.mc_options['host']}`",
@@ -28,6 +29,7 @@ class GuildConnections(commands.Cog):
 
         @On(state.bot, "end")
         def on_end(this, event) -> None:
+            state.connected = False
             if state.manual_stop:
                 state.manual_stop = False
                 logging.info(f"[{config.short_name}] Manually stopped — not reconnecting")

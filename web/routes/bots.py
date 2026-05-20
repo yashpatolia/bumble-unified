@@ -15,19 +15,12 @@ def get_bots(request: Request, _=Depends(require_bot_control)):
     result = {}
     for key, config in client.guild_configs.items():
         state = client.guilds_state[key]
-        connected = False
-        if state.bot:
-            try:
-                # Mineflayer bot exposes `ended` when disconnected
-                connected = not getattr(state.bot, "ended", True)
-            except Exception:
-                connected = False
         result[key] = {
             "key": key,
             "name": config.display_name,
             "short_name": config.short_name,
             "username": config.mc_username,
-            "connected": connected,
+            "connected": state.connected,
         }
     return result
 
