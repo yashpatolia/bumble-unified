@@ -12,8 +12,10 @@ export default function Dashboard() {
   const [acting, setActing] = useState<Record<string, BotAction>>({})
   const [error, setError] = useState<string | null>(null)
 
+  const canControl = me?.is_admin || me?.can_control_bots
+
   const fetchBots = () => {
-    if (!me?.is_admin) { setLoading(false); return }
+    if (!canControl) { setLoading(false); return }
     api.bots()
       .then(setBots)
       .catch(() => setError('Failed to load bot status'))
@@ -48,7 +50,7 @@ export default function Dashboard() {
     }
   }
 
-  if (!me?.is_admin) {
+  if (!canControl) {
     return (
       <div>
         <div className="page-title">Dashboard</div>

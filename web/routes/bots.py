@@ -10,7 +10,7 @@ def _client(request: Request):
 
 
 @router.get("")
-def get_bots(request: Request, _=Depends(require_admin)):
+def get_bots(request: Request, _=Depends(require_bot_control)):
     client = _client(request)
     result = {}
     for key, config in client.guild_configs.items():
