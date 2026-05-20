@@ -4,6 +4,7 @@ set -e
 cd ~/bumble-unified
 
 echo "Pulling latest changes..."
+git stash
 git pull
 
 echo "Installing Python dependencies..."
