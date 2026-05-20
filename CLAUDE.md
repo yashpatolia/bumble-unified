@@ -1,4 +1,4 @@
-# Bumble Bot — Project Reference
+# Bumble Bridge Bot — Project Reference
 
 This file is the authoritative guide for working on this codebase. Keep it updated whenever you add files, rename things, change architecture, or add new guilds.
 
