@@ -8,7 +8,7 @@ router = APIRouter(prefix="/api/users", tags=["users"])
 
 
 class CreateUser(BaseModel):
-    discord_id: int
+    discord_id: str
     discord_name: str
     is_admin: bool = False
     can_view_logs: bool = True
@@ -21,7 +21,7 @@ class UpdateUser(BaseModel):
 
 def _row_to_dict(row: tuple) -> dict:
     return {
-        "discord_id": row[0],
+        "discord_id": str(row[0]),
         "discord_name": row[1],
         "is_admin": bool(row[2]),
         "can_view_logs": bool(row[3]),
@@ -35,9 +35,10 @@ def list_users(_=Depends(require_admin)):
 
 @router.post("", status_code=201)
 def create_user(body: CreateUser, _=Depends(require_admin)):
-    if manager.get_panel_user(body.discord_id):
+    discord_id = int(body.discord_id)
+    if manager.get_panel_user(discord_id):
         raise HTTPException(status_code=409, detail="User already exists")
-    manager.create_panel_user(body.discord_id, body.discord_name, body.is_admin, body.can_view_logs)
+    manager.create_panel_user(discord_id, body.discord_name, body.is_admin, body.can_view_logs)
     return {"status": "created"}
 
 

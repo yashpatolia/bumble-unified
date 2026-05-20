@@ -51,9 +51,8 @@ export default function Users() {
       if (editTarget) {
         await api.updateUser(editTarget.discord_id, { is_admin: form.is_admin, can_view_logs: form.can_view_logs })
       } else {
-        const id = parseInt(form.discord_id)
-        if (!id || isNaN(id)) { setError('Invalid Discord ID'); return }
-        await api.createUser({ discord_id: id, discord_name: form.discord_name.trim() || 'Unknown', is_admin: form.is_admin, can_view_logs: form.can_view_logs })
+        if (!/^\d{17,20}$/.test(form.discord_id.trim())) { setError('Invalid Discord ID'); return }
+        await api.createUser({ discord_id: form.discord_id.trim(), discord_name: form.discord_name.trim() || 'Unknown', is_admin: form.is_admin, can_view_logs: form.can_view_logs })
       }
       setShowModal(false)
       load()

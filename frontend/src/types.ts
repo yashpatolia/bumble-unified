@@ -15,7 +15,7 @@ export interface Bot {
 }
 
 export interface PanelUser {
-  discord_id: number
+  discord_id: string
   discord_name: string
   is_admin: boolean
   can_view_logs: boolean
