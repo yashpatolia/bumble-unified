@@ -14,23 +14,7 @@ if [ -z "$CHANGED" ]; then
     exit 0
 fi
 
-RESTART_BOT=0
-RESTART_WEB=0
-BUILD_FRONTEND=0
-
-# bot/ changes affect both processes (shared config, db, web routes)
 if echo "$CHANGED" | grep -q '^bot/'; then
-    RESTART_BOT=1
-    RESTART_WEB=1
-fi
-
-# frontend changes only affect the web process
-if echo "$CHANGED" | grep -q '^frontend/'; then
-    BUILD_FRONTEND=1
-    RESTART_WEB=1
-fi
-
-if [ "$RESTART_BOT" = "1" ]; then
     echo "Installing Python dependencies..."
     source venv/bin/activate
     pip install -r bot/requirements.txt
@@ -39,19 +23,15 @@ if [ "$RESTART_BOT" = "1" ]; then
     cd bot && npm install && cd ..
 fi
 
-if [ "$BUILD_FRONTEND" = "1" ]; then
+if echo "$CHANGED" | grep -q '^frontend/'; then
     echo "Building frontend..."
     cd frontend && npm install && npm run build && cd ..
 fi
 
-if [ "$RESTART_BOT" = "1" ]; then
-    echo "Restarting bot..."
-    pm2 restart bumble-bot
-fi
+echo "Restarting bot..."
+pm2 restart bumble-bot
 
-if [ "$RESTART_WEB" = "1" ]; then
-    echo "Restarting web..."
-    pm2 restart bumble-web
-fi
+echo "Restarting web..."
+pm2 restart bumble-web
 
 echo "Done."
