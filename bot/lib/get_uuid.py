@@ -1,12 +1,15 @@
 import logging
 import sqlite3
+from pathlib import Path
 from lib.fetch import request
+
+_DB_PATH = str(Path(__file__).parent.parent.parent / "bumble.db")
 
 
 def get_uuid(username: str) -> str | None:
     """Resolve a Minecraft username to a UUID, using the local DB as a cache."""
     try:
-        with sqlite3.connect("bumble.db") as conn:
+        with sqlite3.connect(_DB_PATH) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT uuid FROM users WHERE ign = ?", (username.lower(),))
             row = cursor.fetchone()
