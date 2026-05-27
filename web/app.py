@@ -23,9 +23,8 @@ FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
 _ADMIN_ID = int(os.getenv("PANEL_ADMIN_DISCORD_ID", "0"))
 
 
-def create_app(client) -> FastAPI:
+def create_app() -> FastAPI:
     app = FastAPI(title="Bumble Panel", docs_url=None, redoc_url=None)
-    app.state.client = client
 
     app.add_middleware(
         CORSMiddleware,

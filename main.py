@@ -16,7 +16,7 @@ from config import (
     BK_LOGS_CHANNEL, BU_LOGS_CHANNEL,
     DYES_CHANNEL, MESSAGE_LOGS_CHANNEL,
     GUILD_CONFIGS,
-    PANEL_PORT,
+    BOT_IPC_PORT,
 )
 from db import manager
 
@@ -103,21 +103,16 @@ class Client(commands.Bot):
 async def run_bot() -> None:
     manager.setup_panel_tables()
 
-    # Attach log handler early so startup logs are captured
-    from web.logs import WebLogHandler
-    logging.getLogger().addHandler(WebLogHandler())
-
     async with Client() as client:
 
-        # Build the FastAPI app and start uvicorn as a second asyncio task
-        from web.app import create_app
-        web_app = create_app(client)
-        config = uvicorn.Config(web_app, host="0.0.0.0", port=PANEL_PORT, log_level="warning")
-        server = uvicorn.Server(config)
+        from bot_ipc import create_ipc_app
+        ipc_app = create_ipc_app(client)
+        ipc_config = uvicorn.Config(ipc_app, host="127.0.0.1", port=BOT_IPC_PORT, log_level="warning")
+        ipc_server = uvicorn.Server(ipc_config)
 
         await asyncio.gather(
             client.start(TOKEN),
-            server.serve(),
+            ipc_server.serve(),
         )
 
 

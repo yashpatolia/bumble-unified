@@ -1,50 +1,75 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+import os
 
-from web.auth import require_admin, require_bot_control
+import aiohttp
+from fastapi import APIRouter, Depends, HTTPException
+
+from config import GUILD_CONFIGS
+from web.auth import require_bot_control
 
 router = APIRouter(prefix="/api/bots", tags=["bots"])
 
+_IPC_URL = os.getenv("BOT_IPC_URL", "http://localhost:8081")
+_IPC_SECRET = os.getenv("BOT_IPC_SECRET", "")
+_TIMEOUT = aiohttp.ClientTimeout(total=5)
+_LONG_TIMEOUT = aiohttp.ClientTimeout(total=15)
 
-def _client(request: Request):
-    return request.app.state.client
+
+def _headers():
+    return {"X-IPC-Secret": _IPC_SECRET} if _IPC_SECRET else {}
 
 
-@router.get("")
-def get_bots(request: Request, _=Depends(require_bot_control)):
-    client = _client(request)
-    result = {}
-    for key, config in client.guild_configs.items():
-        state = client.guilds_state[key]
-        result[key] = {
+def _offline_status():
+    return {
+        key: {
             "key": key,
             "name": config.display_name,
             "short_name": config.short_name,
             "username": config.mc_username,
-            "connected": state.connected,
+            "connected": False,
         }
-    return result
+        for key, config in GUILD_CONFIGS.items()
+    }
+
+
+@router.get("")
+async def get_bots(_=Depends(require_bot_control)):
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{_IPC_URL}/status", headers=_headers(), timeout=_TIMEOUT) as resp:
+                if resp.status == 200:
+                    return await resp.json()
+    except Exception:
+        pass
+    return _offline_status()
 
 
 @router.post("/{key}/restart")
-async def restart_bot(key: str, request: Request, _=Depends(require_bot_control)):
-    client = _client(request)
-    if key not in client.guild_configs:
+async def restart_bot(key: str, _=Depends(require_bot_control)):
+    if key not in GUILD_CONFIGS:
         raise HTTPException(status_code=404, detail="Unknown bot key")
-    await client.start_mineflayer(restart=True, account=key)
-    return {"status": "restarting", "key": key}
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"{_IPC_URL}/restart/{key}", headers=_headers(), timeout=_LONG_TIMEOUT) as resp:
+                if resp.status == 200:
+                    return await resp.json()
+                raise HTTPException(status_code=resp.status, detail="IPC error")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=503, detail="Bot process is offline")
 
 
 @router.post("/{key}/stop")
-def stop_bot(key: str, request: Request, _=Depends(require_bot_control)):
-    client = _client(request)
-    if key not in client.guild_configs:
+async def stop_bot(key: str, _=Depends(require_bot_control)):
+    if key not in GUILD_CONFIGS:
         raise HTTPException(status_code=404, detail="Unknown bot key")
-    state = client.guilds_state[key]
-    if state.bot:
-        state.manual_stop = True
-        try:
-            state.bot.end()
-        except Exception:
-            state.manual_stop = False
-            raise HTTPException(status_code=500, detail="Failed to stop bot")
-    return {"status": "stopped", "key": key}
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"{_IPC_URL}/stop/{key}", headers=_headers(), timeout=_LONG_TIMEOUT) as resp:
+                if resp.status == 200:
+                    return await resp.json()
+                raise HTTPException(status_code=resp.status, detail="IPC error")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=503, detail="Bot process is offline")

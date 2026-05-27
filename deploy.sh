@@ -17,7 +17,8 @@ npm install
 npm run build
 cd ..
 
-echo "Restarting service..."
-sudo systemctl restart bumble
+echo "Restarting services..."
+pm2 restart bumble-bot
+pm2 restart bumble-web
 
 echo "Done."
