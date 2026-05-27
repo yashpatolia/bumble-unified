@@ -22,90 +22,81 @@ Bumble is a Discord bot that acts as a bridge between two Hypixel Skyblock Minec
 
 ```
 bumble-unified/
-├── main.py                   # Entry point — Discord client, GuildState, cog loading
-├── config.py                 # All configuration + GuildConfig dataclass + BK/BU instances
-├── constants.py              # Static lookup tables: dungeon XP, MP values, dye IDs/roles/emojis
-├── requirements.txt          # Python dependencies
-├── package.json              # Node.js dependencies (Mineflayer, skyhelper-networth)
+├── deploy.sh                 # VPS deploy script
 ├── example.env               # Template for .env — copy and fill before running
 │
-├── db/
-│   ├── __init__.py           # Exports `manager` singleton (DatabaseManager instance)
-│   └── manager.py            # DatabaseManager — all SQLite access goes through here
-│
-├── lib/                      # Low-level utility functions (no Discord, no cog state)
-│   ├── __init__.py           # Re-exports all lib symbols
-│   ├── condense.py           # Number formatter: 1_500_000 → "1.5M"
-│   ├── deep_get.py           # Safe nested dict access
-│   ├── fetch.py              # async fetch() and sync request() for HTTP/JSON
-│   ├── get_username.py       # UUID → IGN, with DB cache
-│   ├── get_uuid.py           # IGN → UUID, with DB cache
-│   └── rankup.py             # guild_rank_change() — promotes/demotes a player in-game
-│
-├── player/                   # Hypixel Skyblock player data classes
-│   ├── __init__.py           # Exports Player
-│   ├── skyblock.py           # Player — top-level class, fetches all profiles
-│   ├── level.py              # SkyblockLevel — current and highest level across profiles
-│   ├── catacombs.py          # Catacombs — level, secrets, S/R, PB times
-│   ├── slayers.py            # Slayers — claimed levels for all 6 boss types
-│   ├── magical_power.py      # MagicalPower — decodes talisman bag NBT, calculates MP
-│   └── networth.py           # Networth — delegates to skyhelper-networth JS library
-│
-├── utils/
-│   ├── command_handler.py    # bridge_commands() — routes .commands from Minecraft/Discord
-│   └── roll_dye.py           # roll_dye() — weighted random dye drop, announces if new
-│
-├── web/                      # FastAPI web panel backend
-│   ├── app.py                # create_app() factory — mounts routes, auth, WebSocket, SPA fallback
-│   ├── auth.py               # Discord OAuth2 exchange, JWT create/verify, FastAPI dependencies
-│   ├── logs.py               # LogBroadcaster (thread-safe store) + WebLogHandler (logging.Handler)
-│   └── routes/
-│       ├── bots.py           # GET /api/bots, POST /api/bots/{key}/restart|stop
-│       └── users.py          # CRUD /api/users — panel user management (admin only)
-│
-├── frontend/                 # React/Vite web panel frontend
-│   ├── index.html            # SPA entry point
-│   ├── package.json          # Frontend dependencies (React, React Router, Vite)
-│   ├── vite.config.ts        # Vite config — proxies /api and /ws to backend in dev
-│   ├── tsconfig.json
-│   ├── dist/                 # Built output — served by FastAPI as static files
+├── frontend/                 # React/Vite web panel UI
 │   └── src/
-│       ├── main.tsx          # React root
-│       ├── App.tsx           # Auth context, routing, sidebar Layout
-│       ├── api.ts            # Typed fetch wrappers for all API endpoints + wsLogsUrl()
-│       ├── types.ts          # Shared TypeScript interfaces (Me, Bot, PanelUser, LogRecord)
-│       ├── index.css         # Dark theme CSS — variables, layout, cards, buttons, log viewer
-│       └── pages/
-│           ├── Login.tsx     # Discord OAuth login page
-│           ├── Dashboard.tsx # Bot status cards with start/stop/restart controls
-│           ├── Logs.tsx      # Live log stream (WebSocket) with level filter + search
-│           └── Users.tsx     # Panel user management table with add/edit/delete modal
+│       └── ...
 │
-└── cogs/
-    ├── errors/
-    │   └── error_handler.py  # Global slash command error handler (MissingRole, Cooldown, etc.)
+└── bot/                      # All Python + Node bot code
+    ├── main.py               # Bot entry point — Discord client, GuildState, cog loading
+    ├── web_main.py           # Web panel entry point (separate process)
+    ├── bot_ipc.py            # Internal FastAPI app for bot control (localhost only)
+    ├── config.py             # All configuration + GuildConfig dataclass + BK/BU instances
+    ├── constants.py          # Static lookup tables: dungeon XP, MP values, dye IDs/roles/emojis
+    ├── requirements.txt      # Python dependencies
+    ├── package.json          # Node.js dependencies (Mineflayer, skyhelper-networth)
     │
-    ├── commands/             # Discord slash command cogs
-    │   ├── guild_commands.py # /bk-guild and /bu-guild command groups (list, mute, kick, etc.)
-    │   ├── link.py           # /link — self-serve Discord ↔ Minecraft account linking
-    │   ├── staff.py          # /staff link — staff-forced account linking
-    │   ├── user.py           # /user — look up a linked account (staff only)
-    │   ├── admin.py          # /admin add-dye, remove-dye (exec role only)
-    │   ├── dyes.py           # /dyes — select a dye role from owned dyes
-    │   ├── apply.py          # /apply — create a private application ticket channel
-    │   └── exec.py           # /bk-exec, /bu-exec — run raw MC commands (exec role only)
+    ├── db/
+    │   ├── __init__.py       # Exports `manager` singleton (DatabaseManager instance)
+    │   └── manager.py        # DatabaseManager — all SQLite access goes through here
     │
-    └── bridge/               # One set of cogs handles both guilds via GuildConfig
-        ├── bridge.py         # GuildBridge — MC→Discord chat relay + Discord→MC listener
-        ├── connections.py    # GuildConnections — spawn/disconnect events, auto-reconnect
-        └── message_handler.py# GuildMessageHandler — system messages (join/leave/kick/mute/invite)
+    ├── lib/                  # Low-level utility functions (no Discord, no cog state)
+    │   ├── __init__.py       # Re-exports all lib symbols
+    │   ├── condense.py       # Number formatter: 1_500_000 → "1.5M"
+    │   ├── deep_get.py       # Safe nested dict access
+    │   ├── fetch.py          # async fetch() and sync request() for HTTP/JSON
+    │   ├── get_username.py   # UUID → IGN, with DB cache
+    │   ├── get_uuid.py       # IGN → UUID, with DB cache
+    │   └── rankup.py         # guild_rank_change() — promotes/demotes a player in-game
+    │
+    ├── player/               # Hypixel Skyblock player data classes
+    │   ├── __init__.py       # Exports Player
+    │   ├── skyblock.py       # Player — top-level class, fetches all profiles
+    │   ├── level.py          # SkyblockLevel — current and highest level across profiles
+    │   ├── catacombs.py      # Catacombs — level, secrets, S/R, PB times
+    │   ├── slayers.py        # Slayers — claimed levels for all 6 boss types
+    │   ├── magical_power.py  # MagicalPower — decodes talisman bag NBT, calculates MP
+    │   └── networth.py       # Networth — delegates to skyhelper-networth JS library
+    │
+    ├── utils/
+    │   ├── command_handler.py # bridge_commands() — routes .commands from Minecraft/Discord
+    │   └── roll_dye.py        # roll_dye() — weighted random dye drop, announces if new
+    │
+    ├── web/                  # FastAPI web panel backend
+    │   ├── app.py            # create_app() factory — mounts routes, auth, WebSocket, SPA fallback
+    │   ├── auth.py           # Discord OAuth2 exchange, JWT create/verify, FastAPI dependencies
+    │   ├── logs.py           # LogBroadcaster (thread-safe store) + WebLogHandler (logging.Handler)
+    │   └── routes/
+    │       ├── bots.py       # GET /api/bots, POST /api/bots/{key}/restart|stop (calls bot IPC)
+    │       └── users.py      # CRUD /api/users — panel user management (admin only)
+    │
+    └── cogs/
+        ├── errors/
+        │   └── error_handler.py  # Global slash command error handler (MissingRole, Cooldown, etc.)
+        │
+        ├── commands/             # Discord slash command cogs
+        │   ├── guild_commands.py # /bk-guild and /bu-guild command groups (list, mute, kick, etc.)
+        │   ├── link.py           # /link — self-serve Discord ↔ Minecraft account linking
+        │   ├── staff.py          # /staff link — staff-forced account linking
+        │   ├── user.py           # /user — look up a linked account (staff only)
+        │   ├── admin.py          # /admin add-dye, remove-dye (exec role only)
+        │   ├── dyes.py           # /dyes — select a dye role from owned dyes
+        │   ├── apply.py          # /apply — create a private application ticket channel
+        │   └── exec.py           # /bk-exec, /bu-exec — run raw MC commands (exec role only)
+        │
+        └── bridge/               # One set of cogs handles both guilds via GuildConfig
+            ├── bridge.py         # GuildBridge — MC→Discord chat relay + Discord→MC listener
+            ├── connections.py    # GuildConnections — spawn/disconnect events, auto-reconnect
+            └── message_handler.py# GuildMessageHandler — system messages (join/leave/kick/mute/invite)
 ```
 
 ---
 
 ## Key Files and Their Responsibilities
 
-### `main.py`
+### `bot/main.py`
 - Defines `GuildState` dataclass: holds the live Mineflayer bot instance, guild list buffer, invite result buffer, and logs webhook for one guild.
 - Defines `Client(commands.Bot)`: holds `guild_configs` (static config map) and `guilds_state` (runtime state map, both keyed `'bk'`/`'bu'`), shared webhooks, and the skyhelper JS reference.
 - `setup_hook()` runs on startup: creates Mineflayer bots, sets per-guild log webhooks, sets shared webhooks, then dynamically loads every `.py` file inside every `cogs/` subdirectory.

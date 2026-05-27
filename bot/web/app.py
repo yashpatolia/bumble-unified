@@ -19,7 +19,7 @@ from web.auth import (
 from web.logs import broadcaster
 from web.routes import bots, users
 
-FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
+FRONTEND_DIST = Path(__file__).parent.parent.parent / "frontend" / "dist"
 _ADMIN_ID = int(os.getenv("PANEL_ADMIN_DISCORD_ID", "0"))
 
 

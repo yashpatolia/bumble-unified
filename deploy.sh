@@ -9,7 +9,12 @@ git pull
 
 echo "Installing Python dependencies..."
 source venv/bin/activate
-pip install -r requirements.txt
+pip install -r bot/requirements.txt
+
+echo "Installing Node dependencies..."
+cd bot
+npm install
+cd ..
 
 echo "Building frontend..."
 cd frontend

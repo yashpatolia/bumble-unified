@@ -1,9 +1,10 @@
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 API_KEY = os.getenv("HYPIXEL_API_KEY")
