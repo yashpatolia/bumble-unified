@@ -29,7 +29,10 @@ if echo "$CHANGED" | grep -q '^frontend/'; then
 fi
 
 echo "Restarting bot..."
-pm2 restart bumble-bot
+pm2 stop bumble-bot || true
+fuser -k 8081/tcp 2>/dev/null || true
+sleep 1
+pm2 start bumble-bot
 
 echo "Restarting web..."
 pm2 restart bumble-web
