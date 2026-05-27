@@ -24,7 +24,7 @@ _ADMIN_ID = int(os.getenv("PANEL_ADMIN_DISCORD_ID", "0"))
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Bumble Panel", docs_url=None, redoc_url=None)
+    app = FastAPI(title="Bumble", docs_url=None, redoc_url=None)
 
     app.add_middleware(
         CORSMiddleware,
@@ -64,11 +64,13 @@ def create_app() -> FastAPI:
             manager.create_panel_user(discord_id, discord_name, is_admin=True, can_view_logs=True)
 
         panel_user = manager.get_panel_user(discord_id)
-        if not panel_user:
-            return RedirectResponse("/?error=not_authorized")
+        if panel_user:
+            manager.upsert_panel_user_name(discord_id, discord_name)
 
-        manager.upsert_panel_user_name(discord_id, discord_name)
-        token = create_token(discord_id, discord_name, bool(panel_user[2]), bool(panel_user[3]), bool(panel_user[4]), avatar_url)
+        is_admin = bool(panel_user[2]) if panel_user else False
+        can_view_logs = bool(panel_user[3]) if panel_user else False
+        can_control_bots = bool(panel_user[4]) if panel_user else False
+        token = create_token(discord_id, discord_name, is_admin, can_view_logs, can_control_bots, avatar_url, is_owner=(discord_id == _ADMIN_ID))
         return RedirectResponse(f"/?token={token}")
 
     # --- Current user ---
@@ -83,6 +85,7 @@ def create_app() -> FastAPI:
             "can_view_logs": claims["logs"],
             "can_control_bots": claims.get("bots", False),
             "avatar_url": claims.get("avatar", ""),
+            "is_owner": claims.get("owner", False),
         }
 
     # --- Live log stream ---

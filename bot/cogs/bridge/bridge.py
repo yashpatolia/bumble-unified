@@ -1,5 +1,6 @@
 import logging
 import re
+from datetime import datetime
 import discord
 import emoji
 from asyncio import run_coroutine_threadsafe
@@ -72,6 +73,13 @@ class GuildBridge(commands.Cog):
                     username=sender,
                     avatar_url=f"https://mc-heads.net/avatar/{sender}",
                 )
+
+                if chat_type == "Guild":
+                    state.recent_chat.appendleft({
+                        "time": datetime.utcnow().strftime("%H:%M"),
+                        "player": sender,
+                        "message": msg_text,
+                    })
 
                 # Relay to all other guild bots
                 relay_state = "/oc" if chat_type == "Officer" else "/gc"

@@ -1,3 +1,5 @@
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
@@ -5,6 +7,7 @@ from db import manager
 from web.auth import require_admin
 
 router = APIRouter(prefix="/api/users", tags=["users"])
+_OWNER_ID = int(os.getenv("PANEL_ADMIN_DISCORD_ID", "0"))
 
 
 class CreateUser(BaseModel):
@@ -16,7 +19,7 @@ class CreateUser(BaseModel):
 
 
 class UpdateUser(BaseModel):
-    is_admin: bool
+    is_admin: bool | None = None
     can_view_logs: bool
     can_control_bots: bool = False
 
@@ -28,6 +31,7 @@ def _row_to_dict(row: tuple) -> dict:
         "is_admin": bool(row[2]),
         "can_view_logs": bool(row[3]),
         "can_control_bots": bool(row[4]),
+        "is_owner": int(row[0]) == _OWNER_ID,
     }
 
 
@@ -47,11 +51,13 @@ def create_user(body: CreateUser, _=Depends(require_admin)):
 
 @router.patch("/{discord_id}")
 def update_user(discord_id: int, body: UpdateUser, request: Request, claims=Depends(require_admin)):
-    if int(claims["sub"]) == discord_id and not body.is_admin:
-        raise HTTPException(status_code=400, detail="Cannot remove your own admin access")
-    if not manager.get_panel_user(discord_id):
+    existing = manager.get_panel_user(discord_id)
+    if not existing:
         raise HTTPException(status_code=404, detail="User not found")
-    manager.update_panel_user_permissions(discord_id, body.is_admin, body.can_view_logs, body.can_control_bots)
+    final_is_admin = body.is_admin if body.is_admin is not None else bool(existing[2])
+    if int(claims["sub"]) == discord_id and not final_is_admin:
+        raise HTTPException(status_code=400, detail="Cannot remove your own admin access")
+    manager.update_panel_user_permissions(discord_id, final_is_admin, body.can_view_logs, body.can_control_bots)
     return {"status": "updated"}
 
 

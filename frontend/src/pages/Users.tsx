@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../App'
 import type { PanelUser } from '../types'
@@ -6,15 +7,15 @@ import type { PanelUser } from '../types'
 interface FormState {
   discord_id: string
   discord_name: string
-  is_admin: boolean
   can_view_logs: boolean
   can_control_bots: boolean
 }
 
-const defaultForm = (): FormState => ({ discord_id: '', discord_name: '', is_admin: false, can_view_logs: true, can_control_bots: false })
+const defaultForm = (): FormState => ({ discord_id: '', discord_name: '', can_view_logs: true, can_control_bots: false })
 
 export default function Users() {
-  const { me } = useAuth()
+  const { me, logout } = useAuth()
+  const navigate = useNavigate()
   const [users, setUsers] = useState<PanelUser[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -40,7 +41,7 @@ export default function Users() {
 
   const openEdit = (u: PanelUser) => {
     setEditTarget(u)
-    setForm({ discord_id: String(u.discord_id), discord_name: u.discord_name, is_admin: u.is_admin, can_view_logs: u.can_view_logs, can_control_bots: u.can_control_bots })
+    setForm({ discord_id: String(u.discord_id), discord_name: u.discord_name, can_view_logs: u.can_view_logs, can_control_bots: u.can_control_bots })
     setError(null)
     setShowModal(true)
   }
@@ -50,10 +51,10 @@ export default function Users() {
     setError(null)
     try {
       if (editTarget) {
-        await api.updateUser(editTarget.discord_id, { is_admin: form.is_admin, can_view_logs: form.can_view_logs, can_control_bots: form.can_control_bots })
+        await api.updateUser(editTarget.discord_id, { can_view_logs: form.can_view_logs, can_control_bots: form.can_control_bots })
       } else {
         if (!/^\d{17,20}$/.test(form.discord_id.trim())) { setError('Invalid Discord ID'); return }
-        await api.createUser({ discord_id: form.discord_id.trim(), discord_name: form.discord_name.trim() || 'Unknown', is_admin: form.is_admin, can_view_logs: form.can_view_logs, can_control_bots: form.can_control_bots })
+        await api.createUser({ discord_id: form.discord_id.trim(), discord_name: form.discord_name.trim() || 'Unknown', is_admin: false, can_view_logs: form.can_view_logs, can_control_bots: form.can_control_bots })
       }
       setShowModal(false)
       load()
@@ -75,9 +76,25 @@ export default function Users() {
   }
 
   return (
-    <div>
+    <div className="guild-layout">
+      <header className="guild-header">
+        <div className="guild-header-left">
+          <span className="guild-header-back" onClick={() => navigate('/')}>← All Guilds</span>
+          <span className="guild-header-sep">/</span>
+          <span className="guild-header-name">Admin</span>
+        </div>
+        <div className="guild-header-user">
+          {me?.avatar_url && (
+            <img src={me.avatar_url} alt="" style={{ width: 28, height: 28, borderRadius: '50%' }} />
+          )}
+          <span>{me?.discord_name}</span>
+          <button className="btn btn-ghost btn-sm" onClick={() => { logout(); navigate('/login') }}>Logout</button>
+        </div>
+      </header>
+
+      <main className="guild-main">
       <div className="header-row">
-        <div className="page-title" style={{ marginBottom: 0 }}>Users</div>
+        <div className="page-title" style={{ marginBottom: 0 }}>Panel Users</div>
         <button className="btn btn-primary" onClick={openCreate}>+ Add User</button>
       </div>
 
@@ -95,8 +112,7 @@ export default function Users() {
                 <tr>
                   <th>Discord Name</th>
                   <th>Discord ID</th>
-                  <th>Role</th>
-                  <th>View Logs</th>
+                  <th>Permissions</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -106,14 +122,12 @@ export default function Users() {
                     <td>{u.discord_name}</td>
                     <td style={{ color: 'var(--muted)', fontFamily: 'monospace' }}>{u.discord_id}</td>
                     <td>
-                      <span className={`badge ${u.is_admin ? 'badge-admin' : 'badge-user'}`}>
-                        {u.is_admin ? 'Admin' : 'User'}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={`badge ${u.can_view_logs ? 'badge-on' : 'badge-off'}`}>
-                        {u.can_view_logs ? 'Yes' : 'No'}
-                      </span>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {u.is_owner && <span className="badge badge-admin">Owner</span>}
+                        {u.can_view_logs && <span className="badge badge-on">View Logs</span>}
+                        {u.can_control_bots && <span className="badge badge-on">Control Bots</span>}
+                        {!u.is_owner && !u.can_view_logs && !u.can_control_bots && <span className="badge badge-off">None</span>}
+                      </div>
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: 8 }}>
@@ -130,6 +144,8 @@ export default function Users() {
           )}
         </div>
       </div>
+
+      </main>
 
       {showModal && (
         <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowModal(false) }}>
@@ -180,15 +196,6 @@ export default function Users() {
                   onChange={e => setForm(f => ({ ...f, can_control_bots: e.target.checked }))}
                 />
               </div>
-              <div className="toggle-row">
-                <label htmlFor="perm-admin">Admin (full access)</label>
-                <input
-                  id="perm-admin"
-                  type="checkbox"
-                  checked={form.is_admin}
-                  onChange={e => setForm(f => ({ ...f, is_admin: e.target.checked }))}
-                />
-              </div>
             </div>
 
             <div className="modal-actions">
@@ -203,3 +210,4 @@ export default function Users() {
     </div>
   )
 }
+

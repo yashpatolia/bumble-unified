@@ -64,6 +64,7 @@ export default function Logs() {
 
   return (
     <div>
+      <div className="page-title">Logs</div>
       <div className="log-toolbar">
         <div className="log-status">
           <span className={`status-dot ${connected ? 'online' : 'offline'}`} />

@@ -25,7 +25,7 @@ def discord_oauth_url() -> str:
     return f"https://discord.com/oauth2/authorize?{urlencode(params)}"
 
 
-def create_token(discord_id: int, discord_name: str, is_admin: bool, can_view_logs: bool, can_control_bots: bool, avatar_url: str = "") -> str:
+def create_token(discord_id: int, discord_name: str, is_admin: bool, can_view_logs: bool, can_control_bots: bool, avatar_url: str = "", is_owner: bool = False) -> str:
     payload = {
         "sub": str(discord_id),
         "name": discord_name,
@@ -33,6 +33,7 @@ def create_token(discord_id: int, discord_name: str, is_admin: bool, can_view_lo
         "logs": can_view_logs,
         "bots": can_control_bots,
         "avatar": avatar_url,
+        "owner": is_owner,
         "exp": datetime.now(timezone.utc) + timedelta(hours=_JWT_EXPIRE_HOURS),
     }
     return jwt.encode(payload, _JWT_SECRET, algorithm=_JWT_ALGO)

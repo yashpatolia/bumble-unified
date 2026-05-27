@@ -1,5 +1,6 @@
 import logging
 import re
+from datetime import datetime
 import discord
 from discord.ext import commands
 from javascript import On
@@ -81,28 +82,33 @@ class GuildMessageHandler(commands.Cog):
                 self.client.officer.send(embed=embed)
                 self.client.bridge.send(embed=embed)
                 logs.send(embed=embed)
+                state.recent_events.appendleft({"time": datetime.utcnow().strftime("%H:%M"), "type": "join", "message": message})
 
             if "left the guild!" in message.lower():
                 embed = discord.Embed(colour=discord.Colour.red(), description=f"[{config.short_name}] {message}")
                 self.client.bridge.send(embed=embed)
                 self.client.officer.send(embed=embed)
                 logs.send(embed=embed)
+                state.recent_events.appendleft({"time": datetime.utcnow().strftime("%H:%M"), "type": "leave", "message": message})
 
             if "has muted" in message.lower() and "for" in message.lower():
                 embed = discord.Embed(colour=discord.Colour.dark_purple(), description=message)
                 self.client.bridge.send(embed=embed)
                 logs.send(embed=embed)
+                state.recent_events.appendleft({"time": datetime.utcnow().strftime("%H:%M"), "type": "mute", "message": message})
 
             if "has unmuted" in message.lower():
                 embed = discord.Embed(colour=discord.Colour.dark_magenta(), description=message)
                 self.client.bridge.send(embed=embed)
                 logs.send(embed=embed)
+                state.recent_events.appendleft({"time": datetime.utcnow().strftime("%H:%M"), "type": "unmute", "message": message})
 
             if "was kicked from the guild" in message.lower():
                 embed = discord.Embed(colour=discord.Colour.dark_red(), description=f"[{config.short_name}] {message}")
                 self.client.bridge.send(embed=embed)
                 self.client.officer.send(embed=embed)
                 logs.send(embed=embed)
+                state.recent_events.appendleft({"time": datetime.utcnow().strftime("%H:%M"), "type": "kick", "message": message})
 
             if "has requested to join the guild!" in message.lower():
                 match = re.search(r"(?:\[(?P<rank>\w+)\]\s+)?(?P<player>\w+)\s+has requested to join the Guild!", message)

@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -40,6 +41,9 @@ class GuildState:
     guild_invite: Optional[str] = None
     logs: Optional[SyncWebhook] = None
     manual_stop: bool = False
+    guild_member_count: int = 0
+    recent_chat: deque = field(default_factory=lambda: deque(maxlen=50))
+    recent_events: deque = field(default_factory=lambda: deque(maxlen=30))
 
 
 class Client(commands.Bot):
