@@ -21,9 +21,9 @@ def get_uuid(username: str) -> str | None:
                 cur.execute("SELECT ign FROM users WHERE uuid = %s", (uuid,))
                 existing = cur.fetchone()
                 if existing:
-                    cur.execute("UPDATE users SET ign = %s WHERE uuid = %s", (username.lower(), uuid))
+                    cur.execute("UPDATE users SET ign = %s WHERE uuid = %s", (username, uuid))
                 else:
-                    cur.execute("INSERT INTO users (uuid, ign) VALUES (%s, %s)", (uuid, username.lower()))
+                    cur.execute("INSERT INTO users (uuid, ign) VALUES (%s, %s)", (uuid, username))
             conn.commit()
             return uuid
         finally:

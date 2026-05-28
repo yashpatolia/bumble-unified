@@ -21,9 +21,9 @@ def get_username(uuid: str) -> str | None:
                 cur.execute("SELECT uuid FROM users WHERE LOWER(ign) = LOWER(%s)", (ign,))
                 existing = cur.fetchone()
                 if existing:
-                    cur.execute("UPDATE users SET ign = %s WHERE uuid = %s", (ign.lower(), uuid))
+                    cur.execute("UPDATE users SET ign = %s WHERE uuid = %s", (ign, uuid))
                 else:
-                    cur.execute("INSERT INTO users (uuid, ign) VALUES (%s, %s)", (uuid, ign.lower()))
+                    cur.execute("INSERT INTO users (uuid, ign) VALUES (%s, %s)", (uuid, ign))
             conn.commit()
             return ign
         finally:

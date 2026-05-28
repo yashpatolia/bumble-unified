@@ -83,7 +83,7 @@ class DatabaseManager:
             else:
                 cur.execute(
                     "INSERT INTO users (uuid, ign, discord_id, discord_name) VALUES (%s, %s, %s, %s)",
-                    (uuid, ign.lower(), discord_id, discord_name),
+                    (uuid, ign, discord_id, discord_name),
                 )
 
     # --- Dyes ---
