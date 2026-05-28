@@ -218,4 +218,7 @@ async def get_leaderboard(key: str, period: str = "lifetime", _=Depends(require_
         period = "lifetime"
         period_key = ""
     rows = manager.get_message_leaderboard(key, period, period_key)
-    return {"leaderboard": [{"ign": r[0], "count": r[1]} for r in rows]}
+    return {"leaderboard": [
+        {"ign": r[0], "count": r[1], "uuid": r[2] or None, "discord_name": r[3] or None, "discord_id": str(r[4]) if r[4] else None}
+        for r in rows
+    ]}

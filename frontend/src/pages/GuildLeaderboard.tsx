@@ -4,7 +4,13 @@ import { api } from '../api'
 
 type Period = 'lifetime' | 'month' | 'week'
 
-interface Entry { ign: string; count: number }
+interface Entry {
+  ign: string
+  count: number
+  uuid: string | null
+  discord_name: string | null
+  discord_id: string | null
+}
 
 export default function GuildLeaderboard() {
   const { key } = useParams<{ key: string }>()
@@ -54,6 +60,7 @@ export default function GuildLeaderboard() {
                 <tr>
                   <th style={{ width: 48 }}>#</th>
                   <th>IGN</th>
+                  <th>Discord</th>
                   <th style={{ textAlign: 'right' }}>Messages</th>
                 </tr>
               </thead>
@@ -63,7 +70,28 @@ export default function GuildLeaderboard() {
                     <td style={{ color: 'var(--muted)', fontWeight: 500 }}>
                       {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
                     </td>
-                    <td style={{ fontWeight: 500 }}>{entry.ign}</td>
+                    <td>
+                      <span style={{ fontWeight: 500 }}>{entry.ign}</span>
+                      {entry.uuid && (
+                        <div style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--muted)', marginTop: 1 }}>
+                          {entry.uuid}
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      {entry.discord_name ? (
+                        <>
+                          <span style={{ fontWeight: 500 }}>{entry.discord_name}</span>
+                          {entry.discord_id && (
+                            <div style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--muted)', marginTop: 1 }}>
+                              {entry.discord_id}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>—</span>
+                      )}
+                    </td>
                     <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--text-secondary)' }}>
                       {entry.count.toLocaleString()}
                     </td>

@@ -303,12 +303,15 @@ class DatabaseManager:
                 )
 
     def get_message_leaderboard(self, guild_key: str, period_type: str, period_key: str) -> list:
-        """Returns [(ign, count), ...] sorted by count desc."""
+        """Returns [(ign, count, uuid, discord_name, discord_id), ...] sorted by count desc."""
         with self._cursor() as cur:
             cur.execute(
-                "SELECT ign, count FROM message_counts "
-                "WHERE guild_key = %s AND period_type = %s AND period_key = %s "
-                "ORDER BY count DESC",
+                "SELECT mc.ign, mc.count, gm.uuid, u.discord_name, u.discord_id "
+                "FROM message_counts mc "
+                "LEFT JOIN guild_members gm ON gm.guild_key = mc.guild_key AND LOWER(gm.ign) = LOWER(mc.ign) "
+                "LEFT JOIN users u ON u.uuid = gm.uuid "
+                "WHERE mc.guild_key = %s AND mc.period_type = %s AND mc.period_key = %s "
+                "ORDER BY mc.count DESC",
                 (guild_key, period_type, period_key)
             )
             return cur.fetchall()
