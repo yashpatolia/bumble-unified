@@ -67,7 +67,7 @@ export default function GuildLeaderboard() {
               </thead>
               <tbody>
                 {data.map((entry, i) => (
-                  <tr key={entry.ign}>
+                  <tr key={entry.uuid || entry.ign}>
                     <td style={{ color: 'var(--muted)', fontWeight: 500 }}>
                       {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
                     </td>
