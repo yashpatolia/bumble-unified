@@ -282,7 +282,7 @@ export default function GuildMembers() {
                 {sorted.map((m, i) => (
                   <tr key={i}>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: -4 }}>
                         {m.uuid
                           ? <img src={`https://mc-heads.net/avatar/${m.uuid}/32`} alt="" style={{ width: 32, height: 32, borderRadius: 4, flexShrink: 0 }} />
                           : <div style={{ width: 32, height: 32, borderRadius: 4, background: 'var(--surface3)', flexShrink: 0 }} />
