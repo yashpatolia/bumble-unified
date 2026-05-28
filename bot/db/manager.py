@@ -355,6 +355,7 @@ class DatabaseManager:
                 "FROM message_counts mc "
                 "LEFT JOIN users u ON u.uuid = mc.uuid "
                 "WHERE mc.guild_key = %s AND mc.period_type = %s AND mc.period_key = %s "
+                "  AND mc.uuid IS NOT NULL AND mc.uuid != '' "
                 "ORDER BY mc.count DESC",
                 (guild_key, period_type, period_key)
             )
