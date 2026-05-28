@@ -10,6 +10,7 @@ interface Entry {
   uuid: string | null
   discord_name: string | null
   discord_id: string | null
+  discord_avatar: string | null
 }
 
 export default function GuildLeaderboard() {
@@ -88,14 +89,20 @@ export default function GuildLeaderboard() {
                     </td>
                     <td>
                       {entry.discord_name ? (
-                        <>
-                          <span style={{ fontWeight: 500 }}>{entry.discord_name}</span>
-                          {entry.discord_id && (
-                            <div style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--muted)', marginTop: 1 }}>
-                              {entry.discord_id}
-                            </div>
-                          )}
-                        </>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: -4 }}>
+                          {entry.discord_avatar
+                            ? <img src={entry.discord_avatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0 }} />
+                            : <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--surface3)', flexShrink: 0 }} />
+                          }
+                          <div>
+                            <span style={{ fontWeight: 500 }}>{entry.discord_name}</span>
+                            {entry.discord_id && (
+                              <div style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--muted)', marginTop: 1 }}>
+                                {entry.discord_id}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       ) : (
                         <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>—</span>
                       )}

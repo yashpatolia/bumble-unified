@@ -48,7 +48,7 @@ export const api = {
   refreshStats: (key: string) => req<{ status: string; total: number }>(`/api/bots/${key}/refresh-stats`, { method: 'POST' }),
   statsStatus: (key: string) => req<{ fetching: boolean; done: number; total: number }>(`/api/bots/${key}/stats-status`),
 
-  leaderboard: (key: string, period: string) => req<{ leaderboard: { ign: string; count: number; uuid: string | null; discord_name: string | null; discord_id: string | null }[] }>(`/api/bots/${key}/leaderboard?period=${period}`),
+  leaderboard: (key: string, period: string) => req<{ leaderboard: { ign: string; count: number; uuid: string | null; discord_name: string | null; discord_id: string | null; discord_avatar: string | null }[] }>(`/api/bots/${key}/leaderboard?period=${period}`),
 
   linkMember: (key: string, ign: string, data: { discord_id: string; discord_name: string }) =>
     req<{ status: string }>(`/api/bots/${key}/members/${encodeURIComponent(ign)}/link`, { method: 'POST', body: JSON.stringify(data) }),

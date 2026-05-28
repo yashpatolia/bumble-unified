@@ -35,7 +35,8 @@ class Link(commands.Cog):
             await interaction.edit_original_response(embed=embed)
             return
 
-        manager.link_user(uuid, ign, interaction.user.id, discord_name)
+        avatar_url = str(interaction.user.display_avatar.url) if interaction.user.display_avatar else None
+        manager.link_user(uuid, ign, interaction.user.id, discord_name, discord_avatar=avatar_url)
 
         embed = discord.Embed(
             colour=discord.Colour.dark_green(),

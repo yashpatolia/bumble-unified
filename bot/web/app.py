@@ -66,6 +66,7 @@ def create_app() -> FastAPI:
         panel_user = manager.get_panel_user(discord_id)
         if panel_user:
             manager.upsert_panel_user_name(discord_id, discord_name)
+            manager.update_user_avatar(discord_id, avatar_url)
 
         is_admin = bool(panel_user[2]) if panel_user else False
         can_view_logs = bool(panel_user[3]) if panel_user else False

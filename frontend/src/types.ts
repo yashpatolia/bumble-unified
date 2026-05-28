@@ -47,6 +47,7 @@ export interface GuildMember {
   uuid: string | null
   discord_name: string | null
   discord_id: string | null
+  discord_avatar: string | null
   online: boolean
   skyblock_level: number | null
   last_login: number | null

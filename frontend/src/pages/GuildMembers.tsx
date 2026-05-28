@@ -307,7 +307,12 @@ export default function GuildMembers() {
                     </td>
                     <td>
                       {m.discord_name ? (
-                        <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: -4 }}>
+                          {m.discord_avatar
+                            ? <img src={m.discord_avatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0 }} />
+                            : <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--surface3)', flexShrink: 0 }} />
+                          }
+                          <div>
                           <div style={{ fontWeight: 500 }}>{m.discord_name}</div>
                           {m.discord_id && <div style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-secondary)', marginTop: 2 }}>{m.discord_id}</div>}
                           {canManageLinks && (
@@ -316,6 +321,7 @@ export default function GuildMembers() {
                               <button className="btn btn-danger" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => doUnlink(m)}>Unlink</button>
                             </div>
                           )}
+                          </div>
                         </div>
                       ) : (
                         <div>

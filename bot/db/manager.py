@@ -70,21 +70,28 @@ class DatabaseManager:
             row = cur.fetchone()
             return row is not None and row[0] is not None
 
-    def link_user(self, uuid: str, ign: str, discord_id: int, discord_name: str) -> None:
+    def link_user(self, uuid: str, ign: str, discord_id: int, discord_name: str, discord_avatar: str = None) -> None:
         """Insert a new user or update an existing record with Discord info."""
         with self._cursor() as cur:
             cur.execute("SELECT uuid FROM users WHERE uuid = %s", (uuid,))
             existing = cur.fetchone()
             if existing:
                 cur.execute(
-                    "UPDATE users SET discord_id = %s, discord_name = %s WHERE uuid = %s",
-                    (discord_id, discord_name, uuid),
+                    "UPDATE users SET discord_id = %s, discord_name = %s, discord_avatar = COALESCE(%s, discord_avatar) WHERE uuid = %s",
+                    (discord_id, discord_name, discord_avatar, uuid),
                 )
             else:
                 cur.execute(
-                    "INSERT INTO users (uuid, ign, discord_id, discord_name) VALUES (%s, %s, %s, %s)",
-                    (uuid, ign, discord_id, discord_name),
+                    "INSERT INTO users (uuid, ign, discord_id, discord_name, discord_avatar) VALUES (%s, %s, %s, %s, %s)",
+                    (uuid, ign, discord_id, discord_name, discord_avatar),
                 )
+
+    def update_user_avatar(self, discord_id: int, discord_avatar: str) -> None:
+        with self._cursor() as cur:
+            cur.execute(
+                "UPDATE users SET discord_avatar = %s WHERE discord_id = %s",
+                (discord_avatar, discord_id),
+            )
 
     # --- Dyes ---
 
@@ -151,7 +158,7 @@ class DatabaseManager:
         with self._cursor() as cur:
             cur.execute(
                 "SELECT gm.ign, gm.rank, gm.skyblock_level, gm.last_login, gm.uuid, "
-                "u.discord_name, u.discord_id "
+                "u.discord_name, u.discord_id, u.discord_avatar "
                 "FROM guild_members gm "
                 "LEFT JOIN users u ON u.uuid = gm.uuid "
                 "WHERE gm.guild_key = %s ORDER BY LOWER(gm.ign)",
@@ -337,7 +344,7 @@ class DatabaseManager:
         """Returns [(ign, count, uuid, discord_name, discord_id), ...] sorted by count desc."""
         with self._cursor() as cur:
             cur.execute(
-                "SELECT mc.ign, mc.count, gm.uuid, u.discord_name, u.discord_id "
+                "SELECT mc.ign, mc.count, gm.uuid, u.discord_name, u.discord_id, u.discord_avatar "
                 "FROM message_counts mc "
                 "LEFT JOIN guild_members gm ON gm.guild_key = mc.guild_key AND LOWER(gm.ign) = LOWER(mc.ign) "
                 "LEFT JOIN users u ON u.uuid = gm.uuid "
