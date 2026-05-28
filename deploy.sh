@@ -14,9 +14,15 @@ if [ -z "$CHANGED" ]; then
     exit 0
 fi
 
+# Ensure venv exists and is active before anything that needs Python
+if [ ! -d "venv" ]; then
+    echo "Creating virtualenv..."
+    python3 -m venv venv
+fi
+source venv/bin/activate
+
 if echo "$CHANGED" | grep -q '^bot/'; then
     echo "Installing Python dependencies..."
-    source venv/bin/activate
     pip install -r bot/requirements.txt
 
     echo "Installing Node dependencies..."
@@ -29,7 +35,6 @@ if echo "$CHANGED" | grep -q '^frontend/'; then
 fi
 
 echo "Running database migrations..."
-source venv/bin/activate
 cd bot && set -a && source .env && set +a && python -m db.migrate && cd ..
 
 echo "Restarting bot..."
