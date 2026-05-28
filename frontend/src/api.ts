@@ -38,12 +38,15 @@ export const api = {
   guildMembers: (key: string) => req<{ members: GuildMember[] }>(`/api/bots/${key}/members`),
 
   users: () => req<PanelUser[]>('/api/users'),
-  createUser: (data: { discord_id: string; discord_name: string; is_admin: boolean; can_view_logs: boolean; can_control_bots: boolean }) =>
+  createUser: (data: { discord_id: string; discord_name: string; is_admin: boolean; can_view_logs: boolean; can_control_bots: boolean; can_fetch_api: boolean }) =>
     req<{ status: string }>('/api/users', { method: 'POST', body: JSON.stringify(data) }),
-  updateUser: (discord_id: string, data: { can_view_logs: boolean; can_control_bots: boolean }) =>
+  updateUser: (discord_id: string, data: { can_view_logs: boolean; can_control_bots: boolean; can_fetch_api: boolean }) =>
     req<{ status: string }>(`/api/users/${discord_id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteUser: (discord_id: string) =>
     req<{ status: string }>(`/api/users/${discord_id}`, { method: 'DELETE' }),
+
+  refreshStats: (key: string) => req<{ status: string; total: number }>(`/api/bots/${key}/refresh-stats`, { method: 'POST' }),
+  statsStatus: (key: string) => req<{ fetching: boolean }>(`/api/bots/${key}/stats-status`),
 }
 
 export function wsLogsUrl(): string {

@@ -4,6 +4,7 @@ export interface Me {
   is_admin: boolean
   can_view_logs: boolean
   can_control_bots: boolean
+  can_fetch_api: boolean
   avatar_url: string
   is_owner: boolean
 }
@@ -43,6 +44,8 @@ export interface GuildMember {
   rank: string
   ign: string
   online: boolean
+  skyblock_level: number | null
+  last_login: number | null
 }
 
 export interface PanelUser {
@@ -51,6 +54,7 @@ export interface PanelUser {
   is_admin: boolean
   can_view_logs: boolean
   can_control_bots: boolean
+  can_fetch_api: boolean
   is_owner: boolean
 }
 

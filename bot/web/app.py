@@ -70,7 +70,8 @@ def create_app() -> FastAPI:
         is_admin = bool(panel_user[2]) if panel_user else False
         can_view_logs = bool(panel_user[3]) if panel_user else False
         can_control_bots = bool(panel_user[4]) if panel_user else False
-        token = create_token(discord_id, discord_name, is_admin, can_view_logs, can_control_bots, avatar_url, is_owner=(discord_id == _ADMIN_ID))
+        can_fetch_api = bool(panel_user[5]) if panel_user and len(panel_user) > 5 else False
+        token = create_token(discord_id, discord_name, is_admin, can_view_logs, can_control_bots, avatar_url, is_owner=(discord_id == _ADMIN_ID), can_fetch_api=can_fetch_api)
         return RedirectResponse(f"/?token={token}")
 
     # --- Current user ---
@@ -84,6 +85,7 @@ def create_app() -> FastAPI:
             "is_admin": claims["admin"],
             "can_view_logs": claims["logs"],
             "can_control_bots": claims.get("bots", False),
+            "can_fetch_api": claims.get("fetch_api", False),
             "avatar_url": claims.get("avatar", ""),
             "is_owner": claims.get("owner", False),
         }

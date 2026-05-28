@@ -9,9 +9,10 @@ interface FormState {
   discord_name: string
   can_view_logs: boolean
   can_control_bots: boolean
+  can_fetch_api: boolean
 }
 
-const defaultForm = (): FormState => ({ discord_id: '', discord_name: '', can_view_logs: true, can_control_bots: false })
+const defaultForm = (): FormState => ({ discord_id: '', discord_name: '', can_view_logs: true, can_control_bots: false, can_fetch_api: false })
 
 export default function Users() {
   const { me, logout } = useAuth()
@@ -41,7 +42,7 @@ export default function Users() {
 
   const openEdit = (u: PanelUser) => {
     setEditTarget(u)
-    setForm({ discord_id: String(u.discord_id), discord_name: u.discord_name, can_view_logs: u.can_view_logs, can_control_bots: u.can_control_bots })
+    setForm({ discord_id: String(u.discord_id), discord_name: u.discord_name, can_view_logs: u.can_view_logs, can_control_bots: u.can_control_bots, can_fetch_api: u.can_fetch_api })
     setError(null)
     setShowModal(true)
   }
@@ -51,10 +52,10 @@ export default function Users() {
     setError(null)
     try {
       if (editTarget) {
-        await api.updateUser(editTarget.discord_id, { can_view_logs: form.can_view_logs, can_control_bots: form.can_control_bots })
+        await api.updateUser(editTarget.discord_id, { can_view_logs: form.can_view_logs, can_control_bots: form.can_control_bots, can_fetch_api: form.can_fetch_api })
       } else {
         if (!/^\d{17,20}$/.test(form.discord_id.trim())) { setError('Invalid Discord ID'); return }
-        await api.createUser({ discord_id: form.discord_id.trim(), discord_name: form.discord_name.trim() || 'Unknown', is_admin: false, can_view_logs: form.can_view_logs, can_control_bots: form.can_control_bots })
+        await api.createUser({ discord_id: form.discord_id.trim(), discord_name: form.discord_name.trim() || 'Unknown', is_admin: false, can_view_logs: form.can_view_logs, can_control_bots: form.can_control_bots, can_fetch_api: form.can_fetch_api })
       }
       setShowModal(false)
       load()
@@ -126,7 +127,8 @@ export default function Users() {
                         {u.is_owner && <span className="badge badge-admin">Owner</span>}
                         {u.can_view_logs && <span className="badge badge-on">View Logs</span>}
                         {u.can_control_bots && <span className="badge badge-on">Control Bots</span>}
-                        {!u.is_owner && !u.can_view_logs && !u.can_control_bots && <span className="badge badge-off">None</span>}
+                        {u.can_fetch_api && <span className="badge badge-on">API Fetching</span>}
+                        {!u.is_owner && !u.can_view_logs && !u.can_control_bots && !u.can_fetch_api && <span className="badge badge-off">None</span>}
                       </div>
                     </td>
                     <td>
@@ -194,6 +196,15 @@ export default function Users() {
                   type="checkbox"
                   checked={form.can_control_bots}
                   onChange={e => setForm(f => ({ ...f, can_control_bots: e.target.checked }))}
+                />
+              </div>
+              <div className="toggle-row">
+                <label htmlFor="perm-fetch">API Fetching (Skyblock stats)</label>
+                <input
+                  id="perm-fetch"
+                  type="checkbox"
+                  checked={form.can_fetch_api}
+                  onChange={e => setForm(f => ({ ...f, can_fetch_api: e.target.checked }))}
                 />
               </div>
             </div>

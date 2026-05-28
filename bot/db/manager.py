@@ -125,17 +125,39 @@ class DatabaseManager:
         with self.connection() as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS guild_members (
-                    guild_key TEXT NOT NULL,
-                    ign       TEXT NOT NULL,
-                    rank      TEXT NOT NULL DEFAULT '',
+                    guild_key        TEXT NOT NULL,
+                    ign              TEXT NOT NULL,
+                    uuid             TEXT,
+                    rank             TEXT NOT NULL DEFAULT '',
+                    skyblock_level   REAL,
+                    last_login       INTEGER,
+                    stats_fetched_at INTEGER,
                     PRIMARY KEY (guild_key, ign)
                 )
             """)
+            for col, typ in [
+                ("uuid", "TEXT"),
+                ("skyblock_level", "REAL"),
+                ("last_login", "INTEGER"),
+                ("stats_fetched_at", "INTEGER"),
+            ]:
+                try:
+                    conn.execute(f"ALTER TABLE guild_members ADD COLUMN {col} {typ}")
+                except Exception:
+                    pass
 
     def get_guild_members(self, guild_key: str) -> list:
         with self.connection() as conn:
             return conn.execute(
-                "SELECT ign, rank FROM guild_members WHERE guild_key = ? ORDER BY ign COLLATE NOCASE",
+                "SELECT ign, rank, skyblock_level, last_login FROM guild_members "
+                "WHERE guild_key = ? ORDER BY ign COLLATE NOCASE",
+                (guild_key,)
+            ).fetchall()
+
+    def get_guild_members_with_uuid(self, guild_key: str) -> list:
+        with self.connection() as conn:
+            return conn.execute(
+                "SELECT ign, uuid FROM guild_members WHERE guild_key = ?",
                 (guild_key,)
             ).fetchall()
 
@@ -156,10 +178,32 @@ class DatabaseManager:
 
     def sync_guild_members(self, guild_key: str, members: list) -> None:
         with self.connection() as conn:
-            conn.execute("DELETE FROM guild_members WHERE guild_key = ?", (guild_key,))
+            # Remove members no longer in guild
+            existing = {r[0] for r in conn.execute("SELECT ign FROM guild_members WHERE guild_key = ?", (guild_key,)).fetchall()}
+            new_igns = {m['ign'] for m in members}
+            for ign in existing - new_igns:
+                conn.execute("DELETE FROM guild_members WHERE guild_key = ? AND ign = ? COLLATE NOCASE", (guild_key, ign))
+            # Upsert, preserving stats columns
             conn.executemany(
-                "INSERT INTO guild_members (guild_key, ign, rank) VALUES (?, ?, ?)",
-                [(guild_key, m['ign'], m.get('rank', '')) for m in members]
+                "INSERT INTO guild_members (guild_key, ign, uuid, rank) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(guild_key, ign) DO UPDATE SET uuid = excluded.uuid, rank = excluded.rank",
+                [(guild_key, m['ign'], m.get('uuid', ''), m.get('rank', '')) for m in members]
+            )
+
+    def update_guild_member_stats(self, guild_key: str, ign: str, skyblock_level, last_login) -> None:
+        import time as _time
+        with self.connection() as conn:
+            conn.execute(
+                "UPDATE guild_members SET skyblock_level = ?, last_login = ?, stats_fetched_at = ? "
+                "WHERE guild_key = ? AND ign = ? COLLATE NOCASE",
+                (skyblock_level, last_login, int(_time.time()), guild_key, ign)
+            )
+
+    def update_guild_member_uuid(self, guild_key: str, ign: str, uuid: str) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                "UPDATE guild_members SET uuid = ? WHERE guild_key = ? AND ign = ? COLLATE NOCASE",
+                (uuid, guild_key, ign)
             )
 
     # --- Panel Users ---
@@ -172,34 +216,39 @@ class DatabaseManager:
                     discord_name     TEXT NOT NULL,
                     is_admin         INTEGER DEFAULT 0,
                     can_view_logs    INTEGER DEFAULT 1,
-                    can_control_bots INTEGER DEFAULT 0
+                    can_control_bots INTEGER DEFAULT 0,
+                    can_fetch_api    INTEGER DEFAULT 0
                 )
             """)
-            # Migrate existing tables that lack the new column
+            # Migrate existing tables that lack new columns
             try:
                 conn.execute("ALTER TABLE panel_users ADD COLUMN can_control_bots INTEGER DEFAULT 0")
             except Exception:
                 pass
+            try:
+                conn.execute("ALTER TABLE panel_users ADD COLUMN can_fetch_api INTEGER DEFAULT 0")
+            except Exception:
+                pass
 
     def get_panel_user(self, discord_id: int) -> Optional[tuple]:
-        """Returns (discord_id, discord_name, is_admin, can_view_logs, can_control_bots) or None."""
+        """Returns (discord_id, discord_name, is_admin, can_view_logs, can_control_bots, can_fetch_api) or None."""
         with self.connection() as conn:
             return conn.execute(
-                "SELECT discord_id, discord_name, is_admin, can_view_logs, can_control_bots FROM panel_users WHERE discord_id = ?",
+                "SELECT discord_id, discord_name, is_admin, can_view_logs, can_control_bots, can_fetch_api FROM panel_users WHERE discord_id = ?",
                 (discord_id,)
             ).fetchone()
 
     def get_all_panel_users(self) -> list:
         with self.connection() as conn:
             return conn.execute(
-                "SELECT discord_id, discord_name, is_admin, can_view_logs, can_control_bots FROM panel_users"
+                "SELECT discord_id, discord_name, is_admin, can_view_logs, can_control_bots, can_fetch_api FROM panel_users"
             ).fetchall()
 
-    def create_panel_user(self, discord_id: int, discord_name: str, is_admin: bool = False, can_view_logs: bool = True, can_control_bots: bool = False) -> None:
+    def create_panel_user(self, discord_id: int, discord_name: str, is_admin: bool = False, can_view_logs: bool = True, can_control_bots: bool = False, can_fetch_api: bool = False) -> None:
         with self.connection() as conn:
             conn.execute(
-                "INSERT OR IGNORE INTO panel_users (discord_id, discord_name, is_admin, can_view_logs, can_control_bots) VALUES (?, ?, ?, ?, ?)",
-                (discord_id, discord_name, int(is_admin), int(can_view_logs), int(can_control_bots))
+                "INSERT OR IGNORE INTO panel_users (discord_id, discord_name, is_admin, can_view_logs, can_control_bots, can_fetch_api) VALUES (?, ?, ?, ?, ?, ?)",
+                (discord_id, discord_name, int(is_admin), int(can_view_logs), int(can_control_bots), int(can_fetch_api))
             )
 
     def upsert_panel_user_name(self, discord_id: int, discord_name: str) -> None:
@@ -209,11 +258,11 @@ class DatabaseManager:
                 (discord_name, discord_id)
             )
 
-    def update_panel_user_permissions(self, discord_id: int, is_admin: bool, can_view_logs: bool, can_control_bots: bool) -> None:
+    def update_panel_user_permissions(self, discord_id: int, is_admin: bool, can_view_logs: bool, can_control_bots: bool, can_fetch_api: bool = False) -> None:
         with self.connection() as conn:
             conn.execute(
-                "UPDATE panel_users SET is_admin = ?, can_view_logs = ?, can_control_bots = ? WHERE discord_id = ?",
-                (int(is_admin), int(can_view_logs), int(can_control_bots), discord_id)
+                "UPDATE panel_users SET is_admin = ?, can_view_logs = ?, can_control_bots = ?, can_fetch_api = ? WHERE discord_id = ?",
+                (int(is_admin), int(can_view_logs), int(can_control_bots), int(can_fetch_api), discord_id)
             )
 
     def delete_panel_user(self, discord_id: int) -> None:

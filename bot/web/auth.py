@@ -25,13 +25,14 @@ def discord_oauth_url() -> str:
     return f"https://discord.com/oauth2/authorize?{urlencode(params)}"
 
 
-def create_token(discord_id: int, discord_name: str, is_admin: bool, can_view_logs: bool, can_control_bots: bool, avatar_url: str = "", is_owner: bool = False) -> str:
+def create_token(discord_id: int, discord_name: str, is_admin: bool, can_view_logs: bool, can_control_bots: bool, avatar_url: str = "", is_owner: bool = False, can_fetch_api: bool = False) -> str:
     payload = {
         "sub": str(discord_id),
         "name": discord_name,
         "admin": is_admin,
         "logs": can_view_logs,
         "bots": can_control_bots,
+        "fetch_api": can_fetch_api,
         "avatar": avatar_url,
         "owner": is_owner,
         "exp": datetime.now(timezone.utc) + timedelta(hours=_JWT_EXPIRE_HOURS),
@@ -77,6 +78,13 @@ def require_bot_control(request: Request) -> dict:
     claims = require_auth(request)
     if not claims.get("bots") and not claims.get("admin"):
         raise HTTPException(status_code=403, detail="Bot control access not permitted")
+    return claims
+
+
+def require_api_fetch(request: Request) -> dict:
+    claims = require_auth(request)
+    if not claims.get("fetch_api") and not claims.get("admin"):
+        raise HTTPException(status_code=403, detail="API fetch access not permitted")
     return claims
 
 

@@ -33,7 +33,7 @@ def _sync_guild_members_from_api(config: GuildConfig) -> None:
                 continue
             ign = get_username(uuid)
             if ign:
-                members.append({"ign": ign, "rank": rank})
+                members.append({"ign": ign, "uuid": uuid, "rank": rank})
         if members:
             manager.sync_guild_members(config.key, members)
             logging.info(f"[{config.short_name}] Synced {len(members)} members from Hypixel API")
