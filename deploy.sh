@@ -30,7 +30,7 @@ fi
 
 echo "Running database migrations..."
 source venv/bin/activate
-cd bot && python -m db.migrate && cd ..
+cd bot && export $(grep -v '^#' .env | xargs) && python -m db.migrate && cd ..
 
 echo "Restarting bot..."
 pm2 stop bumble-bot || true
