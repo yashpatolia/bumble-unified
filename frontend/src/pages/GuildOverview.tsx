@@ -1,38 +1,85 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { api } from '../api'
+import { useAuth } from '../App'
 import type { GuildOverview } from '../types'
 
 const EVENT_COLORS: Record<string, string> = {
-  join: 'join',
-  leave: 'leave',
-  kick: 'kick',
-  mute: 'mute',
-  unmute: 'unmute',
-  promote: 'promote',
-  demote: 'demote',
+  join: 'join', leave: 'leave', kick: 'kick',
+  mute: 'mute', unmute: 'unmute', promote: 'promote', demote: 'demote',
 }
+
+type BotAction = 'restart' | 'stop' | 'start' | null
 
 export default function GuildOverviewPage() {
   const { key } = useParams<{ key: string }>()
+  const { me } = useAuth()
+  const canControl = me?.is_admin || me?.can_control_bots
+
   const [data, setData] = useState<GuildOverview | null>(null)
   const [loading, setLoading] = useState(true)
+  const [acting, setActing] = useState<BotAction>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  const fetchOverview = () => {
+    if (!key) return
+    api.guildOverview(key).then(setData)
+  }
 
   useEffect(() => {
     if (!key) return
     api.guildOverview(key)
       .then(setData)
       .finally(() => setLoading(false))
-    const id = setInterval(() => api.guildOverview(key).then(setData), 15_000)
+    const id = setInterval(fetchOverview, 15_000)
     return () => clearInterval(id)
   }, [key])
+
+  const act = async (action: 'restart' | 'stop' | 'start') => {
+    if (!key) return
+    setActing(action)
+    setActionError(null)
+    try {
+      if (action === 'stop') {
+        await api.stopBot(key)
+        setData(d => d ? { ...d, connected: false } : d)
+      } else {
+        await api.restartBot(key)
+        setData(d => d ? { ...d, connected: false } : d)
+        setTimeout(fetchOverview, 3000)
+      }
+    } catch (e: unknown) {
+      setActionError(e instanceof Error ? e.message : 'Action failed')
+    } finally {
+      setActing(null)
+    }
+  }
 
   if (loading) return <p className="text-muted">Loading...</p>
   if (!data) return <p className="text-muted">Failed to load overview.</p>
 
   return (
     <div>
-      <div className="page-title">{data.name}</div>
+      <div className="header-row" style={{ marginBottom: 20 }}>
+        <div className="page-title" style={{ marginBottom: 0 }}>{data.name}</div>
+        {canControl && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {actionError && <span style={{ fontSize: 12, color: 'var(--red)' }}>{actionError}</span>}
+            {data.connected ? (
+              <button className="btn btn-danger" disabled={!!acting} onClick={() => act('stop')}>
+                {acting === 'stop' ? 'Stopping…' : 'Stop'}
+              </button>
+            ) : (
+              <button className="btn btn-primary" disabled={!!acting} onClick={() => act('start')}>
+                {acting === 'start' ? 'Starting…' : 'Start'}
+              </button>
+            )}
+            <button className="btn btn-ghost" disabled={!!acting} onClick={() => act('restart')}>
+              {acting === 'restart' ? 'Restarting…' : 'Restart'}
+            </button>
+          </div>
+        )}
+      </div>
 
       <div className="overview-stat-row">
         <div className="stat-card">

@@ -180,34 +180,36 @@ button { cursor: pointer; font: inherit; }
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 28px;
+  padding: 28px 28px 22px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
   transition: border-color 0.15s, background 0.15s;
   cursor: pointer;
   text-decoration: none;
   color: inherit;
+  min-height: 130px;
 }
-.guild-card:hover { border-color: var(--border-strong); background: var(--surface2); }
+.guild-card:hover { border-color: var(--accent); background: var(--surface2); }
 
 .guild-card-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  gap: 16px;
 }
 
 .guild-card-name {
-  font-size: 17px;
+  font-size: 22px;
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.04em;
 }
 
 .guild-card-tag {
   font-size: 12px;
   color: var(--muted);
-  margin-top: 3px;
-  font-weight: 500;
+  margin-top: 5px;
+  font-weight: 400;
 }
 
 .guild-card-status {
@@ -217,12 +219,8 @@ button { cursor: pointer; font: inherit; }
   font-size: 12px;
   font-weight: 500;
   color: var(--text-secondary);
-}
-
-.guild-card-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  white-space: nowrap;
+  padding-top: 4px;
 }
 
 .guild-card-footer {
@@ -235,13 +233,13 @@ button { cursor: pointer; font: inherit; }
 .guild-enter {
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: var(--muted);
   display: flex;
   align-items: center;
   gap: 4px;
   transition: color 0.12s;
 }
-.guild-card:hover .guild-enter { color: var(--text); }
+.guild-card:hover .guild-enter { color: var(--accent-text); }
 
 /* ── Overview page ── */
 .overview-stat-row {
