@@ -65,6 +65,8 @@ export const api = {
     req<{ status: string }>(`/api/events/${slug}`, { method: 'PATCH', body: JSON.stringify(data) }),
   setEventStatus: (slug: string, status: string) =>
     req<{ status: string }>(`/api/events/${slug}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  deleteEvent: (slug: string) =>
+    req<{ status: string }>(`/api/events/${slug}`, { method: 'DELETE' }),
   upsertBingoTask: (slug: string, position: number, data: { name: string; description: string; task_type: string; target: Record<string, unknown>; difficulty: string }) =>
     req<{ status: string }>(`/api/events/${slug}/tasks/${position}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteBingoTask: (slug: string, position: number) =>

@@ -433,14 +433,14 @@ function NewEventPage() {
                   ))}
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div className="form-group">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, minWidth: 0 }}>
+                <div className="form-group" style={{ minWidth: 0 }}>
                   <label className="form-label">Starts At</label>
-                  <input className="form-input" type="datetime-local" value={form.starts_at} onChange={e => set({ starts_at: e.target.value })} />
+                  <input className="form-input" type="datetime-local" value={form.starts_at} onChange={e => set({ starts_at: e.target.value })} style={{ minWidth: 0 }} />
                 </div>
-                <div className="form-group">
+                <div className="form-group" style={{ minWidth: 0 }}>
                   <label className="form-label">Ends At</label>
-                  <input className="form-input" type="datetime-local" value={form.ends_at} onChange={e => set({ ends_at: e.target.value })} />
+                  <input className="form-input" type="datetime-local" value={form.ends_at} onChange={e => set({ ends_at: e.target.value })} style={{ minWidth: 0 }} />
                 </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
@@ -566,14 +566,14 @@ function EditSettingsModal({
             ))}
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div className="form-group">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, minWidth: 0 }}>
+          <div className="form-group" style={{ minWidth: 0 }}>
             <label className="form-label">Starts At</label>
-            <input className="form-input" type="datetime-local" value={form.starts_at} onChange={e => set({ starts_at: e.target.value })} />
+            <input className="form-input" type="datetime-local" value={form.starts_at} onChange={e => set({ starts_at: e.target.value })} style={{ minWidth: 0 }} />
           </div>
-          <div className="form-group">
+          <div className="form-group" style={{ minWidth: 0 }}>
             <label className="form-label">Ends At</label>
-            <input className="form-input" type="datetime-local" value={form.ends_at} onChange={e => set({ ends_at: e.target.value })} />
+            <input className="form-input" type="datetime-local" value={form.ends_at} onChange={e => set({ ends_at: e.target.value })} style={{ minWidth: 0 }} />
           </div>
         </div>
         <div className="modal-actions">
@@ -714,6 +714,21 @@ function EventBingoInner({ slug }: { slug: string }) {
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 {event.status !== 'active' && (
                   <button className="btn btn-ghost btn-sm" onClick={() => setShowSettings(true)}>Settings</button>
+                )}
+                {event.status === 'draft' && (
+                  <button
+                    className="btn btn-danger btn-sm"
+                    disabled={statusBusy}
+                    onClick={async () => {
+                      if (!confirm('Delete this draft event? This cannot be undone.')) return
+                      setStatusBusy(true)
+                      try { await api.deleteEvent(slug); navigate('/events') }
+                      catch (e: unknown) { setStatusError(e instanceof Error ? e.message : 'Failed') }
+                      finally { setStatusBusy(false) }
+                    }}
+                  >
+                    Delete Draft
+                  </button>
                 )}
                 {event.status === 'draft' && (
                   <button

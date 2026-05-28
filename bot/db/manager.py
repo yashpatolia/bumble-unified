@@ -447,6 +447,10 @@ class DatabaseManager:
         with self._cursor() as cur:
             cur.execute("UPDATE events SET status = %s WHERE slug = %s", (status, slug))
 
+    def delete_event(self, slug: str) -> None:
+        with self._cursor() as cur:
+            cur.execute("DELETE FROM events WHERE slug = %s", (slug,))
+
     # --- Bingo tasks ---
 
     _TASK_COLS = ['id', 'event_id', 'position', 'name', 'description', 'task_type', 'target', 'difficulty']

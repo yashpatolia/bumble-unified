@@ -137,6 +137,17 @@ def update_status(slug: str, body: UpdateStatusBody, _=Depends(require_manage_ev
     return {"status": "updated"}
 
 
+@router.delete("/{slug}")
+def delete_event(slug: str, _=Depends(require_manage_events)):
+    event = manager.get_event_by_slug(slug)
+    if not event:
+        raise HTTPException(404, "Event not found")
+    if event['status'] != 'draft':
+        raise HTTPException(400, "Only draft events can be deleted")
+    manager.delete_event(slug)
+    return {"status": "deleted"}
+
+
 # ── Task management ───────────────────────────────────────────────────────────
 
 class UpsertTaskBody(BaseModel):
