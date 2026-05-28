@@ -73,6 +73,11 @@ class DatabaseManager:
     def link_user(self, uuid: str, ign: str, discord_id: int, discord_name: str, discord_avatar: str = None) -> None:
         """Insert a new user or update an existing record with Discord info."""
         with self._cursor() as cur:
+            # Clear any previous link for this discord_id so one Discord account maps to exactly one UUID
+            cur.execute(
+                "UPDATE users SET discord_id = NULL, discord_name = NULL WHERE discord_id = %s AND uuid != %s",
+                (discord_id, uuid),
+            )
             cur.execute("SELECT uuid FROM users WHERE uuid = %s", (uuid,))
             existing = cur.fetchone()
             if existing:
