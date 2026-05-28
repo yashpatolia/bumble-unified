@@ -80,10 +80,11 @@ class GuildBridge(commands.Cog):
                         "player": sender,
                         "message": msg_text,
                     })
-                    try:
-                        manager.increment_message_count(config.key, sender)
-                    except Exception:
-                        pass
+
+                try:
+                    manager.increment_message_count(config.key, sender)
+                except Exception:
+                    pass
 
                 # Relay to all other guild bots
                 relay_state = "/oc" if chat_type == "Officer" else "/gc"
@@ -141,6 +142,11 @@ class GuildBridge(commands.Cog):
         for state in self.client.guilds_state.values():
             if state.bot:
                 state.bot.chat(f"/{chat_state} {content}")
+
+        try:
+            manager.increment_message_count(self.config.key, ign)
+        except Exception:
+            pass
 
         if command_check.startswith("."):
             run_coroutine_threadsafe(
