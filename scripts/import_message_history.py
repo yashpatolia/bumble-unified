@@ -2,9 +2,12 @@
 """
 One-time import of message history from a Discord channel into message_counts.
 
+Each IGN is attributed to whichever guild (bk/bu) they are currently a member of.
+Messages from players not in any guild are skipped.
+
 Usage (run from bot/ directory):
     set -a && source .env && set +a
-    python ../scripts/import_message_history.py --channel CHANNEL_ID --guild bk
+    python ../scripts/import_message_history.py --channel CHANNEL_ID
 """
 import argparse
 import asyncio
@@ -18,6 +21,7 @@ import aiohttp
 
 
 async def fetch_all_messages(token: str, channel_id: str) -> dict:
+    """Returns {ign_lower: count} for all messages in the channel."""
     counts = {}
     headers = {"Authorization": f"Bot {token}"}
     before = None
@@ -64,10 +68,51 @@ async def fetch_all_messages(token: str, channel_id: str) -> dict:
     return counts
 
 
+def build_guild_member_sets(manager) -> dict[str, set]:
+    """Returns {guild_key: {ign_lower, ...}} for all guilds."""
+    guild_sets = {}
+    with manager._cursor() as cur:
+        cur.execute("SELECT DISTINCT guild_key FROM guild_members")
+        keys = [row[0] for row in cur.fetchall()]
+    for key in keys:
+        with manager._cursor() as cur:
+            cur.execute(
+                "SELECT LOWER(ign) FROM guild_members WHERE guild_key = %s", (key,)
+            )
+            guild_sets[key] = {row[0] for row in cur.fetchall()}
+    return guild_sets
+
+
+def split_counts_by_guild(counts: dict, guild_sets: dict[str, set]) -> dict[str, dict]:
+    """
+    Split {ign_lower: count} into per-guild dicts.
+    Each IGN is credited to the first guild it appears in (bk checked before bu).
+    IGNs not in any guild are skipped.
+    """
+    per_guild = {key: {} for key in guild_sets}
+    skipped = 0
+    for ign_lower, count in counts.items():
+        attributed = False
+        for key in ("bk", "bu"):
+            if key in guild_sets and ign_lower in guild_sets[key]:
+                per_guild[key][ign_lower] = count
+                attributed = True
+                break
+        if not attributed:
+            # try any other guild keys that aren't bk/bu
+            for key, members in guild_sets.items():
+                if key not in ("bk", "bu") and ign_lower in members:
+                    per_guild[key][ign_lower] = count
+                    attributed = True
+                    break
+        if not attributed:
+            skipped += 1
+    return per_guild, skipped
+
+
 async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--channel", required=True, help="Discord channel ID")
-    parser.add_argument("--guild", required=True, choices=["bk", "bu"], help="Guild key")
     args = parser.parse_args()
 
     token = os.environ.get("DISCORD_BOT_TOKEN")
@@ -81,8 +126,21 @@ async def main():
     print(f"Found {len(counts)} unique IGNs in message history.")
 
     from db import manager
-    print("Writing to database (only guild members will be included)...")
-    manager.bulk_increment_message_counts(args.guild, counts)
+
+    print("Loading guild member lists from database...")
+    guild_sets = build_guild_member_sets(manager)
+    for key, members in guild_sets.items():
+        print(f"  {key}: {len(members)} members")
+
+    per_guild, skipped = split_counts_by_guild(counts, guild_sets)
+    print(f"  Skipped {skipped} IGNs not found in any guild.")
+
+    print("Writing to database...")
+    for key, guild_counts in per_guild.items():
+        if guild_counts:
+            print(f"  Importing {len(guild_counts)} IGNs into {key}...")
+            manager.bulk_increment_message_counts(key, guild_counts)
+
     print("Done.")
 
 
