@@ -1,29 +1,33 @@
 import logging
-import sqlite3
-from pathlib import Path
+import os
+
+import psycopg2
 from lib.fetch import request
 
-_DB_PATH = str(Path(__file__).parent.parent.parent / "bumble.db")
+_DSN = os.getenv("DATABASE_URL", "")
 
 
 def get_uuid(username: str) -> str | None:
     """Resolve a Minecraft username to a UUID, using the local DB as a cache."""
     try:
-        with sqlite3.connect(_DB_PATH) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT uuid FROM users WHERE ign = ?", (username.lower(),))
-            row = cursor.fetchone()
-            if row:
-                return row[0]
-
-            uuid = request(f"https://api.mojang.com/users/profiles/minecraft/{username}")["id"]
-            existing = cursor.execute("SELECT ign FROM users WHERE uuid = ?", (uuid,)).fetchone()
-            if existing:
-                cursor.execute("UPDATE users SET ign = ? WHERE uuid = ?", (username.lower(), uuid))
-            else:
-                cursor.execute("INSERT INTO users (uuid, ign) VALUES (?, ?)", (uuid, username.lower()))
+        conn = psycopg2.connect(_DSN)
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT uuid FROM users WHERE LOWER(ign) = LOWER(%s)", (username,))
+                row = cur.fetchone()
+                if row:
+                    return row[0]
+                uuid = request(f"https://api.mojang.com/users/profiles/minecraft/{username}")["id"]
+                cur.execute("SELECT ign FROM users WHERE uuid = %s", (uuid,))
+                existing = cur.fetchone()
+                if existing:
+                    cur.execute("UPDATE users SET ign = %s WHERE uuid = %s", (username.lower(), uuid))
+                else:
+                    cur.execute("INSERT INTO users (uuid, ign) VALUES (%s, %s)", (uuid, username.lower()))
             conn.commit()
             return uuid
+        finally:
+            conn.close()
     except Exception as e:
         logging.error(e)
         return None

@@ -1,4 +1,5 @@
-from pathlib import Path
+import os
 from .manager import DatabaseManager
 
-manager = DatabaseManager(str(Path(__file__).parent.parent.parent / "bumble.db"))
+_DSN = os.getenv("DATABASE_URL", "")
+manager = DatabaseManager(_DSN)

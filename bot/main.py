@@ -107,8 +107,8 @@ class Client(commands.Bot):
 
 
 async def run_bot() -> None:
-    manager.setup_panel_tables()
-    manager.setup_guild_member_tables()
+    from db.migrate import run_migrations
+    run_migrations(os.getenv("DATABASE_URL", ""))
 
     async with Client() as client:
 

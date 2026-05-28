@@ -28,6 +28,10 @@ if echo "$CHANGED" | grep -q '^frontend/'; then
     cd frontend && npm install && npm run build && cd ..
 fi
 
+echo "Running database migrations..."
+source venv/bin/activate
+cd bot && python -m db.migrate && cd ..
+
 echo "Restarting bot..."
 pm2 stop bumble-bot || true
 fuser -k 8081/tcp 2>/dev/null || true
