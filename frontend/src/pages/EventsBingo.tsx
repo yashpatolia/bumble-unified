@@ -468,7 +468,7 @@ function EditSettingsModal({
   event: BingoEvent; slug: string; onClose: () => void; onSaved: () => void
 }) {
   const toLocal = (iso: string | null) => iso ? iso.slice(0, 16) : ''
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{ name: string; mode: string; guilds: string[]; starts_at: string; ends_at: string }>({
     name: event.name,
     mode: event.mode,
     guilds: [...event.guilds],

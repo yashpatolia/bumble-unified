@@ -26,12 +26,12 @@ if echo "$CHANGED" | grep -q '^bot/'; then
     pip install -r bot/requirements.txt
 
     echo "Installing Node dependencies..."
-    cd bot && npm install && cd ..
+    (cd bot && npm install)
 fi
 
 if echo "$CHANGED" | grep -q '^frontend/'; then
     echo "Building frontend..."
-    cd frontend && npm install && npm run build && cd ..
+    (cd frontend && npm install && npm run build)
 fi
 
 echo "Running database migrations..."
