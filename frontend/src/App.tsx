@@ -8,7 +8,6 @@ import GuildLayout from './pages/GuildLayout'
 import GuildOverview from './pages/GuildOverview'
 import GuildMembers from './pages/GuildMembers'
 import GuildLeaderboard from './pages/GuildLeaderboard'
-import Logs from './pages/Logs'
 import Users from './pages/Users'
 
 interface AuthCtx {
@@ -78,7 +77,6 @@ function AppRouter() {
         <Route index element={<GuildOverview />} />
         <Route path="members" element={<GuildMembers />} />
         <Route path="leaderboard" element={<GuildLeaderboard />} />
-        <Route path="logs" element={<Logs />} />
       </Route>
       <Route path="/users" element={<Protected adminOnly><Users /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
