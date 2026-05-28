@@ -515,6 +515,114 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent);
 .login-sub   { color: var(--text-secondary); margin-bottom: 32px; font-size: 14px; }
 .login-error { color: var(--red); font-size: 13px; margin-top: 16px; }
 
+/* ── Landing ── */
+.landing {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--bg);
+  padding: 80px 24px 48px;
+}
+
+.landing-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 560px;
+  margin-bottom: 72px;
+}
+
+.landing-logo {
+  font-size: 36px;
+  color: var(--accent);
+  margin-bottom: 24px;
+  line-height: 1;
+  filter: drop-shadow(0 0 24px rgba(245,158,11,0.4));
+}
+
+.landing-title {
+  font-size: 52px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, #f4f4f5 0%, #a1a1aa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.landing-sub {
+  font-size: 16px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 36px;
+}
+
+.landing-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 28px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: var(--radius-lg);
+  margin-bottom: 16px;
+}
+
+.landing-hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.landing-features {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  max-width: 720px;
+  width: 100%;
+  margin-bottom: 64px;
+}
+
+@media (max-width: 560px) {
+  .landing-features { grid-template-columns: 1fr; }
+  .landing-title { font-size: 36px; }
+}
+
+.landing-feature-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  transition: border-color 0.15s;
+}
+.landing-feature-card:hover { border-color: var(--border-strong); }
+
+.landing-feature-icon {
+  font-size: 20px;
+  color: var(--accent);
+  margin-bottom: 12px;
+  line-height: 1;
+}
+
+.landing-feature-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.landing-feature-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.landing-footer {
+  font-size: 12px;
+  color: var(--muted);
+}
+
 /* ── Misc ── */
 .page-title {
   font-size: 18px;
