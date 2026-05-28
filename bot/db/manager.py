@@ -119,6 +119,49 @@ class DatabaseManager:
         with self.connection() as conn:
             conn.execute("DELETE FROM dyes WHERE dye_id = ?", (dye_id,))
 
+    # --- Guild Members ---
+
+    def setup_guild_member_tables(self) -> None:
+        with self.connection() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS guild_members (
+                    guild_key TEXT NOT NULL,
+                    ign       TEXT NOT NULL,
+                    rank      TEXT NOT NULL DEFAULT '',
+                    PRIMARY KEY (guild_key, ign)
+                )
+            """)
+
+    def get_guild_members(self, guild_key: str) -> list:
+        with self.connection() as conn:
+            return conn.execute(
+                "SELECT ign, rank FROM guild_members WHERE guild_key = ? ORDER BY ign COLLATE NOCASE",
+                (guild_key,)
+            ).fetchall()
+
+    def upsert_guild_member(self, guild_key: str, ign: str, rank: str = '') -> None:
+        with self.connection() as conn:
+            conn.execute(
+                "INSERT INTO guild_members (guild_key, ign, rank) VALUES (?, ?, ?) "
+                "ON CONFLICT(guild_key, ign) DO UPDATE SET rank = excluded.rank",
+                (guild_key, ign, rank)
+            )
+
+    def remove_guild_member(self, guild_key: str, ign: str) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                "DELETE FROM guild_members WHERE guild_key = ? AND ign = ? COLLATE NOCASE",
+                (guild_key, ign)
+            )
+
+    def sync_guild_members(self, guild_key: str, members: list) -> None:
+        with self.connection() as conn:
+            conn.execute("DELETE FROM guild_members WHERE guild_key = ?", (guild_key,))
+            conn.executemany(
+                "INSERT INTO guild_members (guild_key, ign, rank) VALUES (?, ?, ?)",
+                [(guild_key, m['ign'], m.get('rank', '')) for m in members]
+            )
+
     # --- Panel Users ---
 
     def setup_panel_tables(self) -> None:

@@ -16,6 +16,7 @@ logging.basicConfig(
 
 async def run_web():
     manager.setup_panel_tables()
+    manager.setup_guild_member_tables()
 
     from web.logs import WebLogHandler
     logging.getLogger().addHandler(WebLogHandler())

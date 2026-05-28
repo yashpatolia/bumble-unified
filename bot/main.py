@@ -38,6 +38,8 @@ class GuildState:
     connected: bool = False
     guild_list: list = field(default_factory=list)
     save_guild_list: bool = False
+    guild_online: list = field(default_factory=list)
+    save_guild_online: bool = False
     guild_invite: Optional[str] = None
     logs: Optional[SyncWebhook] = None
     manual_stop: bool = False
@@ -106,6 +108,7 @@ class Client(commands.Bot):
 
 async def run_bot() -> None:
     manager.setup_panel_tables()
+    manager.setup_guild_member_tables()
 
     async with Client() as client:
 

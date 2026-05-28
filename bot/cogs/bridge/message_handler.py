@@ -5,6 +5,7 @@ import discord
 from discord.ext import commands
 from javascript import On
 from config import GuildConfig
+from db import manager
 from player import skyblock
 
 
@@ -25,7 +26,7 @@ class GuildMessageHandler(commands.Cog):
 
             logging.debug(f"[MC/{config.short_name}] {message}")
 
-            # Accumulate /guild list and /guild online output
+            # Accumulate /guild list output
             if "Online Members:" in message and state.save_guild_list:
                 state.guild_list.append(message)
                 state.save_guild_list = False
@@ -33,6 +34,10 @@ class GuildMessageHandler(commands.Cog):
                 state.guild_list.append(message)
             if f"Guild Name: {config.guild_name}" in message:
                 state.save_guild_list = True
+
+            # Accumulate /guild online output (flag set externally by IPC)
+            if state.save_guild_online:
+                state.guild_online.append(message)
 
             # Ignore regular guild/officer chat (handled by bridge.py)
             if message.split(" ")[0] in ("Guild", "Officer"):
@@ -53,6 +58,9 @@ class GuildMessageHandler(commands.Cog):
                 embed = discord.Embed(colour=discord.Colour.dark_teal(), description=message)
                 self.client.bridge.send(embed=embed)
                 logs.send(embed=embed)
+                m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+was (?:promoted|demoted) from \S+ to (\S+)", message, re.IGNORECASE)
+                if m:
+                    manager.upsert_guild_member(config.key, m.group(1), m.group(2))
 
             # Invite result messages
             invite_errors = [
@@ -83,6 +91,9 @@ class GuildMessageHandler(commands.Cog):
                 self.client.bridge.send(embed=embed)
                 logs.send(embed=embed)
                 state.recent_events.appendleft({"time": datetime.utcnow().strftime("%H:%M"), "type": "join", "message": message})
+                m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+joined the guild", message, re.IGNORECASE)
+                if m:
+                    manager.upsert_guild_member(config.key, m.group(1), '')
 
             if "left the guild!" in message.lower():
                 embed = discord.Embed(colour=discord.Colour.red(), description=f"[{config.short_name}] {message}")
@@ -90,6 +101,9 @@ class GuildMessageHandler(commands.Cog):
                 self.client.officer.send(embed=embed)
                 logs.send(embed=embed)
                 state.recent_events.appendleft({"time": datetime.utcnow().strftime("%H:%M"), "type": "leave", "message": message})
+                m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+left the guild", message, re.IGNORECASE)
+                if m:
+                    manager.remove_guild_member(config.key, m.group(1))
 
             if "has muted" in message.lower() and "for" in message.lower():
                 embed = discord.Embed(colour=discord.Colour.dark_purple(), description=message)
@@ -109,6 +123,9 @@ class GuildMessageHandler(commands.Cog):
                 self.client.officer.send(embed=embed)
                 logs.send(embed=embed)
                 state.recent_events.appendleft({"time": datetime.utcnow().strftime("%H:%M"), "type": "kick", "message": message})
+                m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+was kicked from the guild", message, re.IGNORECASE)
+                if m:
+                    manager.remove_guild_member(config.key, m.group(1))
 
             if "has requested to join the guild!" in message.lower():
                 match = re.search(r"(?:\[(?P<rank>\w+)\]\s+)?(?P<player>\w+)\s+has requested to join the Guild!", message)
