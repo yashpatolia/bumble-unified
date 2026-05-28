@@ -156,6 +156,16 @@ class DatabaseManager:
             )
             return cur.fetchall()
 
+    def get_guild_key_for_ign(self, ign: str) -> Optional[str]:
+        """Returns the guild_key the IGN currently belongs to, or None."""
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT guild_key FROM guild_members WHERE LOWER(ign) = LOWER(%s) LIMIT 1",
+                (ign,),
+            )
+            row = cur.fetchone()
+            return row[0] if row else None
+
     def get_guild_members_with_uuid(self, guild_key: str) -> list:
         with self._cursor() as cur:
             cur.execute(

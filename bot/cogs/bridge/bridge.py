@@ -144,7 +144,8 @@ class GuildBridge(commands.Cog):
                 state.bot.chat(f"/{chat_state} {content}")
 
         try:
-            manager.increment_message_count(self.config.key, ign)
+            guild_key = manager.get_guild_key_for_ign(ign) or self.config.key
+            manager.increment_message_count(guild_key, ign)
         except Exception:
             pass
 
