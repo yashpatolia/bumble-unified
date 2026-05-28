@@ -8,7 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from config import GUILD_CONFIGS
 from db import manager
 from lib.get_uuid import get_uuid as _get_uuid_sync
-from web.auth import require_auth, require_api_fetch, require_bot_control
+from pydantic import BaseModel
+
+from web.auth import require_auth, require_api_fetch, require_bot_control, require_manage_links
 
 router = APIRouter(prefix="/api/bots", tags=["bots"])
 
@@ -181,6 +183,37 @@ async def stop_bot(key: str, _=Depends(require_bot_control)):
         raise
     except Exception:
         raise HTTPException(status_code=503, detail="Bot process is offline")
+
+
+class LinkMemberBody(BaseModel):
+    discord_id: str
+    discord_name: str
+
+
+@router.post("/{key}/members/{ign}/link")
+async def link_member(key: str, ign: str, body: LinkMemberBody, _=Depends(require_manage_links)):
+    if key not in GUILD_CONFIGS:
+        raise HTTPException(status_code=404, detail="Unknown guild key")
+    uuid = manager.get_member_uuid(key, ign)
+    if not uuid:
+        raise HTTPException(status_code=400, detail="Member has no UUID — refresh stats first")
+    try:
+        discord_id = int(body.discord_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid Discord ID")
+    manager.link_user(uuid, ign, discord_id, body.discord_name)
+    return {"status": "linked"}
+
+
+@router.delete("/{key}/members/{ign}/link")
+async def unlink_member(key: str, ign: str, _=Depends(require_manage_links)):
+    if key not in GUILD_CONFIGS:
+        raise HTTPException(status_code=404, detail="Unknown guild key")
+    uuid = manager.get_member_uuid(key, ign)
+    if not uuid:
+        raise HTTPException(status_code=400, detail="Member has no UUID")
+    manager.unlink_user(uuid)
+    return {"status": "unlinked"}
 
 
 @router.post("/{key}/refresh-stats")

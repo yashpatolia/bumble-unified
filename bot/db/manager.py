@@ -150,11 +150,23 @@ class DatabaseManager:
     def get_guild_members(self, guild_key: str) -> list:
         with self._cursor() as cur:
             cur.execute(
-                "SELECT ign, rank, skyblock_level, last_login, uuid FROM guild_members "
-                "WHERE guild_key = %s ORDER BY LOWER(ign)",
+                "SELECT gm.ign, gm.rank, gm.skyblock_level, gm.last_login, gm.uuid, "
+                "u.discord_name, u.discord_id "
+                "FROM guild_members gm "
+                "LEFT JOIN users u ON u.uuid = gm.uuid "
+                "WHERE gm.guild_key = %s ORDER BY LOWER(gm.ign)",
                 (guild_key,),
             )
             return cur.fetchall()
+
+    def get_member_uuid(self, guild_key: str, ign: str) -> Optional[str]:
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT uuid FROM guild_members WHERE guild_key = %s AND LOWER(ign) = LOWER(%s)",
+                (guild_key, ign),
+            )
+            row = cur.fetchone()
+            return row[0] if row and row[0] else None
 
     def get_guild_key_for_ign(self, ign: str) -> Optional[str]:
         """Returns the guild_key the IGN currently belongs to, or None."""
@@ -234,10 +246,10 @@ class DatabaseManager:
     # --- Panel Users ---
 
     def get_panel_user(self, discord_id: int) -> Optional[tuple]:
-        """Returns (discord_id, discord_name, is_admin, can_view_logs, can_control_bots, can_fetch_api) or None."""
+        """Returns (discord_id, discord_name, is_admin, can_view_logs, can_control_bots, can_fetch_api, can_manage_links) or None."""
         with self._cursor() as cur:
             cur.execute(
-                "SELECT discord_id, discord_name, is_admin, can_view_logs, can_control_bots, can_fetch_api "
+                "SELECT discord_id, discord_name, is_admin, can_view_logs, can_control_bots, can_fetch_api, can_manage_links "
                 "FROM panel_users WHERE discord_id = %s",
                 (discord_id,),
             )
@@ -246,7 +258,7 @@ class DatabaseManager:
     def get_all_panel_users(self) -> list:
         with self._cursor() as cur:
             cur.execute(
-                "SELECT discord_id, discord_name, is_admin, can_view_logs, can_control_bots, can_fetch_api "
+                "SELECT discord_id, discord_name, is_admin, can_view_logs, can_control_bots, can_fetch_api, can_manage_links "
                 "FROM panel_users"
             )
             return cur.fetchall()
@@ -259,12 +271,13 @@ class DatabaseManager:
         can_view_logs: bool = True,
         can_control_bots: bool = False,
         can_fetch_api: bool = False,
+        can_manage_links: bool = False,
     ) -> None:
         with self._cursor() as cur:
             cur.execute(
-                "INSERT INTO panel_users (discord_id, discord_name, is_admin, can_view_logs, can_control_bots, can_fetch_api) "
-                "VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING",
-                (discord_id, discord_name, is_admin, can_view_logs, can_control_bots, can_fetch_api),
+                "INSERT INTO panel_users (discord_id, discord_name, is_admin, can_view_logs, can_control_bots, can_fetch_api, can_manage_links) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING",
+                (discord_id, discord_name, is_admin, can_view_logs, can_control_bots, can_fetch_api, can_manage_links),
             )
 
     def upsert_panel_user_name(self, discord_id: int, discord_name: str) -> None:
@@ -281,12 +294,20 @@ class DatabaseManager:
         can_view_logs: bool,
         can_control_bots: bool,
         can_fetch_api: bool = False,
+        can_manage_links: bool = False,
     ) -> None:
         with self._cursor() as cur:
             cur.execute(
-                "UPDATE panel_users SET is_admin = %s, can_view_logs = %s, can_control_bots = %s, can_fetch_api = %s "
-                "WHERE discord_id = %s",
-                (is_admin, can_view_logs, can_control_bots, can_fetch_api, discord_id),
+                "UPDATE panel_users SET is_admin = %s, can_view_logs = %s, can_control_bots = %s, "
+                "can_fetch_api = %s, can_manage_links = %s WHERE discord_id = %s",
+                (is_admin, can_view_logs, can_control_bots, can_fetch_api, can_manage_links, discord_id),
+            )
+
+    def unlink_user(self, uuid: str) -> None:
+        with self._cursor() as cur:
+            cur.execute(
+                "UPDATE users SET discord_id = NULL, discord_name = NULL WHERE uuid = %s",
+                (uuid,),
             )
 
     def delete_panel_user(self, discord_id: int) -> None:

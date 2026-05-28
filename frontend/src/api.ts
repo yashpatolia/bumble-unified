@@ -38,9 +38,9 @@ export const api = {
   guildMembers: (key: string) => req<{ members: GuildMember[] }>(`/api/bots/${key}/members`),
 
   users: () => req<PanelUser[]>('/api/users'),
-  createUser: (data: { discord_id: string; discord_name: string; is_admin: boolean; can_view_logs: boolean; can_control_bots: boolean; can_fetch_api: boolean }) =>
+  createUser: (data: { discord_id: string; discord_name: string; is_admin: boolean; can_view_logs: boolean; can_control_bots: boolean; can_fetch_api: boolean; can_manage_links: boolean }) =>
     req<{ status: string }>('/api/users', { method: 'POST', body: JSON.stringify(data) }),
-  updateUser: (discord_id: string, data: { can_view_logs: boolean; can_control_bots: boolean; can_fetch_api: boolean }) =>
+  updateUser: (discord_id: string, data: { can_view_logs: boolean; can_control_bots: boolean; can_fetch_api: boolean; can_manage_links: boolean }) =>
     req<{ status: string }>(`/api/users/${discord_id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteUser: (discord_id: string) =>
     req<{ status: string }>(`/api/users/${discord_id}`, { method: 'DELETE' }),
@@ -49,6 +49,11 @@ export const api = {
   statsStatus: (key: string) => req<{ fetching: boolean; done: number; total: number }>(`/api/bots/${key}/stats-status`),
 
   leaderboard: (key: string, period: string) => req<{ leaderboard: { ign: string; count: number; uuid: string | null; discord_name: string | null; discord_id: string | null }[] }>(`/api/bots/${key}/leaderboard?period=${period}`),
+
+  linkMember: (key: string, ign: string, data: { discord_id: string; discord_name: string }) =>
+    req<{ status: string }>(`/api/bots/${key}/members/${encodeURIComponent(ign)}/link`, { method: 'POST', body: JSON.stringify(data) }),
+  unlinkMember: (key: string, ign: string) =>
+    req<{ status: string }>(`/api/bots/${key}/members/${encodeURIComponent(ign)}/link`, { method: 'DELETE' }),
 }
 
 export function wsLogsUrl(): string {

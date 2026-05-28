@@ -41,6 +41,7 @@ export default function GuildMembers() {
   const { key } = useParams<{ key: string }>()
   const { me } = useAuth()
   const canFetch = me?.can_fetch_api || me?.is_admin || me?.is_owner
+  const canManageLinks = me?.can_manage_links || me?.is_admin || me?.is_owner
 
   const cached = key ? cache.get(key) : undefined
   const [members, setMembers] = useState<GuildMember[]>(cached?.members ?? [])
@@ -52,6 +53,12 @@ export default function GuildMembers() {
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null)
   const [refreshProgress, setRefreshProgress] = useState<{ done: number; total: number } | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Link modal state
+  const [linkTarget, setLinkTarget] = useState<GuildMember | null>(null)
+  const [linkForm, setLinkForm] = useState({ discord_id: '', discord_name: '' })
+  const [linkSaving, setLinkSaving] = useState(false)
+  const [linkError, setLinkError] = useState<string | null>(null)
 
   const load = (force = false) => {
     if (!key) return
@@ -72,7 +79,6 @@ export default function GuildMembers() {
   }
 
   useEffect(() => { load() }, [key])
-
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
 
   const startPolling = (k: string) => {
@@ -94,7 +100,6 @@ export default function GuildMembers() {
     }, 3000)
   }
 
-  // On mount, check if a refresh is already running (survives tab switches)
   useEffect(() => {
     if (!key || !canFetch) return
     api.statsStatus(key).then(s => {
@@ -133,6 +138,43 @@ export default function GuildMembers() {
     } else {
       setSortKey(k)
       setSortDir(k === 'last_login' || k === 'level' || k === 'status' ? 'desc' : 'asc')
+    }
+  }
+
+  const openLink = (m: GuildMember) => {
+    setLinkTarget(m)
+    setLinkForm({ discord_id: m.discord_id ?? '', discord_name: m.discord_name ?? '' })
+    setLinkError(null)
+  }
+
+  const saveLink = async () => {
+    if (!key || !linkTarget) return
+    if (!/^\d{17,20}$/.test(linkForm.discord_id.trim())) {
+      setLinkError('Invalid Discord ID (must be 17–20 digits)')
+      return
+    }
+    setLinkSaving(true)
+    setLinkError(null)
+    try {
+      await api.linkMember(key, linkTarget.ign, { discord_id: linkForm.discord_id.trim(), discord_name: linkForm.discord_name.trim() || linkForm.discord_id.trim() })
+      setLinkTarget(null)
+      cache.delete(key)
+      load(true)
+    } catch (e: unknown) {
+      setLinkError(e instanceof Error ? e.message : 'Failed to link')
+    } finally {
+      setLinkSaving(false)
+    }
+  }
+
+  const doUnlink = async (m: GuildMember) => {
+    if (!key || !confirm(`Unlink Discord account from ${m.ign}?`)) return
+    try {
+      await api.unlinkMember(key, m.ign)
+      cache.delete(key)
+      load(true)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to unlink')
     }
   }
 
@@ -203,6 +245,7 @@ export default function GuildMembers() {
                   <th style={{ cursor: 'pointer' }} onClick={() => handleSort('ign')}>
                     IGN <SortIcon active={sortKey === 'ign'} dir={sortDir} />
                   </th>
+                  <th>Discord</th>
                   <th style={{ cursor: 'pointer' }} onClick={() => handleSort('rank')}>
                     Rank <SortIcon active={sortKey === 'rank'} dir={sortDir} />
                   </th>
@@ -227,6 +270,29 @@ export default function GuildMembers() {
                       </div>
                       {m.uuid && <div style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-secondary)', marginTop: 2 }}>{m.uuid}</div>}
                     </td>
+                    <td>
+                      {m.discord_name ? (
+                        <div>
+                          <div style={{ fontWeight: 500 }}>{m.discord_name}</div>
+                          {m.discord_id && <div style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-secondary)', marginTop: 2 }}>{m.discord_id}</div>}
+                          {canManageLinks && (
+                            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                              <button className="btn btn-ghost" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => openLink(m)}>Edit</button>
+                              <button className="btn btn-danger" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => doUnlink(m)}>Unlink</button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div>
+                          <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>—</span>
+                          {canManageLinks && (
+                            <div style={{ marginTop: 4 }}>
+                              <button className="btn btn-ghost" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => openLink(m)}>Link</button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </td>
                     <td className="text-muted">{m.rank}</td>
                     <td className="text-muted">{m.skyblock_level != null ? m.skyblock_level.toFixed(1) : 'N/A'}</td>
                     <td className="text-muted">{formatLastLogin(m.last_login)}</td>
@@ -243,6 +309,41 @@ export default function GuildMembers() {
           )}
         </div>
       </div>
+
+      {linkTarget && (
+        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setLinkTarget(null) }}>
+          <div className="modal">
+            <div className="modal-title">
+              {linkTarget.discord_name ? `Edit Link — ${linkTarget.ign}` : `Link Discord — ${linkTarget.ign}`}
+            </div>
+            {linkError && <p style={{ color: 'var(--red)', marginBottom: 12, fontSize: 13 }}>{linkError}</p>}
+            <div className="form-group">
+              <label className="form-label">Discord User ID</label>
+              <input
+                className="form-input"
+                placeholder="123456789012345678"
+                value={linkForm.discord_id}
+                onChange={e => setLinkForm(f => ({ ...f, discord_id: e.target.value }))}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Discord Username</label>
+              <input
+                className="form-input"
+                placeholder="their_username"
+                value={linkForm.discord_name}
+                onChange={e => setLinkForm(f => ({ ...f, discord_name: e.target.value }))}
+              />
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={() => setLinkTarget(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveLink} disabled={linkSaving}>
+                {linkSaving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

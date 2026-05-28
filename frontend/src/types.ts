@@ -5,6 +5,7 @@ export interface Me {
   can_view_logs: boolean
   can_control_bots: boolean
   can_fetch_api: boolean
+  can_manage_links: boolean
   avatar_url: string
   is_owner: boolean
 }
@@ -44,6 +45,8 @@ export interface GuildMember {
   rank: string
   ign: string
   uuid: string | null
+  discord_name: string | null
+  discord_id: string | null
   online: boolean
   skyblock_level: number | null
   last_login: number | null
@@ -56,6 +59,7 @@ export interface PanelUser {
   can_view_logs: boolean
   can_control_bots: boolean
   can_fetch_api: boolean
+  can_manage_links: boolean
   is_owner: boolean
 }
 
