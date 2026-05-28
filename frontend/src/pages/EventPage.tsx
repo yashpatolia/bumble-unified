@@ -308,6 +308,15 @@ const MODE_OPTIONS = [
   { value: 'combined_individual', label: 'Combined — Individual' },
 ]
 
+const EVENT_TYPES = [
+  {
+    value: 'bingo',
+    label: 'Guild Bingo',
+    description: 'Each member gets a 5×5 bingo card with Skyblock tasks. Complete squares and race for a full blackout.',
+    icon: '🎯',
+  },
+]
+
 interface EventForm {
   slug: string; name: string; mode: string
   guilds: string[]; starts_at: string; ends_at: string
@@ -319,6 +328,7 @@ const defaultEventForm = (): EventForm => ({
 
 function NewEventPage() {
   const navigate = useNavigate()
+  const [selectedType, setSelectedType] = useState<string | null>(null)
   const [form, setForm] = useState<EventForm>(defaultEventForm())
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -353,61 +363,93 @@ function NewEventPage() {
     <div className="home-page">
       <header className="home-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span className="guild-header-back" onClick={() => navigate('/events')}>← Events</span>
+          {selectedType ? (
+            <span className="guild-header-back" onClick={() => { setSelectedType(null); setError(null) }}>← Back</span>
+          ) : (
+            <span className="guild-header-back" onClick={() => navigate('/events')}>← Events</span>
+          )}
           <span className="guild-header-sep">/</span>
-          <div className="home-logo" style={{ fontSize: 14, fontWeight: 600 }}>New Event</div>
+          <div className="home-logo" style={{ fontSize: 14, fontWeight: 600 }}>
+            {selectedType ? `New Event — ${EVENT_TYPES.find(t => t.value === selectedType)?.label}` : 'New Event'}
+          </div>
         </div>
       </header>
+
       <div className="home-body">
-        <div className="home-title" style={{ marginBottom: 24 }}>Create Event</div>
-
-        {error && <p style={{ color: 'var(--red)', marginBottom: 16 }}>{error}</p>}
-
-        <div className="card" style={{ maxWidth: 560 }}>
-          <div className="form-group">
-            <label className="form-label">Event Name</label>
-            <input className="form-input" value={form.name} onChange={e => set({ name: e.target.value })} placeholder="e.g. Summer Bingo 2025" />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Slug (URL identifier)</label>
-            <input className="form-input" value={form.slug} onChange={e => set({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })} placeholder="e.g. summer-bingo-2025" />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Mode</label>
-            <select className="form-input" value={form.mode} onChange={e => set({ mode: e.target.value })}>
-              {MODE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Guilds</label>
-            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-              {['bk', 'bu'].map(g => (
-                <button
-                  key={g}
-                  type="button"
-                  className={form.guilds.includes(g) ? 'btn btn-primary' : 'btn btn-ghost'}
-                  onClick={() => toggleGuild(g)}
-                >
-                  {g.toUpperCase()}
-                </button>
+        {!selectedType ? (
+          <>
+            <div className="home-title" style={{ marginBottom: 6 }}>Select Event Type</div>
+            <div className="home-sub">Choose the type of event you want to run.</div>
+            <div className="guild-cards">
+              {EVENT_TYPES.map(t => (
+                <div key={t.value} className="guild-card" onClick={() => setSelectedType(t.value)} style={{ cursor: 'pointer' }}>
+                  <div className="guild-card-header">
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                        <span style={{ fontSize: 22 }}>{t.icon}</span>
+                        <div className="guild-card-name" style={{ fontSize: 18 }}>{t.label}</div>
+                      </div>
+                      <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{t.description}</div>
+                    </div>
+                  </div>
+                  <div className="guild-card-footer">
+                    <span className="guild-enter">Select →</span>
+                  </div>
+                </div>
               ))}
             </div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div className="form-group">
-              <label className="form-label">Starts At</label>
-              <input className="form-input" type="datetime-local" value={form.starts_at} onChange={e => set({ starts_at: e.target.value })} />
+          </>
+        ) : (
+          <>
+            <div className="home-title" style={{ marginBottom: 24 }}>Configure Event</div>
+            {error && <p style={{ color: 'var(--red)', marginBottom: 16 }}>{error}</p>}
+            <div className="card" style={{ maxWidth: 560 }}>
+              <div className="form-group">
+                <label className="form-label">Event Name</label>
+                <input className="form-input" value={form.name} onChange={e => set({ name: e.target.value })} placeholder="e.g. Summer Bingo 2025" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Slug (URL identifier)</label>
+                <input className="form-input" value={form.slug} onChange={e => set({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })} placeholder="e.g. summer-bingo-2025" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Mode</label>
+                <select className="form-input" value={form.mode} onChange={e => set({ mode: e.target.value })}>
+                  {MODE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Guilds</label>
+                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                  {['bk', 'bu'].map(g => (
+                    <button
+                      key={g}
+                      type="button"
+                      className={form.guilds.includes(g) ? 'btn btn-primary' : 'btn btn-ghost'}
+                      onClick={() => toggleGuild(g)}
+                    >
+                      {g.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="form-group">
+                  <label className="form-label">Starts At</label>
+                  <input className="form-input" type="datetime-local" value={form.starts_at} onChange={e => set({ starts_at: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Ends At</label>
+                  <input className="form-input" type="datetime-local" value={form.ends_at} onChange={e => set({ ends_at: e.target.value })} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                <button className="btn btn-ghost" onClick={() => navigate('/events')}>Cancel</button>
+                <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Creating...' : 'Create Event'}</button>
+              </div>
             </div>
-            <div className="form-group">
-              <label className="form-label">Ends At</label>
-              <input className="form-input" type="datetime-local" value={form.ends_at} onChange={e => set({ ends_at: e.target.value })} />
-            </div>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
-            <button className="btn btn-ghost" onClick={() => navigate('/events')}>Cancel</button>
-            <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Creating...' : 'Create Event'}</button>
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </div>
   )
