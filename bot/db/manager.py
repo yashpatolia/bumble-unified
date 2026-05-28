@@ -150,7 +150,7 @@ class DatabaseManager:
     def get_guild_members(self, guild_key: str) -> list:
         with self._cursor() as cur:
             cur.execute(
-                "SELECT ign, rank, skyblock_level, last_login FROM guild_members "
+                "SELECT ign, rank, skyblock_level, last_login, uuid FROM guild_members "
                 "WHERE guild_key = %s ORDER BY LOWER(ign)",
                 (guild_key,),
             )

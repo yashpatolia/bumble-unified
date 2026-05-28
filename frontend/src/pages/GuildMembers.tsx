@@ -168,6 +168,7 @@ export default function GuildMembers() {
                   <th style={{ cursor: 'pointer' }} onClick={() => handleSort('ign')}>
                     IGN <SortIcon active={sortKey === 'ign'} dir={sortDir} />
                   </th>
+                  <th>UUID</th>
                   <th style={{ cursor: 'pointer' }} onClick={() => handleSort('rank')}>
                     Rank <SortIcon active={sortKey === 'rank'} dir={sortDir} />
                   </th>
@@ -189,6 +190,7 @@ export default function GuildMembers() {
                       {m.ign}
                       {isKickWarning(m) && <span className="badge badge-warn" style={{ marginLeft: 6 }}>Kick Warning</span>}
                     </td>
+                    <td style={{ color: 'var(--muted)', fontFamily: 'monospace', fontSize: 12 }}>{m.uuid ?? '—'}</td>
                     <td className="text-muted">{m.rank}</td>
                     <td className="text-muted">{m.skyblock_level != null ? m.skyblock_level.toFixed(1) : 'N/A'}</td>
                     <td className="text-muted">{formatLastLogin(m.last_login)}</td>

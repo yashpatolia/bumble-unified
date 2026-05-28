@@ -43,6 +43,7 @@ export interface GuildOverview {
 export interface GuildMember {
   rank: string
   ign: string
+  uuid: string | null
   online: boolean
   skyblock_level: number | null
   last_login: number | null
