@@ -94,7 +94,7 @@ def create_ipc_app(client):
         if not state.connected or not state.bot:
             # Return DB cache with everyone offline
             rows = manager.get_guild_members(key)
-            members = [{"ign": r[0], "rank": r[1], "skyblock_level": r[2], "last_login": r[3], "uuid": r[4], "online": False} for r in rows]
+            members = [{"ign": r[0], "rank": r[1], "skyblock_level": r[2], "last_login": r[3], "uuid": r[4] or None, "online": False} for r in rows]
             return {"members": sorted(members, key=lambda m: m["ign"].lower())}
 
         # Refresh DB from /guild list
@@ -118,7 +118,7 @@ def create_ipc_app(client):
         online_igns = _parse_online_igns(list(state.guild_online))
 
         rows = manager.get_guild_members(key)
-        members = [{"ign": r[0], "rank": r[1], "skyblock_level": r[2], "last_login": r[3], "uuid": r[4], "online": r[0] in online_igns} for r in rows]
+        members = [{"ign": r[0], "rank": r[1], "skyblock_level": r[2], "last_login": r[3], "uuid": r[4] or None, "online": r[0] in online_igns} for r in rows]
         members.sort(key=lambda m: (not m["online"], m["ign"].lower()))
         return {"members": members}
 
