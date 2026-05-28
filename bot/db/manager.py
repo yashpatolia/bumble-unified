@@ -282,3 +282,54 @@ class DatabaseManager:
     def delete_panel_user(self, discord_id: int) -> None:
         with self._cursor() as cur:
             cur.execute("DELETE FROM panel_users WHERE discord_id = %s", (discord_id,))
+
+    # --- Message Counts ---
+
+    def increment_message_count(self, guild_key: str, ign: str) -> None:
+        """Increment lifetime, current month, and current week counts for an IGN."""
+        import datetime
+        now = datetime.datetime.utcnow()
+        month_key = now.strftime('%Y-%m')
+        week_key = now.strftime('%G-W%V')  # ISO week
+        periods = [('lifetime', ''), ('month', month_key), ('week', week_key)]
+        with self._cursor() as cur:
+            for period_type, period_key in periods:
+                cur.execute(
+                    "INSERT INTO message_counts (guild_key, ign, period_type, period_key, count) "
+                    "VALUES (%s, %s, %s, %s, 1) "
+                    "ON CONFLICT (guild_key, ign, period_type, period_key) "
+                    "DO UPDATE SET count = message_counts.count + 1",
+                    (guild_key, ign, period_type, period_key)
+                )
+
+    def get_message_leaderboard(self, guild_key: str, period_type: str, period_key: str) -> list:
+        """Returns [(ign, count), ...] sorted by count desc."""
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT ign, count FROM message_counts "
+                "WHERE guild_key = %s AND period_type = %s AND period_key = %s "
+                "ORDER BY count DESC",
+                (guild_key, period_type, period_key)
+            )
+            return cur.fetchall()
+
+    def bulk_increment_message_counts(self, guild_key: str, counts: dict) -> None:
+        """counts is {ign: count}. Used for bulk import. Only increments for IGNs in guild_members."""
+        with self._cursor() as cur:
+            for ign, count in counts.items():
+                # Verify IGN is in guild_members (case-insensitive via citext)
+                cur.execute(
+                    "SELECT ign FROM guild_members WHERE guild_key = %s AND ign = %s",
+                    (guild_key, ign)
+                )
+                row = cur.fetchone()
+                if not row:
+                    continue
+                actual_ign = row[0]  # Use the properly-cased IGN from DB
+                cur.execute(
+                    "INSERT INTO message_counts (guild_key, ign, period_type, period_key, count) "
+                    "VALUES (%s, %s, 'lifetime', '', %s) "
+                    "ON CONFLICT (guild_key, ign, period_type, period_key) "
+                    "DO UPDATE SET count = message_counts.count + %s",
+                    (guild_key, actual_ign, count, count)
+                )

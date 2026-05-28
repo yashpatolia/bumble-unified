@@ -202,3 +202,20 @@ async def get_stats_status(key: str, _=Depends(require_api_fetch)):
         "done": progress.get("done", 0),
         "total": progress.get("total", 0),
     }
+
+
+@router.get("/{key}/leaderboard")
+async def get_leaderboard(key: str, period: str = "lifetime", _=Depends(require_auth)):
+    if key not in GUILD_CONFIGS:
+        raise HTTPException(status_code=404, detail="Unknown guild key")
+    import datetime
+    now = datetime.datetime.utcnow()
+    if period == "month":
+        period_key = now.strftime('%Y-%m')
+    elif period == "week":
+        period_key = now.strftime('%G-W%V')
+    else:
+        period = "lifetime"
+        period_key = ""
+    rows = manager.get_message_leaderboard(key, period, period_key)
+    return {"leaderboard": [{"ign": r[0], "count": r[1]} for r in rows]}

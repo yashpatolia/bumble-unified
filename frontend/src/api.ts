@@ -47,6 +47,8 @@ export const api = {
 
   refreshStats: (key: string) => req<{ status: string; total: number }>(`/api/bots/${key}/refresh-stats`, { method: 'POST' }),
   statsStatus: (key: string) => req<{ fetching: boolean; done: number; total: number }>(`/api/bots/${key}/stats-status`),
+
+  leaderboard: (key: string, period: string) => req<{ leaderboard: { ign: string; count: number }[] }>(`/api/bots/${key}/leaderboard?period=${period}`),
 }
 
 export function wsLogsUrl(): string {

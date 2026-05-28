@@ -80,6 +80,10 @@ class GuildBridge(commands.Cog):
                         "player": sender,
                         "message": msg_text,
                     })
+                    try:
+                        manager.increment_message_count(config.key, sender)
+                    except Exception:
+                        pass
 
                 # Relay to all other guild bots
                 relay_state = "/oc" if chat_type == "Officer" else "/gc"
