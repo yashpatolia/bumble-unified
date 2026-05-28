@@ -9,6 +9,8 @@ const EVENT_COLORS: Record<string, string> = {
   kick: 'kick',
   mute: 'mute',
   unmute: 'unmute',
+  promote: 'promote',
+  demote: 'demote',
 }
 
 export default function GuildOverviewPage() {

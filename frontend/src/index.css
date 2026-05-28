@@ -346,6 +346,8 @@ button { cursor: pointer; font: inherit; }
 .event-dot.kick    { background: var(--red); }
 .event-dot.mute    { background: var(--yellow); }
 .event-dot.unmute  { background: var(--blue); }
+.event-dot.promote { background: var(--accent); }
+.event-dot.demote  { background: var(--text-secondary); }
 .event-dot.default { background: var(--muted); }
 .event-msg { color: var(--text-secondary); }
 

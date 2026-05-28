@@ -24,7 +24,7 @@ export interface ChatMessage {
 
 export interface GuildEvent {
   time: string
-  type: 'join' | 'leave' | 'kick' | 'mute' | 'unmute' | string
+  type: 'join' | 'leave' | 'kick' | 'mute' | 'unmute' | 'promote' | 'demote' | string
   message: string
 }
 

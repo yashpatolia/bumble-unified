@@ -61,6 +61,8 @@ class GuildMessageHandler(commands.Cog):
                 m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+was (?:promoted|demoted) from \S+ to (\S+)", message, re.IGNORECASE)
                 if m:
                     manager.upsert_guild_member(config.key, m.group(1), m.group(2))
+                event_type = "promote" if "was promoted from" in message.lower() else "demote"
+                state.recent_events.appendleft({"time": datetime.utcnow().strftime("%H:%M"), "type": event_type, "message": message})
 
             # Invite result messages
             invite_errors = [
