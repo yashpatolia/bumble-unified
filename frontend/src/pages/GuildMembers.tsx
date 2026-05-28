@@ -50,6 +50,7 @@ export default function GuildMembers() {
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null)
+  const [refreshProgress, setRefreshProgress] = useState<{ done: number; total: number } | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const load = (force = false) => {
@@ -74,10 +75,42 @@ export default function GuildMembers() {
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
 
+  const startPolling = (k: string) => {
+    pollRef.current = setInterval(async () => {
+      try {
+        const s = await api.statsStatus(k)
+        if (s.total > 0) setRefreshProgress({ done: s.done, total: s.total })
+        if (!s.fetching) {
+          clearInterval(pollRef.current!)
+          pollRef.current = null
+          setRefreshing(false)
+          setRefreshProgress(null)
+          setRefreshMsg('Done! Refreshing list...')
+          cache.delete(k)
+          load(true)
+          setTimeout(() => setRefreshMsg(null), 3000)
+        }
+      } catch {}
+    }, 3000)
+  }
+
+  // On mount, check if a refresh is already running (survives tab switches)
+  useEffect(() => {
+    if (!key || !canFetch) return
+    api.statsStatus(key).then(s => {
+      if (!s.fetching) return
+      setRefreshing(true)
+      setRefreshMsg('Fetching stats in progress...')
+      if (s.total > 0) setRefreshProgress({ done: s.done, total: s.total })
+      startPolling(key)
+    }).catch(() => {})
+  }, [key])
+
   const refreshStats = async () => {
     if (!key || refreshing) return
     setRefreshing(true)
     setRefreshMsg(null)
+    setRefreshProgress(null)
     try {
       const res = await api.refreshStats(key)
       if (res.status === 'already_running') {
@@ -85,23 +118,9 @@ export default function GuildMembers() {
         setRefreshing(false)
         return
       }
-      const est = res.total * 2
-      setRefreshMsg(`Fetching stats for ${res.total} members (~${est}s)...`)
-      // Poll until done
-      pollRef.current = setInterval(async () => {
-        try {
-          const s = await api.statsStatus(key)
-          if (!s.fetching) {
-            clearInterval(pollRef.current!)
-            pollRef.current = null
-            setRefreshing(false)
-            setRefreshMsg('Done! Refreshing list...')
-            cache.delete(key)
-            load(true)
-            setTimeout(() => setRefreshMsg(null), 3000)
-          }
-        } catch {}
-      }, 5000)
+      setRefreshMsg(`Fetching stats for ${res.total} members...`)
+      setRefreshProgress({ done: 0, total: res.total })
+      startPolling(key)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Refresh failed')
       setRefreshing(false)
@@ -141,7 +160,23 @@ export default function GuildMembers() {
           )}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {refreshMsg && <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{refreshMsg}</span>}
+          {refreshing && refreshProgress && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                {refreshMsg} {refreshProgress.done}/{refreshProgress.total}
+              </span>
+              <div style={{ width: 160, height: 4, background: 'var(--surface3)', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  width: `${Math.round((refreshProgress.done / refreshProgress.total) * 100)}%`,
+                  background: 'var(--accent)',
+                  borderRadius: 2,
+                  transition: 'width 0.3s ease',
+                }} />
+              </div>
+            </div>
+          )}
+          {!refreshing && refreshMsg && <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{refreshMsg}</span>}
           {canFetch && (
             <button className="btn btn-ghost" onClick={refreshStats} disabled={refreshing}>
               {refreshing ? 'Fetching...' : 'Refresh Stats'}

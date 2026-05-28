@@ -46,7 +46,7 @@ export const api = {
     req<{ status: string }>(`/api/users/${discord_id}`, { method: 'DELETE' }),
 
   refreshStats: (key: string) => req<{ status: string; total: number }>(`/api/bots/${key}/refresh-stats`, { method: 'POST' }),
-  statsStatus: (key: string) => req<{ fetching: boolean }>(`/api/bots/${key}/stats-status`),
+  statsStatus: (key: string) => req<{ fetching: boolean; done: number; total: number }>(`/api/bots/${key}/stats-status`),
 }
 
 export function wsLogsUrl(): string {

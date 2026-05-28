@@ -18,6 +18,7 @@ _TIMEOUT = aiohttp.ClientTimeout(total=5)
 _LONG_TIMEOUT = aiohttp.ClientTimeout(total=15)
 
 _refresh_tasks: set[str] = set()
+_refresh_progress: dict[str, dict] = {}  # key -> {"done": int, "total": int}
 
 
 async def _fetch_hypixel_stats(session, uuid: str) -> dict:
@@ -61,6 +62,8 @@ async def _do_refresh_stats(key: str) -> None:
     _refresh_tasks.add(key)
     try:
         rows = manager.get_guild_members_with_uuid(key)
+        total = len(rows)
+        _refresh_progress[key] = {"done": 0, "total": total}
         async with aiohttp.ClientSession() as session:
             for ign, uuid in rows:
                 if not uuid:
@@ -70,11 +73,13 @@ async def _do_refresh_stats(key: str) -> None:
                 if uuid:
                     stats = await _fetch_hypixel_stats(session, uuid)
                     manager.update_guild_member_stats(key, ign, stats["skyblock_level"], stats["last_login"])
+                _refresh_progress[key]["done"] += 1
                 await asyncio.sleep(1.0)  # ~60 req/min, well under 300/5min limit
     except Exception as e:
         logging.error(f"Stats refresh for {key} failed: {e}")
     finally:
         _refresh_tasks.discard(key)
+        _refresh_progress.pop(key, None)
 
 
 def _headers():
@@ -191,4 +196,9 @@ async def refresh_guild_stats(key: str, _=Depends(require_api_fetch)):
 
 @router.get("/{key}/stats-status")
 async def get_stats_status(key: str, _=Depends(require_api_fetch)):
-    return {"fetching": key in _refresh_tasks}
+    progress = _refresh_progress.get(key, {})
+    return {
+        "fetching": key in _refresh_tasks,
+        "done": progress.get("done", 0),
+        "total": progress.get("total", 0),
+    }
