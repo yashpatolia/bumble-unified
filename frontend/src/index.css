@@ -315,11 +315,9 @@ button { cursor: pointer; font: inherit; }
   display: flex;
   gap: 10px;
   padding: 7px 20px;
-  border-bottom: 1px solid var(--border);
   font-size: 13px;
-  align-items: baseline;
+  align-items: center;
 }
-.chat-line:last-child { border-bottom: none; }
 
 .chat-time   { color: var(--muted); font-size: 11px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .chat-player { font-weight: 600; color: var(--accent-text); flex-shrink: 0; min-width: 80px; }
