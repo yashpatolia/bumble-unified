@@ -43,9 +43,10 @@ export default function Home() {
 
       <div className="home-body">
         <div className="home-title">Welcome back{me?.discord_name ? `, ${me.discord_name}` : ''}</div>
-        <div className="home-sub">Select a guild to view its overview.</div>
+        <div className="home-sub">Select a guild to view its overview, or browse cross-guild events.</div>
 
-        <div className="guild-cards">
+        <div className="events-section-label">Guilds</div>
+        <div className="guild-cards" style={{ marginBottom: 40 }}>
           {guildList.map(bot => (
             <Link key={bot.key} className="guild-card" to={`/guilds/${bot.key}`}>
               <div className="guild-card-header">
@@ -63,6 +64,22 @@ export default function Home() {
               </div>
             </Link>
           ))}
+        </div>
+
+        <div className="events-section-label">Events</div>
+        <div className="guild-cards">
+          <Link className="guild-card" to="/events">
+            <div className="guild-card-header">
+              <div>
+                <div className="guild-card-name" style={{ fontSize: 18 }}>Guild Events</div>
+                <div className="guild-card-tag">Challenges and competitions across BK, BU, or both guilds</div>
+              </div>
+              <span className="badge badge-user" style={{ whiteSpace: 'nowrap', marginTop: 3 }}>Coming Soon</span>
+            </div>
+            <div className="guild-card-footer">
+              <span className="guild-enter">View Events →</span>
+            </div>
+          </Link>
         </div>
       </div>
     </div>
