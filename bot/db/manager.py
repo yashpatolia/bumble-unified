@@ -201,7 +201,7 @@ class DatabaseManager:
                     cur,
                     "INSERT INTO guild_members (guild_key, ign, uuid, rank) VALUES %s "
                     "ON CONFLICT (guild_key, ign) DO UPDATE SET uuid = EXCLUDED.uuid, rank = EXCLUDED.rank",
-                    [(guild_key, m['ign'], m.get('uuid', ''), m.get('rank', '')) for m in members],
+                    [(guild_key, m['ign'], m.get('uuid') or None, m.get('rank', '')) for m in members],
                 )
 
     def update_guild_member_stats(self, guild_key: str, ign: str, skyblock_level, last_login) -> None:
