@@ -200,7 +200,9 @@ class DatabaseManager:
                 execute_values(
                     cur,
                     "INSERT INTO guild_members (guild_key, ign, uuid, rank) VALUES %s "
-                    "ON CONFLICT (guild_key, ign) DO UPDATE SET uuid = EXCLUDED.uuid, rank = EXCLUDED.rank",
+                    "ON CONFLICT (guild_key, ign) DO UPDATE SET "
+                    "uuid = COALESCE(EXCLUDED.uuid, guild_members.uuid), "
+                    "rank = EXCLUDED.rank",
                     [(guild_key, m['ign'], m.get('uuid') or None, m.get('rank', '')) for m in members],
                 )
 
