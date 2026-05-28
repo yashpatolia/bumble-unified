@@ -253,10 +253,10 @@ class DatabaseManager:
     # --- Panel Users ---
 
     def get_panel_user(self, discord_id: int) -> Optional[tuple]:
-        """Returns (discord_id, discord_name, is_admin, can_view_logs, can_control_bots, can_fetch_api, can_manage_links) or None."""
+        """Returns (discord_id, discord_name, is_admin, can_control_bots, can_fetch_api, can_manage_links) or None."""
         with self._cursor() as cur:
             cur.execute(
-                "SELECT discord_id, discord_name, is_admin, can_view_logs, can_control_bots, can_fetch_api, can_manage_links "
+                "SELECT discord_id, discord_name, is_admin, can_control_bots, can_fetch_api, can_manage_links "
                 "FROM panel_users WHERE discord_id = %s",
                 (discord_id,),
             )
@@ -265,7 +265,7 @@ class DatabaseManager:
     def get_all_panel_users(self) -> list:
         with self._cursor() as cur:
             cur.execute(
-                "SELECT discord_id, discord_name, is_admin, can_view_logs, can_control_bots, can_fetch_api, can_manage_links "
+                "SELECT discord_id, discord_name, is_admin, can_control_bots, can_fetch_api, can_manage_links "
                 "FROM panel_users"
             )
             return cur.fetchall()
@@ -275,16 +275,15 @@ class DatabaseManager:
         discord_id: int,
         discord_name: str,
         is_admin: bool = False,
-        can_view_logs: bool = True,
         can_control_bots: bool = False,
         can_fetch_api: bool = False,
         can_manage_links: bool = False,
     ) -> None:
         with self._cursor() as cur:
             cur.execute(
-                "INSERT INTO panel_users (discord_id, discord_name, is_admin, can_view_logs, can_control_bots, can_fetch_api, can_manage_links) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING",
-                (discord_id, discord_name, is_admin, can_view_logs, can_control_bots, can_fetch_api, can_manage_links),
+                "INSERT INTO panel_users (discord_id, discord_name, is_admin, can_control_bots, can_fetch_api, can_manage_links) "
+                "VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING",
+                (discord_id, discord_name, is_admin, can_control_bots, can_fetch_api, can_manage_links),
             )
 
     def upsert_panel_user_name(self, discord_id: int, discord_name: str) -> None:
@@ -298,16 +297,15 @@ class DatabaseManager:
         self,
         discord_id: int,
         is_admin: bool,
-        can_view_logs: bool,
         can_control_bots: bool,
         can_fetch_api: bool = False,
         can_manage_links: bool = False,
     ) -> None:
         with self._cursor() as cur:
             cur.execute(
-                "UPDATE panel_users SET is_admin = %s, can_view_logs = %s, can_control_bots = %s, "
+                "UPDATE panel_users SET is_admin = %s, can_control_bots = %s, "
                 "can_fetch_api = %s, can_manage_links = %s WHERE discord_id = %s",
-                (is_admin, can_view_logs, can_control_bots, can_fetch_api, can_manage_links, discord_id),
+                (is_admin, can_control_bots, can_fetch_api, can_manage_links, discord_id),
             )
 
     def unlink_user(self, uuid: str) -> None:

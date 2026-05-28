@@ -25,12 +25,11 @@ def discord_oauth_url() -> str:
     return f"https://discord.com/oauth2/authorize?{urlencode(params)}"
 
 
-def create_token(discord_id: int, discord_name: str, is_admin: bool, can_view_logs: bool, can_control_bots: bool, avatar_url: str = "", is_owner: bool = False, can_fetch_api: bool = False, can_manage_links: bool = False) -> str:
+def create_token(discord_id: int, discord_name: str, is_admin: bool, can_control_bots: bool, avatar_url: str = "", is_owner: bool = False, can_fetch_api: bool = False, can_manage_links: bool = False) -> str:
     payload = {
         "sub": str(discord_id),
         "name": discord_name,
         "admin": is_admin,
-        "logs": can_view_logs,
         "bots": can_control_bots,
         "fetch_api": can_fetch_api,
         "manage_links": can_manage_links,
@@ -65,13 +64,6 @@ def require_admin(request: Request) -> dict:
     claims = require_auth(request)
     if not claims.get("admin"):
         raise HTTPException(status_code=403, detail="Admin access required")
-    return claims
-
-
-def require_logs(request: Request) -> dict:
-    claims = require_auth(request)
-    if not claims.get("logs") and not claims.get("admin"):
-        raise HTTPException(status_code=403, detail="Log access not permitted")
     return claims
 
 

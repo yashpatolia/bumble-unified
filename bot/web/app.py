@@ -61,7 +61,7 @@ def create_app() -> FastAPI:
             avatar_url = f"https://cdn.discordapp.com/embed/avatars/{(discord_id >> 22) % 6}.png"
 
         if discord_id == _ADMIN_ID and not manager.get_panel_user(discord_id):
-            manager.create_panel_user(discord_id, discord_name, is_admin=True, can_view_logs=True)
+            manager.create_panel_user(discord_id, discord_name, is_admin=True)
 
         panel_user = manager.get_panel_user(discord_id)
         if panel_user:
@@ -69,11 +69,10 @@ def create_app() -> FastAPI:
             manager.update_user_avatar(discord_id, avatar_url)
 
         is_admin = bool(panel_user[2]) if panel_user else False
-        can_view_logs = bool(panel_user[3]) if panel_user else False
-        can_control_bots = bool(panel_user[4]) if panel_user else False
-        can_fetch_api = bool(panel_user[5]) if panel_user and len(panel_user) > 5 else False
-        can_manage_links = bool(panel_user[6]) if panel_user and len(panel_user) > 6 else False
-        token = create_token(discord_id, discord_name, is_admin, can_view_logs, can_control_bots, avatar_url, is_owner=(discord_id == _ADMIN_ID), can_fetch_api=can_fetch_api, can_manage_links=can_manage_links)
+        can_control_bots = bool(panel_user[3]) if panel_user else False
+        can_fetch_api = bool(panel_user[4]) if panel_user and len(panel_user) > 4 else False
+        can_manage_links = bool(panel_user[5]) if panel_user and len(panel_user) > 5 else False
+        token = create_token(discord_id, discord_name, is_admin, can_control_bots, avatar_url, is_owner=(discord_id == _ADMIN_ID), can_fetch_api=can_fetch_api, can_manage_links=can_manage_links)
         return RedirectResponse(f"/?token={token}")
 
     # --- Current user ---
@@ -85,7 +84,6 @@ def create_app() -> FastAPI:
             "discord_id": claims["sub"],
             "discord_name": claims["name"],
             "is_admin": claims["admin"],
-            "can_view_logs": claims["logs"],
             "can_control_bots": claims.get("bots", False),
             "can_fetch_api": claims.get("fetch_api", False),
             "can_manage_links": claims.get("manage_links", False),

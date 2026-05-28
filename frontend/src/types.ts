@@ -2,7 +2,6 @@ export interface Me {
   discord_id: string
   discord_name: string
   is_admin: boolean
-  can_view_logs: boolean
   can_control_bots: boolean
   can_fetch_api: boolean
   can_manage_links: boolean
@@ -57,7 +56,6 @@ export interface PanelUser {
   discord_id: string
   discord_name: string
   is_admin: boolean
-  can_view_logs: boolean
   can_control_bots: boolean
   can_fetch_api: boolean
   can_manage_links: boolean

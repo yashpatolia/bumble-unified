@@ -7,13 +7,12 @@ import type { PanelUser } from '../types'
 interface FormState {
   discord_id: string
   discord_name: string
-  can_view_logs: boolean
   can_control_bots: boolean
   can_fetch_api: boolean
   can_manage_links: boolean
 }
 
-const defaultForm = (): FormState => ({ discord_id: '', discord_name: '', can_view_logs: true, can_control_bots: false, can_fetch_api: false, can_manage_links: false })
+const defaultForm = (): FormState => ({ discord_id: '', discord_name: '', can_control_bots: false, can_fetch_api: false, can_manage_links: false })
 
 export default function Users() {
   const { me, logout } = useAuth()
@@ -43,7 +42,7 @@ export default function Users() {
 
   const openEdit = (u: PanelUser) => {
     setEditTarget(u)
-    setForm({ discord_id: String(u.discord_id), discord_name: u.discord_name, can_view_logs: u.can_view_logs, can_control_bots: u.can_control_bots, can_fetch_api: u.can_fetch_api, can_manage_links: u.can_manage_links })
+    setForm({ discord_id: String(u.discord_id), discord_name: u.discord_name, can_control_bots: u.can_control_bots, can_fetch_api: u.can_fetch_api, can_manage_links: u.can_manage_links })
     setError(null)
     setShowModal(true)
   }
@@ -53,10 +52,10 @@ export default function Users() {
     setError(null)
     try {
       if (editTarget) {
-        await api.updateUser(editTarget.discord_id, { can_view_logs: form.can_view_logs, can_control_bots: form.can_control_bots, can_fetch_api: form.can_fetch_api, can_manage_links: form.can_manage_links })
+        await api.updateUser(editTarget.discord_id, { can_control_bots: form.can_control_bots, can_fetch_api: form.can_fetch_api, can_manage_links: form.can_manage_links })
       } else {
         if (!/^\d{17,20}$/.test(form.discord_id.trim())) { setError('Invalid Discord ID'); return }
-        await api.createUser({ discord_id: form.discord_id.trim(), discord_name: form.discord_name.trim() || 'Unknown', is_admin: false, can_view_logs: form.can_view_logs, can_control_bots: form.can_control_bots, can_fetch_api: form.can_fetch_api, can_manage_links: form.can_manage_links })
+        await api.createUser({ discord_id: form.discord_id.trim(), discord_name: form.discord_name.trim() || 'Unknown', is_admin: false, can_control_bots: form.can_control_bots, can_fetch_api: form.can_fetch_api, can_manage_links: form.can_manage_links })
       }
       setShowModal(false)
       load()
@@ -126,11 +125,10 @@ export default function Users() {
                     <td>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         {u.is_owner && <span className="badge badge-admin">Owner</span>}
-                        {u.can_view_logs && <span className="badge badge-on">View Logs</span>}
                         {u.can_control_bots && <span className="badge badge-on">Control Bots</span>}
                         {u.can_fetch_api && <span className="badge badge-on">API Fetching</span>}
                         {u.can_manage_links && <span className="badge badge-on">Manage Links</span>}
-                        {!u.is_owner && !u.can_view_logs && !u.can_control_bots && !u.can_fetch_api && !u.can_manage_links && <span className="badge badge-off">None</span>}
+                        {!u.is_owner && !u.can_control_bots && !u.can_fetch_api && !u.can_manage_links && <span className="badge badge-off">None</span>}
                       </div>
                     </td>
                     <td>
@@ -182,15 +180,6 @@ export default function Users() {
 
             <div className="form-group">
               <label className="form-label">Permissions</label>
-              <div className="toggle-row">
-                <label htmlFor="perm-logs">View Logs</label>
-                <input
-                  id="perm-logs"
-                  type="checkbox"
-                  checked={form.can_view_logs}
-                  onChange={e => setForm(f => ({ ...f, can_view_logs: e.target.checked }))}
-                />
-              </div>
               <div className="toggle-row">
                 <label htmlFor="perm-bots">Control Bots (start/stop/restart)</label>
                 <input

@@ -38,9 +38,9 @@ export const api = {
   guildMembers: (key: string) => req<{ members: GuildMember[] }>(`/api/bots/${key}/members`),
 
   users: () => req<PanelUser[]>('/api/users'),
-  createUser: (data: { discord_id: string; discord_name: string; is_admin: boolean; can_view_logs: boolean; can_control_bots: boolean; can_fetch_api: boolean; can_manage_links: boolean }) =>
+  createUser: (data: { discord_id: string; discord_name: string; is_admin: boolean; can_control_bots: boolean; can_fetch_api: boolean; can_manage_links: boolean }) =>
     req<{ status: string }>('/api/users', { method: 'POST', body: JSON.stringify(data) }),
-  updateUser: (discord_id: string, data: { can_view_logs: boolean; can_control_bots: boolean; can_fetch_api: boolean; can_manage_links: boolean }) =>
+  updateUser: (discord_id: string, data: { can_control_bots: boolean; can_fetch_api: boolean; can_manage_links: boolean }) =>
     req<{ status: string }>(`/api/users/${discord_id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteUser: (discord_id: string) =>
     req<{ status: string }>(`/api/users/${discord_id}`, { method: 'DELETE' }),
