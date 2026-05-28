@@ -71,12 +71,20 @@ export default function GuildLeaderboard() {
                       {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
                     </td>
                     <td>
-                      <span style={{ fontWeight: 500 }}>{entry.ign}</span>
-                      {entry.uuid && (
-                        <div style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--muted)', marginTop: 1 }}>
-                          {entry.uuid}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {entry.uuid
+                          ? <img src={`https://mc-heads.net/avatar/${entry.uuid}/32`} alt="" style={{ width: 32, height: 32, borderRadius: 4, flexShrink: 0 }} />
+                          : <div style={{ width: 32, height: 32, borderRadius: 4, background: 'var(--surface3)', flexShrink: 0 }} />
+                        }
+                        <div>
+                          <span style={{ fontWeight: 500 }}>{entry.ign}</span>
+                          {entry.uuid && (
+                            <div style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--muted)', marginTop: 1 }}>
+                              {entry.uuid}
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </td>
                     <td>
                       {entry.discord_name ? (

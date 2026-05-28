@@ -282,20 +282,28 @@ export default function GuildMembers() {
                 {sorted.map((m, i) => (
                   <tr key={i}>
                     <td>
-                      <div style={{ fontWeight: 500 }}>
-                        {m.ign}
-                        {(() => {
-                          const w = getWarnLevel(m, bottomIgns)
-                          if (!w) return null
-                          const s = WARN_STYLES[w]
-                          return (
-                            <span className="badge" style={{ marginLeft: 6, background: s.background, color: s.color, border: s.border }}>
-                              {s.label}
-                            </span>
-                          )
-                        })()}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {m.uuid
+                          ? <img src={`https://mc-heads.net/avatar/${m.uuid}/32`} alt="" style={{ width: 32, height: 32, borderRadius: 4, flexShrink: 0 }} />
+                          : <div style={{ width: 32, height: 32, borderRadius: 4, background: 'var(--surface3)', flexShrink: 0 }} />
+                        }
+                        <div>
+                          <div style={{ fontWeight: 500 }}>
+                            {m.ign}
+                            {(() => {
+                              const w = getWarnLevel(m, bottomIgns)
+                              if (!w) return null
+                              const s = WARN_STYLES[w]
+                              return (
+                                <span className="badge" style={{ marginLeft: 6, background: s.background, color: s.color, border: s.border }}>
+                                  {s.label}
+                                </span>
+                              )
+                            })()}
+                          </div>
+                          {m.uuid && <div style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-secondary)', marginTop: 2 }}>{m.uuid}</div>}
+                        </div>
                       </div>
-                      {m.uuid && <div style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-secondary)', marginTop: 2 }}>{m.uuid}</div>}
                     </td>
                     <td>
                       {m.discord_name ? (
