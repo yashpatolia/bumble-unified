@@ -12,7 +12,7 @@ _CLIENT_SECRET = os.getenv("PANEL_DISCORD_CLIENT_SECRET")
 _REDIRECT_URI = os.getenv("PANEL_REDIRECT_URI")
 _JWT_SECRET = os.getenv("PANEL_JWT_SECRET")
 _JWT_ALGO = "HS256"
-_JWT_EXPIRE_HOURS = 24
+_JWT_EXPIRE_HOURS = 24 * 30  # 30 days
 
 
 def discord_oauth_url() -> str:

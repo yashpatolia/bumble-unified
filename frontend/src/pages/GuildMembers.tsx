@@ -7,6 +7,14 @@ import type { GuildMember } from '../types'
 const CACHE_TTL = 5 * 60 * 1000
 const cache = new Map<string, { members: GuildMember[]; at: number }>()
 
+const KICK_WARN_MAX_LEVEL = 100
+const KICK_WARN_MIN_OFFLINE_MS = 30 * 24 * 60 * 60 * 1000
+
+function isKickWarning(m: GuildMember): boolean {
+  if (m.skyblock_level == null || m.last_login == null) return false
+  return m.skyblock_level < KICK_WARN_MAX_LEVEL && (Date.now() - m.last_login) > KICK_WARN_MIN_OFFLINE_MS
+}
+
 type SortKey = 'ign' | 'rank' | 'level' | 'last_login' | 'status'
 type SortDir = 'asc' | 'desc'
 
@@ -101,8 +109,12 @@ export default function GuildMembers() {
   }
 
   const handleSort = (k: SortKey) => {
-    if (sortKey === k) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortKey(k); setSortDir('asc') }
+    if (sortKey === k) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(k)
+      setSortDir(k === 'last_login' || k === 'level' || k === 'status' ? 'desc' : 'asc')
+    }
   }
 
   const sorted = [...members].sort((a, b) => {
@@ -173,7 +185,10 @@ export default function GuildMembers() {
               <tbody>
                 {sorted.map((m, i) => (
                   <tr key={i}>
-                    <td style={{ fontWeight: 500 }}>{m.ign}</td>
+                    <td style={{ fontWeight: 500 }}>
+                      {m.ign}
+                      {isKickWarning(m) && <span className="badge badge-warn" style={{ marginLeft: 6 }}>Kick Warning</span>}
+                    </td>
                     <td className="text-muted">{m.rank}</td>
                     <td className="text-muted">{m.skyblock_level != null ? m.skyblock_level.toFixed(1) : 'N/A'}</td>
                     <td className="text-muted">{formatLastLogin(m.last_login)}</td>

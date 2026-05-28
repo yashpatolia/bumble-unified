@@ -452,6 +452,7 @@ tr:hover td { background: var(--surface2); }
 .badge-on     { background: var(--green-dim);  color: var(--green); }
 .badge-off    { background: var(--red-dim);    color: var(--red); }
 .badge-online { background: var(--green-dim);  color: var(--green); }
+.badge-warn   { background: rgba(234,179,8,0.12); color: var(--yellow); }
 
 /* ── Modal ── */
 .modal-overlay {
