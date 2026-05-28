@@ -122,7 +122,8 @@ class GuildBridge(commands.Cog):
         command_check = content
 
         # Resolve IGN for author and (if reply) the replied-to user
-        ign = manager.get_ign(message.author.id) or message.author.display_name
+        resolved_ign = manager.get_ign(message.author.id)
+        ign = resolved_ign or message.author.display_name
         if message.type == discord.MessageType.reply:
             reply_msg = await message.channel.fetch_message(message.reference.message_id)
             reply_ign = manager.get_ign(reply_msg.author.id) or reply_msg.author.display_name
@@ -143,11 +144,12 @@ class GuildBridge(commands.Cog):
             if state.bot:
                 state.bot.chat(f"/{chat_state} {content}")
 
-        try:
-            guild_key = manager.get_guild_key_for_ign(ign) or self.config.key
-            manager.increment_message_count(guild_key, ign)
-        except Exception:
-            pass
+        if resolved_ign:
+            try:
+                guild_key = manager.get_guild_key_for_ign(resolved_ign) or self.config.key
+                manager.increment_message_count(guild_key, resolved_ign)
+            except Exception:
+                pass
 
         if command_check.startswith("."):
             run_coroutine_threadsafe(
