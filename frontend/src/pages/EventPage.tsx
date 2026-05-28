@@ -555,7 +555,7 @@ const MODE_LABELS: Record<string, string> = {
 
 const GUILD_LABELS: Record<string, string> = { bk: 'BK', bu: 'BU' }
 
-export default function EventsBingo() {
+export default function EventPage() {
   const { slug } = useParams<{ slug: string }>()
   if (!slug) return <NewEventPage />
   return <EventBingoInner slug={slug} />
