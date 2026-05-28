@@ -17,7 +17,7 @@ from web.auth import (
     verify_token,
 )
 from web.logs import broadcaster
-from web.routes import bots, users
+from web.routes import bots, users, events
 
 FRONTEND_DIST = Path(__file__).parent.parent.parent / "frontend" / "dist"
 _ADMIN_ID = int(os.getenv("PANEL_ADMIN_DISCORD_ID", "0"))
@@ -36,6 +36,7 @@ def create_app() -> FastAPI:
 
     app.include_router(bots.router)
     app.include_router(users.router)
+    app.include_router(events.router)
 
     # --- Auth ---
 
@@ -72,7 +73,10 @@ def create_app() -> FastAPI:
         can_control_bots = bool(panel_user[3]) if panel_user else False
         can_fetch_api = bool(panel_user[4]) if panel_user and len(panel_user) > 4 else False
         can_manage_links = bool(panel_user[5]) if panel_user and len(panel_user) > 5 else False
-        token = create_token(discord_id, discord_name, is_admin, can_control_bots, avatar_url, is_owner=(discord_id == _ADMIN_ID), can_fetch_api=can_fetch_api, can_manage_links=can_manage_links)
+        can_manage_events = bool(panel_user[6]) if panel_user and len(panel_user) > 6 else False
+        token = create_token(discord_id, discord_name, is_admin, can_control_bots, avatar_url,
+                             is_owner=(discord_id == _ADMIN_ID), can_fetch_api=can_fetch_api,
+                             can_manage_links=can_manage_links, can_manage_events=can_manage_events)
         return RedirectResponse(f"/?token={token}")
 
     # --- Current user ---
@@ -87,6 +91,7 @@ def create_app() -> FastAPI:
             "can_control_bots": claims.get("bots", False),
             "can_fetch_api": claims.get("fetch_api", False),
             "can_manage_links": claims.get("manage_links", False),
+            "can_manage_events": claims.get("manage_events", False),
             "avatar_url": claims.get("avatar", ""),
             "is_owner": claims.get("owner", False),
         }

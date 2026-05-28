@@ -10,9 +10,10 @@ interface FormState {
   can_control_bots: boolean
   can_fetch_api: boolean
   can_manage_links: boolean
+  can_manage_events: boolean
 }
 
-const defaultForm = (): FormState => ({ discord_id: '', discord_name: '', can_control_bots: false, can_fetch_api: false, can_manage_links: false })
+const defaultForm = (): FormState => ({ discord_id: '', discord_name: '', can_control_bots: false, can_fetch_api: false, can_manage_links: false, can_manage_events: false })
 
 export default function Users() {
   const { me, logout } = useAuth()
@@ -42,7 +43,7 @@ export default function Users() {
 
   const openEdit = (u: PanelUser) => {
     setEditTarget(u)
-    setForm({ discord_id: String(u.discord_id), discord_name: u.discord_name, can_control_bots: u.can_control_bots, can_fetch_api: u.can_fetch_api, can_manage_links: u.can_manage_links })
+    setForm({ discord_id: String(u.discord_id), discord_name: u.discord_name, can_control_bots: u.can_control_bots, can_fetch_api: u.can_fetch_api, can_manage_links: u.can_manage_links, can_manage_events: u.can_manage_events })
     setError(null)
     setShowModal(true)
   }
@@ -52,10 +53,10 @@ export default function Users() {
     setError(null)
     try {
       if (editTarget) {
-        await api.updateUser(editTarget.discord_id, { can_control_bots: form.can_control_bots, can_fetch_api: form.can_fetch_api, can_manage_links: form.can_manage_links })
+        await api.updateUser(editTarget.discord_id, { can_control_bots: form.can_control_bots, can_fetch_api: form.can_fetch_api, can_manage_links: form.can_manage_links, can_manage_events: form.can_manage_events })
       } else {
         if (!/^\d{17,20}$/.test(form.discord_id.trim())) { setError('Invalid Discord ID'); return }
-        await api.createUser({ discord_id: form.discord_id.trim(), discord_name: form.discord_name.trim() || 'Unknown', is_admin: false, can_control_bots: form.can_control_bots, can_fetch_api: form.can_fetch_api, can_manage_links: form.can_manage_links })
+        await api.createUser({ discord_id: form.discord_id.trim(), discord_name: form.discord_name.trim() || 'Unknown', is_admin: false, can_control_bots: form.can_control_bots, can_fetch_api: form.can_fetch_api, can_manage_links: form.can_manage_links, can_manage_events: form.can_manage_events })
       }
       setShowModal(false)
       load()
@@ -128,7 +129,8 @@ export default function Users() {
                         {u.can_control_bots && <span className="badge badge-on">Control Bots</span>}
                         {u.can_fetch_api && <span className="badge badge-on">API Fetching</span>}
                         {u.can_manage_links && <span className="badge badge-on">Manage Links</span>}
-                        {!u.is_owner && !u.can_control_bots && !u.can_fetch_api && !u.can_manage_links && <span className="badge badge-off">None</span>}
+                        {u.can_manage_events && <span className="badge badge-on">Manage Events</span>}
+                        {!u.is_owner && !u.can_control_bots && !u.can_fetch_api && !u.can_manage_links && !u.can_manage_events && <span className="badge badge-off">None</span>}
                       </div>
                     </td>
                     <td>
@@ -205,6 +207,15 @@ export default function Users() {
                   type="checkbox"
                   checked={form.can_manage_links}
                   onChange={e => setForm(f => ({ ...f, can_manage_links: e.target.checked }))}
+                />
+              </div>
+              <div className="toggle-row">
+                <label htmlFor="perm-events">Manage Events (create/edit bingo &amp; events)</label>
+                <input
+                  id="perm-events"
+                  type="checkbox"
+                  checked={form.can_manage_events}
+                  onChange={e => setForm(f => ({ ...f, can_manage_events: e.target.checked }))}
                 />
               </div>
             </div>

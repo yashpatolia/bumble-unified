@@ -1,4 +1,4 @@
-import type { GuildMember, GuildOverview, GuildStatus, Me, PanelUser } from './types'
+import type { BingoCardEntry, BingoEvent, BingoLeaderboardEntry, BingoTask, GuildMember, GuildOverview, GuildStatus, Me, PanelUser } from './types'
 
 function token(): string | null {
   return localStorage.getItem('token')
@@ -54,6 +54,25 @@ export const api = {
     req<{ status: string }>(`/api/bots/${key}/members/${encodeURIComponent(ign)}/link`, { method: 'POST', body: JSON.stringify(data) }),
   unlinkMember: (key: string, ign: string) =>
     req<{ status: string }>(`/api/bots/${key}/members/${encodeURIComponent(ign)}/link`, { method: 'DELETE' }),
+
+  listEvents: () =>
+    req<{ events: BingoEvent[] }>('/api/events'),
+  getEvent: (slug: string) =>
+    req<{ event: BingoEvent; tasks: BingoTask[] }>(`/api/events/${slug}`),
+  createEvent: (data: { slug: string; name: string; mode: string; guilds: string[]; starts_at: string; ends_at: string }) =>
+    req<{ status: string; id: number; slug: string }>('/api/events', { method: 'POST', body: JSON.stringify(data) }),
+  updateEvent: (slug: string, data: { name: string; mode: string; guilds: string[]; starts_at: string; ends_at: string }) =>
+    req<{ status: string }>(`/api/events/${slug}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  setEventStatus: (slug: string, status: string) =>
+    req<{ status: string }>(`/api/events/${slug}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  upsertBingoTask: (slug: string, position: number, data: { name: string; description: string; task_type: string; target: Record<string, unknown>; difficulty: string }) =>
+    req<{ status: string }>(`/api/events/${slug}/tasks/${position}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteBingoTask: (slug: string, position: number) =>
+    req<{ status: string }>(`/api/events/${slug}/tasks/${position}`, { method: 'DELETE' }),
+  getEventLeaderboard: (slug: string) =>
+    req<{ leaderboard: BingoLeaderboardEntry[] }>(`/api/events/${slug}/leaderboard`),
+  getPlayerCard: (slug: string, uuid: string) =>
+    req<{ card: BingoCardEntry[] }>(`/api/events/${slug}/card/${uuid}`),
 }
 
 export function wsLogsUrl(): string {
