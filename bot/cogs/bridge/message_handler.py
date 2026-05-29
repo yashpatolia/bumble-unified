@@ -1,12 +1,54 @@
+import asyncio
 import logging
 import re
 from datetime import datetime
+import aiohttp
 import discord
 from discord.ext import commands
 from javascript import On
 from config import GuildConfig
 from db import manager
+from lib.get_uuid import get_uuid
+from lib.hypixel import fetch_member_stats
+from lib.rankup import guild_rank_change
 from player import skyblock
+
+
+async def _auto_fetch_and_rank(client, config: GuildConfig, ign: str) -> None:
+    """Fetch stats for a newly joined member and auto-rank them."""
+    await asyncio.sleep(5)  # brief settle time
+    try:
+        uuid = await asyncio.to_thread(get_uuid, ign)
+        if uuid:
+            manager.update_guild_member_uuid(config.key, ign, uuid)
+        else:
+            logging.warning(f"[{config.short_name}] Auto-fetch: could not resolve UUID for {ign}")
+            return
+
+        async with aiohttp.ClientSession() as session:
+            stats = await fetch_member_stats(session, uuid)
+
+        manager.update_guild_member_stats(config.key, ign, stats["skyblock_level"], stats["last_login"])
+
+        level = stats["skyblock_level"]
+        if level is None:
+            return
+
+        starting_rank = list(config.ranks.keys())[0]
+        state = client.guilds_state[config.key]
+        result = await guild_rank_change(
+            starting_rank, state.bot, username=ign, uuid=uuid,
+            ranks=config.ranks, send_msg=False, known_level=level,
+        )
+        if result:
+            logging.info(f"[{config.short_name}] Auto-rank {ign}: {result}")
+            embed = discord.Embed(
+                colour=discord.Colour.teal(),
+                description=f"[{config.short_name}] Auto-ranked **{ign}** (Level {level:.1f}): {result}",
+            )
+            state.logs.send(embed=embed)
+    except Exception as e:
+        logging.error(f"[{config.short_name}] Auto-fetch failed for {ign}: {e}")
 
 
 class GuildMessageHandler(commands.Cog):
@@ -95,7 +137,12 @@ class GuildMessageHandler(commands.Cog):
                 state.recent_events.appendleft({"time": datetime.utcnow().strftime("%H:%M"), "type": "join", "message": message})
                 m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+joined the guild", message, re.IGNORECASE)
                 if m:
-                    manager.upsert_guild_member(config.key, m.group(1), '')
+                    ign = m.group(1)
+                    manager.upsert_guild_member(config.key, ign, '')
+                    asyncio.run_coroutine_threadsafe(
+                        _auto_fetch_and_rank(self.client, config, ign),
+                        self.client.loop,
+                    )
 
             if "left the guild!" in message.lower():
                 embed = discord.Embed(colour=discord.Colour.red(), description=f"[{config.short_name}] {message}")

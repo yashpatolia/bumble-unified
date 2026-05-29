@@ -163,7 +163,7 @@ class DatabaseManager:
         with self._cursor() as cur:
             cur.execute(
                 "SELECT gm.ign, gm.rank, gm.skyblock_level, gm.last_login, gm.uuid, "
-                "u.discord_name, u.discord_id, u.discord_avatar "
+                "u.discord_name, u.discord_id, u.discord_avatar, gm.stats_fetched_at "
                 "FROM guild_members gm "
                 "LEFT JOIN users u ON u.uuid = gm.uuid "
                 "WHERE gm.guild_key = %s ORDER BY LOWER(gm.ign)",
@@ -254,6 +254,42 @@ class DatabaseManager:
                 "UPDATE guild_members SET uuid = %s WHERE guild_key = %s AND LOWER(ign) = LOWER(%s)",
                 (uuid, guild_key, ign),
             )
+
+    def get_oldest_stats_member(self) -> Optional[tuple]:
+        """Returns (guild_key, ign, uuid) for the member with oldest or missing stats."""
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT guild_key, ign::TEXT, uuid FROM guild_members "
+                "ORDER BY stats_fetched_at ASC NULLS FIRST LIMIT 1"
+            )
+            return cur.fetchone()
+
+    # --- API Usage Tracking ---
+
+    def record_api_call(self, endpoint: str, success: bool = True) -> None:
+        import datetime as _dt
+        with self._cursor() as cur:
+            cur.execute(
+                "INSERT INTO api_calls (called_at, endpoint, success) VALUES (%s, %s, %s)",
+                (_dt.datetime.now(_dt.timezone.utc), endpoint, success),
+            )
+
+    def get_api_call_counts(self) -> dict:
+        """Returns API call counts for several rolling windows."""
+        import datetime as _dt
+        now = _dt.datetime.now(_dt.timezone.utc)
+        windows = {
+            "last_minute": now - _dt.timedelta(minutes=1),
+            "last_5min": now - _dt.timedelta(minutes=5),
+            "last_hour": now - _dt.timedelta(hours=1),
+            "today": now - _dt.timedelta(hours=24),
+        }
+        result = {}
+        with self._cursor() as cur:
+            for key, since in windows.items():
+                cur.execute("SELECT COUNT(*) FROM api_calls WHERE called_at >= %s", (since,))
+                result[key] = cur.fetchone()[0]
+        return result
 
     # --- Panel Users ---
 

@@ -1,9 +1,9 @@
 import asyncio
 import os
-import re
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from db import manager
+from lib.guild_list import parse_guild_list as _parse_guild_list, parse_online_igns as _parse_online_igns
 
 _IPC_SECRET = os.getenv("BOT_IPC_SECRET", "")
 
@@ -11,45 +11,6 @@ _IPC_SECRET = os.getenv("BOT_IPC_SECRET", "")
 def _verify(request: Request):
     if _IPC_SECRET and request.headers.get("X-IPC-Secret") != _IPC_SECRET:
         raise HTTPException(status_code=403)
-
-
-_RANK_HEADER = re.compile(r"^-+\s+(.+?)\s+-+$")
-_IGN_RE = re.compile(r"(?:\[[\w+]+\]\s+)?([A-Za-z0-9_]{3,16})")
-_SKIP_WORDS = {"Guild", "Total", "Online", "Members", "The"}
-
-
-def _parse_guild_list(lines: list) -> list:
-    """Parse /guild list lines into [{ign, rank}] using section headers for guild rank."""
-    members = []
-    current_rank = ""
-    for line in lines:
-        line = line.strip()
-        if not line or ":" in line:
-            continue
-        m = _RANK_HEADER.match(line)
-        if m:
-            current_rank = m.group(1).strip()
-            continue
-        # Strip MC rank prefixes and bullet chars, then extract IGNs
-        clean = re.sub(r"\[[\w+]+\]", "", line).replace("●", "").replace("•", "")
-        for token in clean.split():
-            if re.match(r"^[A-Za-z0-9_]{3,16}$", token) and token not in _SKIP_WORDS:
-                members.append({"ign": token, "rank": current_rank})
-    return members
-
-
-def _parse_online_igns(lines: list) -> set:
-    """Parse /guild online lines into a set of online IGNs."""
-    online = set()
-    for line in lines:
-        line = line.strip()
-        if not line or ":" in line or "--" in line:
-            continue
-        clean = re.sub(r"\[[\w+]+\]", "", line).replace("●", "").replace("•", "")
-        for token in clean.split():
-            if re.match(r"^[A-Za-z0-9_]{3,16}$", token) and token not in _SKIP_WORDS:
-                online.add(token)
-    return online
 
 
 def create_ipc_app(client):
@@ -94,7 +55,7 @@ def create_ipc_app(client):
         if not state.connected or not state.bot:
             # Return DB cache with everyone offline
             rows = manager.get_guild_members(key)
-            members = [{"ign": r[0], "rank": r[1], "skyblock_level": r[2], "last_login": r[3], "uuid": r[4] or None, "discord_name": r[5] or None, "discord_id": str(r[6]) if r[6] else None, "discord_avatar": r[7] or None, "online": False} for r in rows]
+            members = [{"ign": r[0], "rank": r[1], "skyblock_level": r[2], "last_login": r[3], "uuid": r[4] or None, "discord_name": r[5] or None, "discord_id": str(r[6]) if r[6] else None, "discord_avatar": r[7] or None, "stats_fetched_at": r[8], "online": False} for r in rows]
             return {"members": sorted(members, key=lambda m: m["ign"].lower())}
 
         # Refresh DB from /guild list
@@ -118,7 +79,7 @@ def create_ipc_app(client):
         online_igns = _parse_online_igns(list(state.guild_online))
 
         rows = manager.get_guild_members(key)
-        members = [{"ign": r[0], "rank": r[1], "skyblock_level": r[2], "last_login": r[3], "uuid": r[4] or None, "discord_name": r[5] or None, "discord_id": str(r[6]) if r[6] else None, "discord_avatar": r[7] or None, "online": r[0] in online_igns} for r in rows]
+        members = [{"ign": r[0], "rank": r[1], "skyblock_level": r[2], "last_login": r[3], "uuid": r[4] or None, "discord_name": r[5] or None, "discord_id": str(r[6]) if r[6] else None, "discord_avatar": r[7] or None, "stats_fetched_at": r[8], "online": r[0] in online_igns} for r in rows]
         members.sort(key=lambda m: (not m["online"], m["ign"].lower()))
         return {"members": members}
 
@@ -142,5 +103,9 @@ def create_ipc_app(client):
                 state.manual_stop = False
                 raise HTTPException(status_code=500, detail="Failed to stop bot")
         return {"status": "stopped", "key": key}
+
+    @app.get("/api-usage", dependencies=[Depends(_verify)])
+    def get_api_usage():
+        return manager.get_api_call_counts()
 
     return app

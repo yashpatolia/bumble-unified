@@ -24,40 +24,8 @@ _refresh_progress: dict[str, dict] = {}  # key -> {"done": int, "total": int}
 
 
 async def _fetch_hypixel_stats(session, uuid: str) -> dict:
-    _key = os.getenv("HYPIXEL_API_KEY", "")
-    result = {"skyblock_level": None, "last_login": None}
-    uuid_nodash = uuid.replace("-", "")
-    try:
-        async with session.get(
-            "https://api.hypixel.net/v2/player",
-            params={"uuid": uuid_nodash},
-            headers={"API-Key": _key},
-            timeout=aiohttp.ClientTimeout(total=10),
-        ) as r:
-            d = await r.json()
-            if d.get("success") and d.get("player"):
-                result["last_login"] = d["player"].get("lastLogin")
-    except Exception:
-        pass
-    try:
-        async with session.get(
-            "https://api.hypixel.net/v2/skyblock/profiles",
-            params={"uuid": uuid_nodash},
-            headers={"API-Key": _key},
-            timeout=aiohttp.ClientTimeout(total=10),
-        ) as r:
-            d = await r.json()
-            if d.get("success") and d.get("profiles"):
-                highest = max(
-                    (p.get("members", {}).get(uuid_nodash, {}).get("leveling", {}).get("experience", 0)
-                     for p in d["profiles"]),
-                    default=0,
-                )
-                if highest > 0:
-                    result["skyblock_level"] = round(highest / 100, 1)
-    except Exception:
-        pass
-    return result
+    from lib.hypixel import fetch_member_stats
+    return await fetch_member_stats(session, uuid)
 
 
 async def _do_refresh_stats(key: str) -> None:
@@ -76,7 +44,7 @@ async def _do_refresh_stats(key: str) -> None:
                     stats = await _fetch_hypixel_stats(session, uuid)
                     manager.update_guild_member_stats(key, ign, stats["skyblock_level"], stats["last_login"])
                 _refresh_progress[key]["done"] += 1
-                await asyncio.sleep(1.0)  # ~60 req/min, well under 300/5min limit
+                await asyncio.sleep(1.0)  # manual refresh: ~2 calls/s per member, uses API budget quickly
     except Exception as e:
         logging.error(f"Stats refresh for {key} failed: {e}")
     finally:
@@ -234,6 +202,19 @@ async def get_stats_status(key: str, _=Depends(require_api_fetch)):
         "fetching": key in _refresh_tasks,
         "done": progress.get("done", 0),
         "total": progress.get("total", 0),
+    }
+
+
+@router.get("/api-usage")
+async def get_api_usage(_=Depends(require_auth)):
+    """Return local API call counts plus live Hypixel key info."""
+    from lib.hypixel import fetch_key_info
+    counts = manager.get_api_call_counts()
+    hypixel = await fetch_key_info()
+    return {
+        "local": counts,
+        "hypixel": hypixel,
+        "rate_limit": {"requests": 300, "window_minutes": 500},
     }
 
 

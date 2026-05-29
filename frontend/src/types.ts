@@ -51,6 +51,25 @@ export interface GuildMember {
   online: boolean
   skyblock_level: number | null
   last_login: number | null
+  stats_fetched_at: number | null
+}
+
+export interface ApiUsageStats {
+  local: {
+    last_minute: number
+    last_5min: number
+    last_hour: number
+    today: number
+  }
+  hypixel: {
+    queries_in_past_minute?: number
+    total_queries?: number
+    limit?: number
+  }
+  rate_limit: {
+    requests: number
+    window_minutes: number
+  }
 }
 
 export interface PanelUser {

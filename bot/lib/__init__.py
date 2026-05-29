@@ -3,6 +3,7 @@ from .deep_get import deep_get
 from .fetch import fetch, request
 from .get_username import get_username
 from .get_uuid import get_uuid
+from .guild_list import parse_guild_list, parse_online_igns
 from .rankup import guild_rank_change
 
 __all__ = [
@@ -13,4 +14,6 @@ __all__ = [
     "get_username",
     "get_uuid",
     "guild_rank_change",
+    "parse_guild_list",
+    "parse_online_igns",
 ]

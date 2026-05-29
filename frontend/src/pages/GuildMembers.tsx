@@ -44,6 +44,19 @@ function formatLastLogin(ts: number | null): string {
   return `${Math.floor(months / 12)}y ago`
 }
 
+function formatFetchedAt(ts: number | null): string {
+  if (!ts) return '—'
+  // stats_fetched_at is a Unix seconds timestamp
+  const diff = Date.now() - ts * 1000
+  const mins = Math.floor(diff / 60000)
+  if (mins < 2) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(diff / 3600000)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(diff / 86400000)
+  return `${days}d ago`
+}
+
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
   if (!active) return <span style={{ opacity: 0.3, marginLeft: 4 }}>↕</span>
   return <span style={{ marginLeft: 4 }}>{dir === 'asc' ? '↑' : '↓'}</span>
@@ -276,6 +289,7 @@ export default function GuildMembers() {
                   <th style={{ cursor: 'pointer' }} onClick={() => handleSort('status')}>
                     Status <SortIcon active={sortKey === 'status'} dir={sortDir} />
                   </th>
+                  <th>Stats Updated</th>
                 </tr>
               </thead>
               <tbody>
@@ -343,6 +357,7 @@ export default function GuildMembers() {
                         : <span className="badge badge-off">Offline</span>
                       }
                     </td>
+                    <td className="text-muted" style={{ fontSize: 12 }}>{formatFetchedAt(m.stats_fetched_at)}</td>
                   </tr>
                 ))}
               </tbody>
