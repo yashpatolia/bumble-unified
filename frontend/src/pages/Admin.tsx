@@ -54,20 +54,20 @@ function ApiUsagePanel() {
           {lastRefreshed && ` · updated ${lastRefreshed.toLocaleTimeString()}`}
         </span>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 32 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 32 }}>
         {cards.map(c => (
-          <div key={c.label} className="card" style={{ padding: '14px 16px' }}>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>{c.label}</div>
-            <div style={{ fontSize: 22, fontWeight: 600 }}>{c.value.toLocaleString()}</div>
+          <div key={c.label} className="card" style={{ padding: '20px 24px' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{c.label}</div>
+            <div style={{ fontSize: 36, fontWeight: 700, lineHeight: 1 }}>{c.value.toLocaleString()}</div>
             <UsageBar value={c.value} max={c.max} color={c.color} />
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>{c.sub}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 6 }}>{c.sub}</div>
           </div>
         ))}
         {hypixel.total_queries != null && (
-          <div className="card" style={{ padding: '14px 16px' }}>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>Total Queries (Hypixel)</div>
-            <div style={{ fontSize: 22, fontWeight: 600 }}>{hypixel.total_queries.toLocaleString()}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 10 }}>Lifetime calls on this API key</div>
+          <div className="card" style={{ padding: '20px 24px' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Queries</div>
+            <div style={{ fontSize: 36, fontWeight: 700, lineHeight: 1 }}>{hypixel.total_queries.toLocaleString()}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 16 }}>Lifetime calls on this API key</div>
           </div>
         )}
       </div>
@@ -101,21 +101,23 @@ export default function Admin() {
       </header>
 
       <main className="guild-main">
-        <ApiUsagePanel />
+        <div style={{ maxWidth: 960, margin: '0 auto' }}>
+          <ApiUsagePanel />
 
-        <div className="events-section-label">Management</div>
-        <div className="guild-cards">
-          <Link className="guild-card" to="/users">
-            <div className="guild-card-header">
-              <div>
-                <div className="guild-card-name" style={{ fontSize: 18 }}>User Management</div>
-                <div className="guild-card-tag">Add, edit, or remove panel users and their permissions</div>
+          <div className="events-section-label">Management</div>
+          <div className="guild-cards">
+            <Link className="guild-card" to="/users">
+              <div className="guild-card-header">
+                <div>
+                  <div className="guild-card-name" style={{ fontSize: 18 }}>User Management</div>
+                  <div className="guild-card-tag">Add, edit, or remove panel users and their permissions</div>
+                </div>
               </div>
-            </div>
-            <div className="guild-card-footer">
-              <span className="guild-enter">Manage Users →</span>
-            </div>
-          </Link>
+              <div className="guild-card-footer">
+                <span className="guild-enter">Manage Users →</span>
+              </div>
+            </Link>
+          </div>
         </div>
       </main>
     </div>

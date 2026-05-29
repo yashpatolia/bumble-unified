@@ -9,9 +9,10 @@ from db import manager
 from lib.get_uuid import get_uuid
 from lib.hypixel import fetch_member_stats
 
-# Budget: ~150 of 300 requests per 500 min for background = 0.3 req/min
-# Each member needs 2 calls → process 1 member every 400 seconds
-_MEMBER_INTERVAL = 400
+# Budget: 300 req / 5 min = 60 req/min total.
+# Reserve ~24 req/min for background (2 calls per member every 5 s).
+# Leaves ~36 req/min for user dot-commands. Full 250-member cycle ≈ 21 min.
+_MEMBER_INTERVAL = 5
 
 
 class MemberRefreshTask(commands.Cog):

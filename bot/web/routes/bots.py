@@ -214,7 +214,7 @@ async def get_api_usage(_=Depends(require_owner)):
     return {
         "local": counts,
         "hypixel": hypixel,
-        "rate_limit": {"requests": 300, "window_minutes": 500},
+        "rate_limit": {"requests": 300, "window_minutes": 5},
     }
 
 
