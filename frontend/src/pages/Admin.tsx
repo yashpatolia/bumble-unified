@@ -83,10 +83,15 @@ export default function Admin() {
   if (!me?.is_owner) return <Navigate to="/" replace />
 
   return (
-    <div className="home-page">
-      <header className="home-header">
-        <div className="home-logo" style={{ cursor: 'pointer' }} onClick={() => navigate('/')}>Bumble</div>
-        <div className="home-user">
+    <div className="guild-layout">
+      <header className="guild-header">
+        <div className="guild-header-left">
+          <span className="guild-header-back" onClick={() => navigate('/')}>← All Guilds</span>
+          <span className="guild-header-sep">/</span>
+          <span className="guild-header-name">Admin</span>
+        </div>
+
+        <div className="guild-header-user">
           {me.avatar_url && (
             <img src={me.avatar_url} alt="" style={{ width: 28, height: 28, borderRadius: '50%' }} />
           )}
@@ -95,14 +100,7 @@ export default function Admin() {
         </div>
       </header>
 
-      <div className="home-body">
-        <div style={{ marginBottom: 4 }}>
-          <button className="btn btn-ghost btn-sm" onClick={() => navigate('/')} style={{ padding: '4px 10px', fontSize: 13 }}>
-            ← Back
-          </button>
-        </div>
-        <div className="home-title">Admin</div>
-
+      <main className="guild-main">
         <ApiUsagePanel />
 
         <div className="events-section-label">Management</div>
@@ -119,7 +117,7 @@ export default function Admin() {
             </div>
           </Link>
         </div>
-      </div>
+      </main>
     </div>
   )
 }
