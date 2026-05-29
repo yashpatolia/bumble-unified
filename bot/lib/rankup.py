@@ -9,8 +9,13 @@ async def guild_rank_change(guild_rank: str, bot, username: str = None, uuid: st
     """Promote or demote a guild member to match their Skyblock level against the rank table.
 
     Pass known_level to skip an extra API fetch when the level was already retrieved.
+    Returns None if the bot is disconnected or an error occurs.
     """
     if ranks is None:
+        return None
+
+    if getattr(bot, "ended", True):
+        logging.warning(f"guild_rank_change: bot is disconnected, skipping rank change for {username or uuid}")
         return None
 
     if guild_rank not in ranks:
@@ -34,21 +39,21 @@ async def guild_rank_change(guild_rank: str, bot, username: str = None, uuid: st
         current_idx = list(ranks.keys()).index(guild_rank)
         delta = required_idx - current_idx
 
-        logging.info(f"{display_name}: {guild_rank} → {required_rank}")
-
         if delta > 0:
+            logging.info(f"Promoting {display_name}: {guild_rank} → {required_rank} ({delta} step(s))")
             for _ in range(delta):
                 bot.chat(f"/g promote {display_name}")
-                await asyncio.sleep(1)
+                await asyncio.sleep(1.5)
             return f"Promoted {display_name} from {guild_rank} to {required_rank}"
         elif delta < 0:
+            logging.info(f"Demoting {display_name}: {guild_rank} → {required_rank} ({abs(delta)} step(s))")
             for _ in range(abs(delta)):
                 bot.chat(f"/g demote {display_name}")
-                await asyncio.sleep(1)
+                await asyncio.sleep(1.5)
             return f"Demoted {display_name} from {guild_rank} to {required_rank}"
         else:
             if send_msg:
                 bot.chat(f"/gc {display_name}: No rank change required!")
             return f"{display_name}: No rank change required!"
     except Exception as e:
-        logging.error(e)
+        logging.error(f"guild_rank_change error for {display_name}: {e}")

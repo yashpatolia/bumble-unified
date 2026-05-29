@@ -21,6 +21,7 @@ RANKS = {
 def bot():
     b = MagicMock()
     b.chat = MagicMock()
+    b.ended = False
     return b
 
 

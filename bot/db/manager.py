@@ -256,10 +256,10 @@ class DatabaseManager:
             )
 
     def get_oldest_stats_member(self) -> Optional[tuple]:
-        """Returns (guild_key, ign, uuid) for the member with oldest or missing stats."""
+        """Returns (guild_key, ign, uuid, rank) for the member with oldest or missing stats."""
         with self._cursor() as cur:
             cur.execute(
-                "SELECT guild_key, ign::TEXT, uuid FROM guild_members "
+                "SELECT guild_key, ign::TEXT, uuid, rank FROM guild_members "
                 "ORDER BY stats_fetched_at ASC NULLS FIRST LIMIT 1"
             )
             return cur.fetchone()

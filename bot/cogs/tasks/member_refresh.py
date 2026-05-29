@@ -8,6 +8,7 @@ from discord.ext import commands, tasks
 from db import manager
 from lib.get_uuid import get_uuid
 from lib.hypixel import fetch_member_stats
+from lib.rankup import guild_rank_change
 
 # Budget: 300 req / 5 min = 60 req/min total.
 # Reserve ~24 req/min for background (2 calls per member every 5 s).
@@ -33,27 +34,52 @@ class MemberRefreshTask(commands.Cog):
         if not row:
             return
 
-        guild_key, ign, uuid = row
+        guild_key, ign, uuid, current_rank = row
         try:
             if not uuid:
                 uuid = await asyncio.to_thread(get_uuid, ign)
                 if uuid:
                     manager.update_guild_member_uuid(guild_key, ign, uuid)
                 else:
-                    # Mark stats_fetched_at so this member moves to the back
                     manager.update_guild_member_stats(guild_key, ign, None, None)
                     return
 
             async with aiohttp.ClientSession() as session:
                 stats = await fetch_member_stats(session, uuid)
 
-            manager.update_guild_member_stats(
-                guild_key, ign, stats["skyblock_level"], stats["last_login"]
+            level = stats["skyblock_level"]
+            manager.update_guild_member_stats(guild_key, ign, level, stats["last_login"])
+            logging.debug(f"[refresh] {guild_key}/{ign}: level={level}")
+
+            if level is None:
+                return
+
+            config = self.client.guild_configs.get(guild_key)
+            if config is None:
+                return
+
+            bot_rank = config.discord_rank_map.get(current_rank)
+            if bot_rank is None:
+                return
+
+            state = self.client.guilds_state[guild_key]
+            if not state.bot or getattr(state.bot, "ended", True):
+                return
+
+            result = await guild_rank_change(
+                bot_rank, state.bot, username=ign, uuid=uuid,
+                ranks=config.ranks, send_msg=False, known_level=level,
             )
-            logging.debug(f"[refresh] {guild_key}/{ign}: level={stats['skyblock_level']}")
+            if result and "No rank change" not in result:
+                logging.info(f"[{config.short_name}] Rank update {ign}: {result}")
+                embed = discord.Embed(
+                    colour=discord.Colour.teal(),
+                    description=f"[{config.short_name}] **{ign}** (Level {level:.1f}): {result}",
+                )
+                state.logs.send(embed=embed)
+
         except Exception as e:
             logging.warning(f"[refresh] Failed for {guild_key}/{ign}: {e}")
-            # Still update timestamp so this member rotates to back and doesn't block
             try:
                 manager.update_guild_member_stats(guild_key, ign, None, None)
             except Exception:
@@ -62,7 +88,6 @@ class MemberRefreshTask(commands.Cog):
     @_refresh_loop.before_loop
     async def _before_refresh(self):
         await self.client.wait_until_ready()
-        # Stagger startup by 60 seconds so the bot is fully settled
         await asyncio.sleep(60)
 
 
