@@ -10,7 +10,7 @@ from db import manager
 from lib.get_uuid import get_uuid as _get_uuid_sync
 from pydantic import BaseModel
 
-from web.auth import require_auth, require_api_fetch, require_bot_control, require_manage_links
+from web.auth import require_auth, require_api_fetch, require_bot_control, require_manage_links, require_owner
 
 router = APIRouter(prefix="/api/bots", tags=["bots"])
 
@@ -206,7 +206,7 @@ async def get_stats_status(key: str, _=Depends(require_api_fetch)):
 
 
 @router.get("/api-usage")
-async def get_api_usage(_=Depends(require_auth)):
+async def get_api_usage(_=Depends(require_owner)):
     """Return local API call counts plus live Hypixel key info."""
     from lib.hypixel import fetch_key_info
     counts = manager.get_api_call_counts()

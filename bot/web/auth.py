@@ -91,6 +91,13 @@ def require_manage_links(request: Request) -> dict:
     return claims
 
 
+def require_owner(request: Request) -> dict:
+    claims = require_auth(request)
+    if not claims.get("owner"):
+        raise HTTPException(status_code=403, detail="Owner access required")
+    return claims
+
+
 def require_manage_events(request: Request) -> dict:
     claims = require_auth(request)
     if not claims.get("manage_events") and not claims.get("admin"):

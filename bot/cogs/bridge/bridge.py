@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 from datetime import datetime
@@ -25,6 +26,7 @@ class GuildBridge(commands.Cog):
         super().__init__()
         self.client = client
         self.config = config
+        self._loop = asyncio.get_event_loop()
         state = self.client.guilds_state[config.key]
 
         @On(state.bot, "chat")
@@ -95,7 +97,7 @@ class GuildBridge(commands.Cog):
                 if msg_text.startswith("."):
                     run_coroutine_threadsafe(
                         bridge_commands(self.client, msg_text, sender, guild_rank, chat_type, config=config),
-                        self.client.loop,
+                        self._loop,
                     )
             except Exception as e:
                 logging.exception(e)
@@ -154,7 +156,7 @@ class GuildBridge(commands.Cog):
         if command_check.startswith("."):
             run_coroutine_threadsafe(
                 bridge_commands(self.client, command_check, message.author.display_name, "None", chat_state, config=self.config),
-                self.client.loop,
+                self._loop,
             )
 
 

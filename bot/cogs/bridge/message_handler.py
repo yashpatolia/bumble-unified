@@ -59,6 +59,7 @@ class GuildMessageHandler(commands.Cog):
         super().__init__()
         self.client = client
         self.config = config
+        self._loop = asyncio.get_event_loop()
         state = self.client.guilds_state[config.key]
 
         @On(state.bot, "messagestr")
@@ -141,7 +142,7 @@ class GuildMessageHandler(commands.Cog):
                     manager.upsert_guild_member(config.key, ign, '')
                     asyncio.run_coroutine_threadsafe(
                         _auto_fetch_and_rank(self.client, config, ign),
-                        self.client.loop,
+                        self._loop,
                     )
 
             if "left the guild!" in message.lower():

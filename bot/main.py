@@ -98,7 +98,7 @@ class Client(commands.Bot):
             if not os.path.isdir(folder_path):
                 continue
             for file in os.listdir(folder_path):
-                if file.endswith(".py"):
+                if file.endswith(".py") and file != "__init__.py":
                     await self.load_extension(f"cogs.{folder}.{file[:-3]}")
 
     async def on_ready(self) -> None:

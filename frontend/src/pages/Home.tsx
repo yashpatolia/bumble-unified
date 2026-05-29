@@ -156,7 +156,12 @@ export default function Home() {
           ))}
         </div>
 
-        {(me?.is_admin || me?.is_owner) && <ApiUsagePanel />}
+        {me?.is_owner && (
+          <>
+            <div className="events-section-label">Admin</div>
+            <ApiUsagePanel />
+          </>
+        )}
 
         <div className="events-section-label">Events</div>
         <div className="guild-cards">
