@@ -2,102 +2,12 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../App'
-import type { ApiUsageStats, GuildStatus } from '../types'
+import type { GuildStatus } from '../types'
 
 const FALLBACK: GuildStatus[] = [
   { key: 'bk', name: 'Bumble Kindergarten', short_name: 'BK', username: '—', connected: false },
   { key: 'bu', name: 'Bumble University',   short_name: 'BU', username: '—', connected: false },
 ]
-
-function UsageBar({ value, max, color }: { value: number; max: number; color: string }) {
-  const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0
-  return (
-    <div style={{ marginTop: 6 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 3 }}>
-        <span>{value} calls</span>
-        <span>{pct}%</span>
-      </div>
-      <div style={{ height: 4, background: 'var(--surface3)', borderRadius: 2, overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 2, transition: 'width 0.4s ease' }} />
-      </div>
-    </div>
-  )
-}
-
-function ApiUsagePanel() {
-  const [usage, setUsage] = useState<ApiUsageStats | null>(null)
-
-  useEffect(() => {
-    api.apiUsage().then(setUsage).catch(() => {})
-    const id = setInterval(() => api.apiUsage().then(setUsage).catch(() => {}), 30_000)
-    return () => clearInterval(id)
-  }, [])
-
-  if (!usage) return null
-
-  const limit = usage.rate_limit.requests
-  const windowMin = usage.rate_limit.window_minutes
-  const { local, hypixel } = usage
-
-  const usageCards = [
-    {
-      label: 'Last Minute',
-      value: hypixel.queries_in_past_minute ?? local.last_minute,
-      max: Math.round(limit / windowMin),
-      color: 'var(--accent)',
-      sublabel: `of ~${Math.round(limit / windowMin)} / min budget`,
-    },
-    {
-      label: 'Last 5 Minutes',
-      value: local.last_5min,
-      max: Math.round(limit / windowMin * 5),
-      color: '#5b8dd9',
-      sublabel: `of ~${Math.round(limit / windowMin * 5)} / 5 min`,
-    },
-    {
-      label: 'Last Hour',
-      value: local.last_hour,
-      max: Math.round(limit / windowMin * 60),
-      color: '#6fbf7e',
-      sublabel: `of ~${Math.round(limit / windowMin * 60)} / hour`,
-    },
-    {
-      label: 'Last 24 Hours',
-      value: local.today,
-      max: Math.round(limit / windowMin * 60 * 24),
-      color: '#c87d4a',
-      sublabel: `of ~${Math.round(limit / windowMin * 60 * 24).toLocaleString()} / day`,
-    },
-  ]
-
-  return (
-    <div style={{ marginBottom: 40 }}>
-      <div className="events-section-label" style={{ marginBottom: 12 }}>
-        API Usage
-        <span className="text-muted" style={{ fontSize: 12, fontWeight: 400, marginLeft: 10 }}>
-          Rate limit: {limit} req / {windowMin} min · refreshes every 30s
-        </span>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-        {usageCards.map(c => (
-          <div key={c.label} className="card" style={{ padding: '14px 16px' }}>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>{c.label}</div>
-            <div style={{ fontSize: 22, fontWeight: 600 }}>{c.value.toLocaleString()}</div>
-            <UsageBar value={c.value} max={c.max} color={c.color} />
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>{c.sublabel}</div>
-          </div>
-        ))}
-        {hypixel.total_queries != null && (
-          <div className="card" style={{ padding: '14px 16px' }}>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>Total Queries (Hypixel)</div>
-            <div style={{ fontSize: 22, fontWeight: 600 }}>{hypixel.total_queries.toLocaleString()}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 10 }}>Lifetime calls on this API key</div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
 
 export default function Home() {
   const { me, logout } = useAuth()
@@ -125,7 +35,7 @@ export default function Home() {
           )}
           <span>{me?.discord_name}</span>
           {me?.is_owner && (
-            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/users')}>Admin</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/admin')}>Admin</button>
           )}
           <button className="btn btn-ghost btn-sm" onClick={() => { logout(); navigate('/login') }}>Logout</button>
         </div>
@@ -155,13 +65,6 @@ export default function Home() {
             </Link>
           ))}
         </div>
-
-        {me?.is_owner && (
-          <>
-            <div className="events-section-label">Admin</div>
-            <ApiUsagePanel />
-          </>
-        )}
 
         <div className="events-section-label">Events</div>
         <div className="guild-cards">

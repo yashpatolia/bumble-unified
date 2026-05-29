@@ -35,7 +35,7 @@ export default function GuildLayout() {
           )}
           <span>{me?.discord_name}</span>
           {me?.is_owner && (
-            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/users')}>Admin</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/admin')}>Admin</button>
           )}
           <button className="btn btn-ghost btn-sm" onClick={handleLogout}>Logout</button>
         </div>
