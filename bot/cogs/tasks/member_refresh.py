@@ -72,6 +72,15 @@ class MemberRefreshTask(commands.Cog):
             )
             if result and "No rank change" not in result:
                 logging.info(f"[{config.short_name}] Rank update {ign}: {result}")
+                # Update DB rank immediately so next cycle uses the new rank.
+                # Without this, the message_handler regex may store a partial
+                # rank name (e.g. "Sweaty" instead of "Sweaty Bee"), causing
+                # discord_rank_map to miss it and the sync to reset to the old rank.
+                required_bot_ranks = [r for r, req in config.ranks.items() if req < level]
+                if required_bot_ranks:
+                    reverse_rank_map = {v: k for k, v in config.discord_rank_map.items()}
+                    new_hypixel_rank = reverse_rank_map.get(required_bot_ranks[-1], current_rank)
+                    manager.upsert_guild_member(guild_key, ign, new_hypixel_rank)
                 embed = discord.Embed(
                     colour=discord.Colour.teal(),
                     description=f"[{config.short_name}] **{ign}** (Level {level:.1f}): {result}",
