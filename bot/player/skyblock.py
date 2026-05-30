@@ -70,7 +70,7 @@ class Player:
 
     @property
     def pet_score(self) -> int:
-        return deep_get(self.__member_data, ["player_data", "leveling", "highest_pet_score"], default=0)
+        return deep_get(self.__member_data, ["leveling", "highest_pet_score"], default=0)
 
     @property
     def purse(self) -> int:
