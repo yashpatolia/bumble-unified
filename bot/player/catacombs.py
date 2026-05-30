@@ -3,55 +3,51 @@ from constants import DUNGEON_XP_TABLE, DUNGEON_INDIVIDUAL_XP_TABLE
 
 
 class Catacombs:
-    def __init__(self, uuid: str, profiles: list, selected_profile: dict):
-        self.__uuid = uuid
-        self.__profiles = profiles
-        self.__selected_profile = selected_profile
+    def __init__(self, member_data: dict, all_member_data: list[tuple[dict, str]]):
+        self.__member_data = member_data
+        self.__all_member_data = all_member_data
 
         self.__cata_level = self.__get_cata_level()
-        self.__secrets = self.__get_secrets()
+        self.__secrets = deep_get(member_data, ["dungeons", "secrets"], default=0)
         self.__total_runs = self.__get_total_runs()
 
     def __get_cata_level(self) -> float:
         cata_xp = deep_get(
-            self.__selected_profile,
-            ["members", self.__uuid, "dungeons", "dungeon_types", "catacombs", "experience"],
+            self.__member_data,
+            ["dungeons", "dungeon_types", "catacombs", "experience"],
             default=0,
         )
         level = [k for k, v in DUNGEON_XP_TABLE.items() if cata_xp >= v][-1]
 
         if level >= 50:
             xp_past_50 = cata_xp - DUNGEON_XP_TABLE[50]
-            if cata_xp > DUNGEON_XP_TABLE[50]:
-                level = 50 + round(xp_past_50 / 200_000_000, 2)
-            elif level == 50 and cata_xp < DUNGEON_XP_TABLE[51]:
-                level += round((cata_xp - DUNGEON_XP_TABLE[50]) / DUNGEON_INDIVIDUAL_XP_TABLE[51], 2)
+            level = 50 + round(xp_past_50 / 200_000_000, 2)
         else:
             level += round((cata_xp - DUNGEON_XP_TABLE[level]) / DUNGEON_INDIVIDUAL_XP_TABLE[level + 1], 2)
 
         return level
 
-    def __get_secrets(self) -> int:
-        return deep_get(self.__selected_profile, ["members", self.__uuid, "dungeons", "secrets"], default=0)
-
     def __get_total_runs(self) -> int:
         def count_runs(path):
-            runs = deep_get(self.__selected_profile, path, default={})
+            runs = deep_get(self.__member_data, path, default={})
             return int(sum(runs.values())) - int(runs.get("total", 0))
 
-        base = ["members", self.__uuid, "dungeons", "dungeon_types"]
-        return count_runs(base + ["catacombs", "tier_completions"]) + count_runs(base + ["master_catacombs", "tier_completions"])
+        base = ["dungeons", "dungeon_types"]
+        return (
+            count_runs(base + ["catacombs", "tier_completions"])
+            + count_runs(base + ["master_catacombs", "tier_completions"])
+        )
 
-    def pb(self, floor_type: str, floor: int) -> tuple[str, str, str, str]:
+    def pb(self, floor_type: str, floor) -> tuple[str, str, str, str]:
         convert_ms = lambda ms: (ms // 60000, (ms % 60000) // 1000)
         catacombs_type = "master_catacombs" if floor_type.lower() == "m" else "catacombs"
         s_plus, s, comp = float("inf"), float("inf"), float("inf")
 
-        for profile in self.__profiles:
-            data = deep_get(profile, ["members", self.__uuid, "dungeons", "dungeon_types", catacombs_type], default=[])
-            sp = deep_get(data, ["fastest_time_s_plus", floor], default=float("inf"))
-            st = deep_get(data, ["fastest_time_s", floor], default=float("inf"))
-            ct = deep_get(data, ["fastest_time", floor], default=float("inf"))
+        for data, _ in self.__all_member_data:
+            dungeon_data = deep_get(data, ["dungeons", "dungeon_types", catacombs_type], default={})
+            sp = deep_get(dungeon_data, ["fastest_time_s_plus", floor], default=float("inf"))
+            st = deep_get(dungeon_data, ["fastest_time_s", floor], default=float("inf"))
+            ct = deep_get(dungeon_data, ["fastest_time", floor], default=float("inf"))
             if sp < s_plus: s_plus = sp
             if st < s: s = st
             if ct < comp: comp = ct

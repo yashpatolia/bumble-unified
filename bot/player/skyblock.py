@@ -16,6 +16,22 @@ class Player:
         self.__profiles = self.__fetch_skyblock_profiles()
         self.__selected_profile, self.__gamemode = self.__get_selected_profile()
 
+        # Pre-slice member data so subclasses receive only what they need
+        self.__member_data = (
+            self.__selected_profile.get("members", {}).get(self.__uuid, {})
+            if self.__selected_profile else {}
+        )
+        self.__all_member_data: list[tuple[dict, str]] = [
+            (p.get("members", {}).get(self.__uuid, {}), GAMEMODE[p.get("game_mode", "")])
+            for p in self.__profiles
+        ]
+
+        # Cache subclasses — constructing on every property access re-runs all computation
+        self._level = SkyblockLevel(self.__member_data, self.__all_member_data)
+        self._catacombs = Catacombs(self.__member_data, self.__all_member_data)
+        self._slayers = Slayers(self.__member_data)
+        self._magical_power = MagicalPower(self.__member_data)
+
     def __fetch_skyblock_profiles(self) -> list:
         data = request(f"https://api.hypixel.net/v2/skyblock/profiles?uuid={self.uuid}&key={API_KEY}")
         return data["profiles"] or []
@@ -50,31 +66,38 @@ class Player:
 
     @property
     def level(self) -> SkyblockLevel:
-        return SkyblockLevel(self.__uuid, self.__profiles, self.__selected_profile)
+        return self._level
+
+    @property
+    def pet_score(self) -> int:
+        return deep_get(self.__member_data, ["player_data", "leveling", "highest_pet_score"], default=0)
 
     @property
     def purse(self) -> int:
-        return round(deep_get(self.__selected_profile, ["members", self.__uuid, "currencies", "coin_purse"], 0))
+        return round(deep_get(self.__member_data, ["currencies", "coin_purse"], 0))
 
     @property
     def bank(self) -> int:
+        if not self.__selected_profile:
+            return 0
         return round(deep_get(self.__selected_profile, ["banking", "balance"], 0))
 
     @property
     def personal_bank(self) -> int:
-        return round(deep_get(self.__selected_profile, ["members", self.__uuid, "profile", "bank_account"], 0))
+        return round(deep_get(self.__member_data, ["profile", "bank_account"], 0))
 
-    def networth(self, client) -> Networth:
-        return Networth(self.__uuid, self.__selected_profile, self.bank, client)
+    def networth(self, skyhelper) -> Networth:
+        profile_id = self.__selected_profile.get("profile_id") if self.__selected_profile else None
+        return Networth(self.__uuid, self.__member_data, profile_id, self.bank, skyhelper)
 
     @property
     def catacombs(self) -> Catacombs:
-        return Catacombs(self.__uuid, self.__profiles, self.__selected_profile)
+        return self._catacombs
 
     @property
     def slayers(self) -> Slayers:
-        return Slayers(self.__uuid, self.__selected_profile)
+        return self._slayers
 
     @property
     def magical_power(self) -> MagicalPower:
-        return MagicalPower(self.__uuid, self.__selected_profile)
+        return self._magical_power

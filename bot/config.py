@@ -92,7 +92,6 @@ class GuildConfig:
     staff_role_id: int                  # Discord staff role
     member_role_id: int                 # Discord member role
     ranks: dict                         # {bot_rank_key: skyblock_level_req}
-    rank_update_users: list             # UUIDs authorized to run .ranks
     discord_rank_map: dict              # {Hypixel guild rank → bot rank key}
     bridge_channel_id: Optional[int]    # Discord channel that feeds this MC guild (None = no listener)
     officer_channel_id: Optional[int]   # Officer channel (None = no listener)
@@ -111,7 +110,6 @@ BK_CONFIG = GuildConfig(
     staff_role_id=BK_STAFF_ROLE,
     member_role_id=BK_MEMBER,
     ranks=BK_GUILD_RANKS,
-    rank_update_users=['545893849e964343b2fa8de8cb2f9b76', '02a0e55310384ee1a97cba91cc85a86a', '88aef227e47043bca953e4dcde3575af', 'e50cdc242778434db6f287318635336b'],
     discord_rank_map={'Baby Bee': 'Baby', 'Toddler Bee': 'Tot', 'Sweaty Bee': 'Sweat', 'Ultimate Bee': 'Pro'},
     bridge_channel_id=BRIDGE_CHANNEL_ID,
     officer_channel_id=OFFICER_CHANNEL_ID,
@@ -126,7 +124,6 @@ BU_CONFIG = GuildConfig(
     staff_role_id=BU_STAFF_ROLE,
     member_role_id=BU_MEMBER,
     ranks=BU_GUILD_RANKS,
-    rank_update_users=['5066e963a05e4f48800f77e5850bbf54', '02a0e55310384ee1a97cba91cc85a86a', '655ccbdfc70446279804e70673018f0e', 'cf1645efcbab4c1ab2c7284f519e5266'],
     discord_rank_map={'Student': 'Junior', 'Bachelor': 'Bach', 'Master': 'Master', 'Doctorate': 'Dctr'},
     bridge_channel_id=None,    # BU messages come from BK's shared Discord channel
     officer_channel_id=None,

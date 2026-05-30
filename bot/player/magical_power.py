@@ -20,23 +20,21 @@ TAG_String._parse_buffer = _safe_parse_buffer
 
 
 class MagicalPower:
-    def __init__(self, uuid: str, selected_profile: dict):
-        self.__uuid = uuid
-        self.__selected_profile = selected_profile
-        self.__total, self.__highest = self.__get_magical_power()
+    def __init__(self, member_data: dict):
+        self.__total, self.__highest = self.__get_magical_power(member_data)
 
-    def __get_magical_power(self) -> tuple[int, int]:
+    def __get_magical_power(self, member_data: dict) -> tuple[int, int]:
         raw = deep_get(
-            self.__selected_profile,
-            ["members", self.__uuid, "inventory", "bag_contents", "talisman_bag", "data"],
+            member_data,
+            ["inventory", "bag_contents", "talisman_bag", "data"],
             default=None,
         )
         if raw is None:
             return 0, 0
 
-        highest_mp = deep_get(self.__selected_profile, ["members", self.__uuid, "accessory_bag_storage", "highest_magical_power"], default=0)
-        contacts = len(deep_get(self.__selected_profile, ["members", self.__uuid, "nether_island_player_data", "abiphone", "active_contacts"], default=[]))
-        prism = deep_get(self.__selected_profile, ["members", self.__uuid, "rift", "access", "consumed_prism"], default=False)
+        highest_mp = deep_get(member_data, ["accessory_bag_storage", "highest_magical_power"], default=0)
+        contacts = len(deep_get(member_data, ["nether_island_player_data", "abiphone", "active_contacts"], default=[]))
+        prism = deep_get(member_data, ["rift", "access", "consumed_prism"], default=False)
 
         total_mp = 0
         abiphone = very_special = special = False

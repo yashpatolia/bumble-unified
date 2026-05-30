@@ -1,8 +1,7 @@
-import asyncio
 import logging
-from lib import condense, guild_rank_change, fetch, get_uuid
+from lib import condense
 from player import skyblock
-from config import API_KEY, GuildConfig
+from config import GuildConfig
 
 
 async def bridge_commands(client, message: str, username: str, guild_rank: str,
@@ -14,18 +13,18 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
         webhook = client.officer if chat_state in ("Officer", "oc") else client.bridge
 
         command_map = {
-            ".help":    lambda: _help(username),
-            ".lvl":     lambda: _skyblock_level(username, parts),
-            ".hlvl":    lambda: _highest_level(username, parts),
-            ".nw":      lambda: _networth(username, parts, client),
-            ".slayer":  lambda: _slayers(username, parts),
-            ".slayers": lambda: _slayers(username, parts),
-            ".cata":    lambda: _catacombs(username, parts),
-            ".pb":      lambda: _catacombs_pb(username, parts),
-            ".mp":      lambda: _magical_power(username, parts),
-            ".bank":    lambda: _bank(username, parts),
-            ".chim":    lambda: _chim(username, parts),
-            ".ranks":   lambda: _ranks(client, state, username, webhook, config),
+            ".help":      _help,
+            ".lvl":       _skyblock_level,
+            ".hlvl":      _highest_level,
+            ".nw":        _networth,
+            ".slayer":    _slayers,
+            ".slayers":   _slayers,
+            ".cata":      _catacombs,
+            ".pb":        _catacombs_pb,
+            ".mp":        _magical_power,
+            ".bank":      _bank,
+            ".chim":      _chim,
+            ".petscore":  _petscore,
         }
 
         handler = command_map.get(parts[0])
@@ -33,7 +32,7 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
             return
 
         try:
-            result = await handler()
+            result = await handler(username, parts, client)
             if result is None:
                 return
             name, response, raw_username = result
@@ -48,18 +47,20 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
         logging.exception(e)
 
 
-async def _help(username: str):
-    commands = ".lvl | .hlvl | .nw | .cata | .slayer | .pb (f/m)(1-7) | .mp | .bank | .chim <looting> <mf>"
+async def _help(username: str, parts: list, client):
+    commands = " | ".join(k for k in {
+        ".lvl", ".hlvl", ".nw", ".cata", ".slayer", ".pb (f/m)(1-7)", ".mp", ".bank", ".chim <looting> <mf>", ".petscore"
+    })
     return username, commands, username
 
 
-async def _skyblock_level(username: str, parts: list):
+async def _skyblock_level(username: str, parts: list, client):
     username = parts[1] if len(parts) > 1 else username
     player = skyblock.Player(username=username)
     return f"{player.username}{player.gamemode}", f"Skyblock Level - {player.level.current:.1f}", username
 
 
-async def _highest_level(username: str, parts: list):
+async def _highest_level(username: str, parts: list, client):
     username = parts[1] if len(parts) > 1 else username
     player = skyblock.Player(username=username)
     level, gamemode = player.level.highest
@@ -69,7 +70,7 @@ async def _highest_level(username: str, parts: list):
 async def _networth(username: str, parts: list, client):
     username = parts[1] if len(parts) > 1 else username
     player = skyblock.Player(username=username)
-    nw = player.networth(client)
+    nw = player.networth(client.skyhelper)
     return (
         f"{player.username}{player.gamemode}",
         f"Networth - {condense(nw.cosmetic_networth)} | Non-Cosmetic - {condense(nw.non_cosmetic_networth)}",
@@ -77,13 +78,13 @@ async def _networth(username: str, parts: list, client):
     )
 
 
-async def _slayers(username: str, parts: list):
+async def _slayers(username: str, parts: list, client):
     username = parts[1] if len(parts) > 1 else username
     player = skyblock.Player(username=username)
     return f"{player.username}{player.gamemode}", f"Slayer Levels - {player.slayers.levels}", username
 
 
-async def _catacombs(username: str, parts: list):
+async def _catacombs(username: str, parts: list, client):
     username = parts[1] if len(parts) > 1 else username
     player = skyblock.Player(username=username)
     cata = player.catacombs
@@ -94,7 +95,7 @@ async def _catacombs(username: str, parts: list):
     )
 
 
-async def _catacombs_pb(username: str, parts: list):
+async def _catacombs_pb(username: str, parts: list, client):
     if len(parts) < 2:
         return None
     username = parts[2] if len(parts) > 2 else username
@@ -104,14 +105,14 @@ async def _catacombs_pb(username: str, parts: list):
     return f"{player.username}", f"[{cata_type} {floor}] S+ {s_plus} | S {s} | Best {comp}", username
 
 
-async def _magical_power(username: str, parts: list):
+async def _magical_power(username: str, parts: list, client):
     username = parts[1] if len(parts) > 1 else username
     player = skyblock.Player(username=username)
     mp = player.magical_power
     return f"{player.username}{player.gamemode}", f"Total MP - {mp.total} | Highest MP - {mp.highest}", username
 
 
-async def _bank(username: str, parts: list):
+async def _bank(username: str, parts: list, client):
     username = parts[1] if len(parts) > 1 else username
     player = skyblock.Player(username=username)
     return (
@@ -121,7 +122,7 @@ async def _bank(username: str, parts: list):
     )
 
 
-async def _chim(username: str, parts: list):
+async def _chim(username: str, parts: list, client):
     if len(parts) < 3:
         return None
     looting, magic_find = int(parts[1]), int(parts[2])
@@ -130,30 +131,7 @@ async def _chim(username: str, parts: list):
     return username, f"Chim Drop Rate: L{looting} & {magic_find}✯ [Leg: {leg:.2f}%] [Mythic: {mythic:.2f}%]", username
 
 
-async def _ranks(client, state: str, username: str, webhook, config: GuildConfig):
-    uuid = get_uuid(username)
-    if config is None or uuid not in config.rank_update_users:
-        return None
-
-    msg = f"Now updating ranks for {config.display_name}... (May take a while!)"
-    for state_obj in client.guilds_state.values():
-        if state_obj.bot:
-            state_obj.bot.chat(f"{state} {msg}")
-    webhook.send(msg, username="Bumble")
-
-    guild_data = await fetch(f"https://api.hypixel.net/v2/guild?name={config.display_name}&key={API_KEY}")
-    mc_bot = client.guilds_state[config.key].bot
-
-    for member in guild_data["guild"]["members"]:
-        try:
-            uuid = member["uuid"]
-            rank = member["rank"]
-            bot_rank = config.discord_rank_map.get(rank)
-            if bot_rank is None:
-                continue
-            await guild_rank_change(bot_rank, mc_bot, uuid=uuid, send_msg=False, ranks=config.ranks)
-            await asyncio.sleep(0.5)
-        except Exception as e:
-            logging.error(e)
-
-    return username, f"Finished updating ranks for {config.display_name}!", username
+async def _petscore(username: str, parts: list, client):
+    username = parts[1] if len(parts) > 1 else username
+    player = skyblock.Player(username=username)
+    return f"{player.username}{player.gamemode}", f"Pet Score - {player.pet_score}", username
