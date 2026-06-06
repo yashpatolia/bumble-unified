@@ -4,11 +4,6 @@ import { api } from '../api'
 import { useAuth } from '../App'
 import type { GuildOverview } from '../types'
 
-const EVENT_COLORS: Record<string, string> = {
-  join: 'join', leave: 'leave', kick: 'kick',
-  mute: 'mute', unmute: 'unmute', promote: 'promote', demote: 'demote',
-}
-
 type BotAction = 'restart' | 'stop' | 'start' | null
 
 export default function GuildOverviewPage() {
@@ -101,46 +96,24 @@ export default function GuildOverviewPage() {
         )}
       </div>
 
-      <div className="overview-grid">
-        <div className="feed-card">
-          <div className="feed-header">
-            <span>Recent Chat</span>
-            <span className="text-muted" style={{ fontSize: 12 }}>last 50 messages</span>
-          </div>
-          <div className="feed-body">
-            {data.recent_chat.length === 0 ? (
-              <div className="feed-empty">No messages yet.</div>
-            ) : (
-              data.recent_chat.map((msg, i) => (
-                <div className="chat-line" key={i}>
-                  <span className="chat-time">{msg.time}</span>
-                  <img src={`https://mc-heads.net/avatar/${msg.player}/24`} alt="" style={{ width: 24, height: 24, borderRadius: 3, flexShrink: 0 }} />
-                  <span className="chat-player">{msg.player}</span>
-                  <span className="chat-msg">{msg.message}</span>
-                </div>
-              ))
-            )}
-          </div>
+      <div className="feed-card">
+        <div className="feed-header">
+          <span>Recent Chat</span>
+          <span className="text-muted" style={{ fontSize: 12 }}>last 50 messages</span>
         </div>
-
-        <div className="feed-card">
-          <div className="feed-header">
-            <span>Recent Events</span>
-            <span className="text-muted" style={{ fontSize: 12 }}>joins, leaves, kicks</span>
-          </div>
-          <div className="feed-body">
-            {data.recent_events.length === 0 ? (
-              <div className="feed-empty">No events yet.</div>
-            ) : (
-              data.recent_events.map((ev, i) => (
-                <div className="event-line" key={i}>
-                  <span className="event-time">{ev.time}</span>
-                  <span className={`event-dot ${EVENT_COLORS[ev.type] ?? 'default'}`} />
-                  <span className="event-msg">{ev.message}</span>
-                </div>
-              ))
-            )}
-          </div>
+        <div className="feed-body">
+          {(data.recent_chat ?? []).length === 0 ? (
+            <div className="feed-empty">No messages yet.</div>
+          ) : (
+            (data.recent_chat ?? []).map((msg, i) => (
+              <div className="chat-line" key={i}>
+                <span className="chat-time">{msg.time}</span>
+                <img src={`https://mc-heads.net/avatar/${msg.player}/24`} alt="" style={{ width: 24, height: 24, borderRadius: 3, flexShrink: 0 }} />
+                <span className="chat-player">{msg.player}</span>
+                <span className="chat-msg">{msg.message}</span>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

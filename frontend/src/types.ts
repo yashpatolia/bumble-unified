@@ -23,12 +23,6 @@ export interface ChatMessage {
   message: string
 }
 
-export interface GuildEvent {
-  time: string
-  type: 'join' | 'leave' | 'kick' | 'mute' | 'unmute' | 'promote' | 'demote' | string
-  message: string
-}
-
 export interface GuildOverview {
   key: string
   name: string
@@ -37,7 +31,6 @@ export interface GuildOverview {
   connected: boolean
   member_count: number
   recent_chat: ChatMessage[]
-  recent_events: GuildEvent[]
 }
 
 export interface GuildMember {

@@ -6,7 +6,6 @@ from player.networth import Networth
 from player.catacombs import Catacombs
 from player.slayers import Slayers
 from player.magical_power import MagicalPower
-from player.bestiary import Bestiary
 
 
 class Player:
@@ -32,7 +31,6 @@ class Player:
         self._catacombs = Catacombs(self.__member_data, self.__all_member_data)
         self._slayers = Slayers(self.__member_data)
         self._magical_power = MagicalPower(self.__member_data)
-        self._bestiary = Bestiary(self.__member_data)
 
     def __fetch_skyblock_profiles(self) -> list:
         from db import manager
@@ -106,6 +104,3 @@ class Player:
     def magical_power(self) -> MagicalPower:
         return self._magical_power
 
-    @property
-    def bestiary(self) -> Bestiary:
-        return self._bestiary

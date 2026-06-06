@@ -26,8 +26,6 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
             ".bank":       _bank,
             ".chim":       _chim,
             ".petscore":   _petscore,
-            ".be":         _bestiary,
-            ".bestiary":   _bestiary,
         }
 
         handler = command_map.get(parts[0])
@@ -52,7 +50,7 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
 
 async def _help(username: str, parts: list, client):
     commands = " | ".join([
-        ".lvl", ".hlvl", ".nw", ".cata", ".slayer", ".slayerxp <type>", ".pb (f/m)(1-7)", ".mp", ".bank", ".chim <looting> <mf>", ".petscore", ".bestiary"
+        ".lvl", ".hlvl", ".nw", ".cata", ".slayer", ".slayerxp <type>", ".pb (f/m)(1-7)", ".mp", ".bank", ".chim <looting> <mf>", ".petscore"
     ])
     return username, commands, username
 
@@ -153,7 +151,3 @@ async def _petscore(username: str, parts: list, client):
     return f"{player.username}{player.gamemode}", f"Pet Score - {player.pet_score}", username
 
 
-async def _bestiary(username: str, parts: list, client):
-    username = parts[1] if len(parts) > 1 else username
-    player = skyblock.Player(username=username)
-    return f"{player.username}{player.gamemode}", f"Bestiary Level - {player.bestiary.level:.1f}", username
