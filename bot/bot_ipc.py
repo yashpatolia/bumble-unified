@@ -43,7 +43,6 @@ def create_ipc_app(client):
             "connected": state.connected,
             "member_count": state.guild_member_count,
             "recent_chat": list(state.recent_chat),
-            "recent_events": list(state.recent_events),
         }
 
     @app.get("/guild/{key}/members", dependencies=[Depends(_verify)])

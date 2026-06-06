@@ -45,7 +45,6 @@ class GuildState:
     manual_stop: bool = False
     guild_member_count: int = 0
     recent_chat: deque = field(default_factory=lambda: deque(maxlen=50))
-    recent_events: deque = field(default_factory=lambda: deque(maxlen=30))
 
 
 class Client(commands.Bot):
@@ -113,7 +112,6 @@ async def run_bot() -> None:
     async with Client() as client:
 
         from bot_ipc import create_ipc_app
-        from events.tracker import run as run_event_tracker
         ipc_app = create_ipc_app(client)
         ipc_config = uvicorn.Config(ipc_app, host="127.0.0.1", port=BOT_IPC_PORT, log_level="warning")
         ipc_server = uvicorn.Server(ipc_config)
@@ -121,7 +119,6 @@ async def run_bot() -> None:
         await asyncio.gather(
             client.start(TOKEN),
             ipc_server.serve(),
-            run_event_tracker(),
         )
 
 

@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import re
-from datetime import datetime
 import aiohttp
 import discord
 from discord.ext import commands
@@ -104,8 +103,6 @@ class GuildMessageHandler(commands.Cog):
                 m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+was (?:promoted|demoted) from .+? to ([A-Za-z ]+?)(?:[!.]|$)", message, re.IGNORECASE)
                 if m:
                     manager.upsert_guild_member(config.key, m.group(1), m.group(2))
-                event_type = "promote" if "was promoted from" in message.lower() else "demote"
-                state.recent_events.appendleft({"time": datetime.utcnow().strftime("%H:%M"), "type": event_type, "message": message})
 
             # Invite result messages
             invite_errors = [
@@ -135,7 +132,6 @@ class GuildMessageHandler(commands.Cog):
                 self.client.officer.send(embed=embed)
                 self.client.bridge.send(embed=embed)
                 logs.send(embed=embed)
-                state.recent_events.appendleft({"time": datetime.utcnow().strftime("%H:%M"), "type": "join", "message": message})
                 m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+joined the guild", message, re.IGNORECASE)
                 if m:
                     ign = m.group(1)
@@ -150,7 +146,6 @@ class GuildMessageHandler(commands.Cog):
                 self.client.bridge.send(embed=embed)
                 self.client.officer.send(embed=embed)
                 logs.send(embed=embed)
-                state.recent_events.appendleft({"time": datetime.utcnow().strftime("%H:%M"), "type": "leave", "message": message})
                 m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+left the guild", message, re.IGNORECASE)
                 if m:
                     manager.remove_guild_member(config.key, m.group(1))
@@ -159,20 +154,17 @@ class GuildMessageHandler(commands.Cog):
                 embed = discord.Embed(colour=discord.Colour.dark_purple(), description=message)
                 self.client.bridge.send(embed=embed)
                 logs.send(embed=embed)
-                state.recent_events.appendleft({"time": datetime.utcnow().strftime("%H:%M"), "type": "mute", "message": message})
 
             if "has unmuted" in message.lower():
                 embed = discord.Embed(colour=discord.Colour.dark_magenta(), description=message)
                 self.client.bridge.send(embed=embed)
                 logs.send(embed=embed)
-                state.recent_events.appendleft({"time": datetime.utcnow().strftime("%H:%M"), "type": "unmute", "message": message})
 
             if "was kicked from the guild" in message.lower():
                 embed = discord.Embed(colour=discord.Colour.dark_red(), description=f"[{config.short_name}] {message}")
                 self.client.bridge.send(embed=embed)
                 self.client.officer.send(embed=embed)
                 logs.send(embed=embed)
-                state.recent_events.appendleft({"time": datetime.utcnow().strftime("%H:%M"), "type": "kick", "message": message})
                 m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+was kicked from the guild", message, re.IGNORECASE)
                 if m:
                     manager.remove_guild_member(config.key, m.group(1))
