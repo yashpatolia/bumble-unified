@@ -14,7 +14,7 @@ class Bestiary:
         for key, count in kills.items():
             family = re.sub(r'_\d+$', '', key)
             if family:
-                families[family] = families.get(family, 0) + count
+                families[family] = families.get(family, 0) + int(count)
 
         score = 0.0
         for total_kills in families.values():
