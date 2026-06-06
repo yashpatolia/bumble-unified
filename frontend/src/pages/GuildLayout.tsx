@@ -26,7 +26,6 @@ export default function GuildLayout() {
           <NavLink className={navClass} to={`/guilds/${key}`} end>Overview</NavLink>
           <NavLink className={navClass} to={`/guilds/${key}/members`}>Members</NavLink>
           <NavLink className={navClass} to={`/guilds/${key}/leaderboard`}>Leaderboard</NavLink>
-          <NavLink className={navClass} to={`/guilds/${key}/events`}>Events</NavLink>
         </nav>
 
         <div className="guild-header-user">

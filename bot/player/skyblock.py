@@ -33,8 +33,10 @@ class Player:
         self._magical_power = MagicalPower(self.__member_data)
 
     def __fetch_skyblock_profiles(self) -> list:
+        from db import manager
         data = request(f"https://api.hypixel.net/v2/skyblock/profiles?uuid={self.uuid}&key={API_KEY}")
-        return data["profiles"] or []
+        manager.record_api_call("/v2/skyblock/profiles", bool(data.get("success")))
+        return data.get("profiles") or []
 
     def __get_selected_profile(self) -> tuple[dict | None, str]:
         for profile in self.__profiles:

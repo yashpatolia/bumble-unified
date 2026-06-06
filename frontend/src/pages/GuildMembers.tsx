@@ -172,6 +172,17 @@ export default function GuildMembers() {
     setLinkError(null)
   }
 
+  const patchMember = (ign: string, patch: Partial<GuildMember>) => {
+    setMembers(prev => {
+      const next = prev.map(m => m.ign === ign ? { ...m, ...patch } : m)
+      if (key) {
+        const hit = cache.get(key)
+        if (hit) cache.set(key, { ...hit, members: next })
+      }
+      return next
+    })
+  }
+
   const saveLink = async () => {
     if (!key || !linkTarget) return
     if (!/^\d{17,20}$/.test(linkForm.discord_id.trim())) {
@@ -180,11 +191,12 @@ export default function GuildMembers() {
     }
     setLinkSaving(true)
     setLinkError(null)
+    const discordId = linkForm.discord_id.trim()
+    const discordName = linkForm.discord_name.trim() || discordId
     try {
-      await api.linkMember(key, linkTarget.ign, { discord_id: linkForm.discord_id.trim(), discord_name: linkForm.discord_name.trim() || linkForm.discord_id.trim() })
+      await api.linkMember(key, linkTarget.ign, { discord_id: discordId, discord_name: discordName })
+      patchMember(linkTarget.ign, { discord_id: discordId, discord_name: discordName, discord_avatar: linkTarget.discord_avatar ?? null })
       setLinkTarget(null)
-      cache.delete(key)
-      load(true)
     } catch (e: unknown) {
       setLinkError(e instanceof Error ? e.message : 'Failed to link')
     } finally {
@@ -196,8 +208,7 @@ export default function GuildMembers() {
     if (!key || !confirm(`Unlink Discord account from ${m.ign}?`)) return
     try {
       await api.unlinkMember(key, m.ign)
-      cache.delete(key)
-      load(true)
+      patchMember(m.ign, { discord_id: null, discord_name: null, discord_avatar: null })
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to unlink')
     }

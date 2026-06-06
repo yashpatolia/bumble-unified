@@ -8,9 +8,6 @@ import GuildLayout from './pages/GuildLayout'
 import GuildOverview from './pages/GuildOverview'
 import GuildMembers from './pages/GuildMembers'
 import GuildLeaderboard from './pages/GuildLeaderboard'
-import GuildEvents from './pages/GuildEvents'
-import Events from './pages/Events'
-import EventPage from './pages/EventPage'
 import Admin from './pages/Admin'
 import Users from './pages/Users'
 
@@ -81,11 +78,7 @@ function AppRouter() {
         <Route index element={<GuildOverview />} />
         <Route path="members" element={<GuildMembers />} />
         <Route path="leaderboard" element={<GuildLeaderboard />} />
-        <Route path="events" element={<GuildEvents />} />
       </Route>
-      <Route path="/events" element={<Protected><Events /></Protected>} />
-      <Route path="/events/new" element={<Protected><EventPage /></Protected>} />
-      <Route path="/events/:slug" element={<Protected><EventPage /></Protected>} />
       <Route path="/admin" element={<Protected><Admin /></Protected>} />
       <Route path="/users" element={<Protected adminOnly><Users /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -27,7 +27,7 @@ def discord_oauth_url() -> str:
 
 def create_token(discord_id: int, discord_name: str, is_admin: bool, can_control_bots: bool,
                  avatar_url: str = "", is_owner: bool = False, can_fetch_api: bool = False,
-                 can_manage_links: bool = False, can_manage_events: bool = False) -> str:
+                 can_manage_links: bool = False) -> str:
     payload = {
         "sub": str(discord_id),
         "name": discord_name,
@@ -35,7 +35,6 @@ def create_token(discord_id: int, discord_name: str, is_admin: bool, can_control
         "bots": can_control_bots,
         "fetch_api": can_fetch_api,
         "manage_links": can_manage_links,
-        "manage_events": can_manage_events,
         "avatar": avatar_url,
         "owner": is_owner,
         "exp": datetime.now(timezone.utc) + timedelta(hours=_JWT_EXPIRE_HOURS),
@@ -95,13 +94,6 @@ def require_owner(request: Request) -> dict:
     claims = require_auth(request)
     if not claims.get("owner"):
         raise HTTPException(status_code=403, detail="Owner access required")
-    return claims
-
-
-def require_manage_events(request: Request) -> dict:
-    claims = require_auth(request)
-    if not claims.get("manage_events") and not claims.get("admin"):
-        raise HTTPException(status_code=403, detail="Manage events access not permitted")
     return claims
 
 

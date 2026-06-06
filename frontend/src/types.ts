@@ -5,7 +5,6 @@ export interface Me {
   can_control_bots: boolean
   can_fetch_api: boolean
   can_manage_links: boolean
-  can_manage_events: boolean
   avatar_url: string
   is_owner: boolean
 }
@@ -79,61 +78,7 @@ export interface PanelUser {
   can_control_bots: boolean
   can_fetch_api: boolean
   can_manage_links: boolean
-  can_manage_events: boolean
   is_owner: boolean
-}
-
-export type EventMode =
-  | 'individual'
-  | 'team'
-  | 'combined_shared'
-  | 'combined_versus'
-  | 'combined_individual'
-
-export type EventStatus = 'draft' | 'active' | 'ended'
-
-export interface BingoEvent {
-  id: number
-  slug: string
-  type: string
-  name: string
-  mode: EventMode
-  guilds: string[]
-  status: EventStatus
-  starts_at: string | null
-  ends_at: string | null
-  created_at: string
-}
-
-export interface BingoTask {
-  id: number
-  event_id: number
-  position: number
-  name: string
-  description: string
-  task_type: string
-  target: Record<string, unknown>
-  difficulty: 'easy' | 'medium' | 'hard'
-}
-
-export interface BingoCardEntry extends BingoTask {
-  baseline: number | null
-  current_val: number | null
-  completed: boolean
-  completed_at: string | null
-  last_updated: string | null
-  progress: number | null
-}
-
-export interface BingoLeaderboardEntry {
-  uuid: string
-  ign: string | null
-  completed_count: number
-  blackout: boolean
-  discord_name: string | null
-  discord_avatar: string | null
-  guild_key: string | null
-  last_updated: string | null
 }
 
 export interface LogRecord {
