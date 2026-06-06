@@ -156,4 +156,4 @@ async def _petscore(username: str, parts: list, client):
 async def _bestiary(username: str, parts: list, client):
     username = parts[1] if len(parts) > 1 else username
     player = skyblock.Player(username=username)
-    return f"{player.username}{player.gamemode}", f"Bestiary Level - {player.bestiary.level:.2f}", username
+    return f"{player.username}{player.gamemode}", f"Bestiary Level - {player.bestiary.level:.1f}", username

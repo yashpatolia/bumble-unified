@@ -261,16 +261,21 @@ class Bestiary:
             if family:
                 families[family] = families.get(family, 0) + int(count)
 
-        score = 0.0
+        total_completed = 0
+        partial_kills = 0
+        partial_needed = 0
+
         for family, total_kills in families.items():
             thresholds = _BRACKETS[_FAMILY_BRACKET.get(family, _DEFAULT_BRACKET)]
             completed = sum(1 for t in thresholds if total_kills >= t)
-            score += completed
+            total_completed += completed
             if completed < len(thresholds):
                 prev = thresholds[completed - 1] if completed > 0 else 0
-                score += (total_kills - prev) / (thresholds[completed] - prev)
+                partial_kills += total_kills - prev
+                partial_needed += thresholds[completed] - prev
 
-        return score
+        fractional = partial_kills / partial_needed if partial_needed else 0.0
+        return total_completed + fractional
 
     @property
     def level(self) -> float:
