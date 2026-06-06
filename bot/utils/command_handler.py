@@ -13,18 +13,21 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
         webhook = client.officer if chat_state in ("Officer", "oc") else client.bridge
 
         command_map = {
-            ".help":      _help,
-            ".lvl":       _skyblock_level,
-            ".hlvl":      _highest_level,
-            ".nw":        _networth,
-            ".slayer":    _slayers,
-            ".slayers":   _slayers,
-            ".cata":      _catacombs,
-            ".pb":        _catacombs_pb,
-            ".mp":        _magical_power,
-            ".bank":      _bank,
-            ".chim":      _chim,
-            ".petscore":  _petscore,
+            ".help":       _help,
+            ".lvl":        _skyblock_level,
+            ".hlvl":       _highest_level,
+            ".nw":         _networth,
+            ".slayer":     _slayers,
+            ".slayers":    _slayers,
+            ".slayerxp":   _slayer_xp,
+            ".cata":       _catacombs,
+            ".pb":         _catacombs_pb,
+            ".mp":         _magical_power,
+            ".bank":       _bank,
+            ".chim":       _chim,
+            ".petscore":   _petscore,
+            ".be":         _bestiary,
+            ".bestiary":   _bestiary,
         }
 
         handler = command_map.get(parts[0])
@@ -48,9 +51,9 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
 
 
 async def _help(username: str, parts: list, client):
-    commands = " | ".join(k for k in {
-        ".lvl", ".hlvl", ".nw", ".cata", ".slayer", ".pb (f/m)(1-7)", ".mp", ".bank", ".chim <looting> <mf>", ".petscore"
-    })
+    commands = " | ".join([
+        ".lvl", ".hlvl", ".nw", ".cata", ".slayer", ".slayerxp <type>", ".pb (f/m)(1-7)", ".mp", ".bank", ".chim <looting> <mf>", ".petscore", ".bestiary"
+    ])
     return username, commands, username
 
 
@@ -82,6 +85,19 @@ async def _slayers(username: str, parts: list, client):
     username = parts[1] if len(parts) > 1 else username
     player = skyblock.Player(username=username)
     return f"{player.username}{player.gamemode}", f"Slayer Levels - {player.slayers.levels}", username
+
+
+async def _slayer_xp(username: str, parts: list, client):
+    if len(parts) < 2:
+        return None
+    slayer_alias = parts[1]
+    username = parts[2] if len(parts) > 2 else username
+    player = skyblock.Player(username=username)
+    result = player.slayers.xp_for(slayer_alias)
+    if result is None:
+        return f"{username}", f"Unknown slayer '{slayer_alias}'", username
+    display_name, xp = result
+    return f"{player.username}{player.gamemode}", f"{display_name} XP - {xp:,}", username
 
 
 async def _catacombs(username: str, parts: list, client):
@@ -135,3 +151,9 @@ async def _petscore(username: str, parts: list, client):
     username = parts[1] if len(parts) > 1 else username
     player = skyblock.Player(username=username)
     return f"{player.username}{player.gamemode}", f"Pet Score - {player.pet_score}", username
+
+
+async def _bestiary(username: str, parts: list, client):
+    username = parts[1] if len(parts) > 1 else username
+    player = skyblock.Player(username=username)
+    return f"{player.username}{player.gamemode}", f"Bestiary Level - {player.bestiary.level:.2f}", username
