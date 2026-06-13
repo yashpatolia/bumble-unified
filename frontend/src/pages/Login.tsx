@@ -4,7 +4,7 @@ const FEATURES = [
   {
     icon: '⬡',
     title: 'Guild Overview',
-    desc: 'Monitor member count, recent chat, and guild events across both BK and BU in real time.',
+    desc: 'Monitor member count, recent chat, and activity across both BK and BU in real time.',
   },
   {
     icon: '◈',
