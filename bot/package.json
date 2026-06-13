@@ -18,7 +18,7 @@
   "license": "ISC",
     "dependencies": {
     "mineflayer": "^4.33.0",
-    "skyhelper-networth": "^2.7.0"
+    "skyhelper-networth": "^2.7.5"
   },
   "type": "commonjs",
   "bugs": {
