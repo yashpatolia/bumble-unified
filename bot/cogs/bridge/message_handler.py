@@ -132,6 +132,9 @@ class GuildMessageHandler(commands.Cog):
                 self.client.officer.send(embed=embed)
                 self.client.bridge.send(embed=embed)
                 logs.send(embed=embed)
+                for key, other_state in self.client.guilds_state.items():
+                    if key != config.key and other_state.bot:
+                        other_state.bot.chat(f"/gc [{config.short_name}] {message}")
                 m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+joined the guild", message, re.IGNORECASE)
                 if m:
                     ign = m.group(1)

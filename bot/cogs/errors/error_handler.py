@@ -17,18 +17,17 @@ class ErrorHandling(commands.Cog):
 
     async def on_tree_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, (app_commands.MissingRole, app_commands.MissingAnyRole)):
-            await interaction.response.send_message(
-                "You don't have the required role to use this command.", ephemeral=True
-            )
+            message = "You don't have the required role to use this command."
         elif isinstance(error, app_commands.CommandOnCooldown):
-            await interaction.response.send_message(
-                f"Command is on cooldown. Try again in {error.retry_after:.1f}s.", ephemeral=True
-            )
+            message = f"Command is on cooldown. Try again in {error.retry_after:.1f}s."
         else:
             logging.error(f"Unhandled slash command error: {error}")
-            await interaction.response.send_message(
-                "An unexpected error occurred. Please try again.", ephemeral=True
-            )
+            message = "An unexpected error occurred. Please try again."
+
+        if interaction.response.is_done():
+            await interaction.followup.send(message, ephemeral=True)
+        else:
+            await interaction.response.send_message(message, ephemeral=True)
 
 
 async def setup(client):
