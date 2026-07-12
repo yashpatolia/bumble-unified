@@ -101,10 +101,13 @@ export interface DyeSearchResult {
   unlocked_count: number
 }
 
-export interface LogRecord {
-  type?: 'ping'
-  time?: string
-  level?: 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL'
-  message?: string
-  source?: string
+export interface DyeDrop {
+  dye_id: string
+  dye_name: string
+  hex: string
+  unlocked_at: string
+  uuid: string
+  ign: string
+  discord_name: string | null
+  discord_avatar: string | null
 }

@@ -1,7 +1,22 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api'
-import type { DyeProfile, DyeSearchResult } from '../types'
+import type { DyeDrop, DyeProfile, DyeSearchResult } from '../types'
+
+function dyeIconUrl(dyeName: string): string {
+  return `https://hypixelskyblock.minecraft.wiki/images/${dyeName.replace(/ /g, '_')}.png`
+}
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(diff / 3600000)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(diff / 86400000)
+  return `${days}d ago`
+}
 
 export default function Dyes() {
   const navigate = useNavigate()
@@ -14,6 +29,8 @@ export default function Dyes() {
   const [results, setResults] = useState<DyeSearchResult[]>([])
   const [searching, setSearching] = useState(false)
 
+  const [recent, setRecent] = useState<DyeDrop[]>([])
+
   const loadMine = () => {
     setLoading(true)
     setError(null)
@@ -25,6 +42,10 @@ export default function Dyes() {
   }
 
   useEffect(() => { loadMine() }, [])
+
+  useEffect(() => {
+    api.recentDyeDrops().then(r => setRecent(r.drops)).catch(() => {})
+  }, [])
 
   const runSearch = () => {
     const q = query.trim()
@@ -103,6 +124,26 @@ export default function Dyes() {
         )}
       </div>
 
+      {recent.length > 0 && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="events-section-label" style={{ marginBottom: 10 }}>Recently Dropped</div>
+          <div className="dye-recent-list">
+            {recent.map((d, i) => (
+              <div key={i} className="dye-recent-row">
+                <img className="hex-avatar" src={`https://mc-heads.net/avatar/${d.uuid}/26`} alt="" style={{ width: 26, height: 26 }} />
+                <span style={{ fontWeight: 500, fontSize: 13 }}>{d.ign}</span>
+                <span className="text-muted" style={{ fontSize: 12 }}>found</span>
+                <div className="dye-recent-icon-frame" style={{ background: `#${d.hex}33` }}>
+                  <img className="dye-recent-icon" src={dyeIconUrl(d.dye_name)} alt="" />
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 500 }}>{d.dye_name}</span>
+                <span className="dye-recent-time">{timeAgo(d.unlocked_at)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {error && <p style={{ color: 'var(--red)', marginBottom: 16 }}>{error}</p>}
 
       {loading ? (
@@ -118,9 +159,11 @@ export default function Dyes() {
           </div>
           <div className="dye-grid">
             {sorted.map(d => (
-              <div key={d.dye_id} className={`dye-swatch${d.unlocked ? '' : ' locked'}`}>
-                <div className="dye-swatch-color" style={{ background: `#${d.hex}` }} />
-                <div className="dye-swatch-name">{d.unlocked ? '' : '🔒 '}{d.dye_name}</div>
+              <div key={d.dye_id} className={`dye-swatch${d.unlocked ? '' : ' locked'}`} title={d.unlocked ? undefined : 'Not unlocked yet'}>
+                <div className="dye-icon-frame" style={{ background: `#${d.hex}33` }}>
+                  <img className="dye-icon" src={dyeIconUrl(d.dye_name)} alt="" />
+                </div>
+                <div className="dye-swatch-name">{d.dye_name}</div>
                 <div className="dye-swatch-odds">{d.odds}</div>
               </div>
             ))}

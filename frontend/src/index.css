@@ -421,38 +421,6 @@ h1, h2, .page-title, .stat-value, .sidebar-brand, .login-title, .landing-title, 
 .btn-discord { background: #5865f2; color: #fff; padding: 11px 24px; font-size: 14px; font-weight: 600; }
 .btn-sm      { padding: 4px 10px; font-size: 12px; }
 
-/* ── Log viewer ── */
-.log-container {
-  background: #0d0a06;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  height: calc(100vh - 220px);
-  overflow-y: auto;
-  padding: 14px 16px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-}
-
-.log-line { display: flex; gap: 12px; padding: 2px 0; line-height: 1.7; }
-.log-time   { color: var(--muted); flex-shrink: 0; font-variant-numeric: tabular-nums; }
-.log-source { color: #574c33; flex-shrink: 0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.log-level  { flex-shrink: 0; font-weight: 600; min-width: 56px; }
-.log-level.INFO     { color: var(--blue); }
-.log-level.DEBUG    { color: var(--muted); }
-.log-level.WARNING  { color: var(--yellow); }
-.log-level.ERROR    { color: var(--red); }
-.log-level.CRITICAL { color: var(--red); }
-.log-msg { color: var(--text-secondary); word-break: break-all; }
-
-.log-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
-  flex-wrap: wrap;
-}
-.log-status { font-size: 13px; display: flex; align-items: center; gap: 6px; color: var(--text-secondary); }
-
 /* ── Tables ── */
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
@@ -721,13 +689,22 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 }
 .dye-swatch:not(.locked):hover { border-color: var(--border-strong); transform: translateY(-2px); }
 
-.dye-swatch.locked { opacity: 0.5; }
-.dye-swatch.locked .dye-swatch-color { filter: grayscale(0.6) brightness(0.6); }
+.dye-swatch.locked { opacity: 0.55; }
+.dye-swatch.locked .dye-icon { filter: grayscale(1) brightness(0.7); }
+.dye-swatch.locked .dye-icon-frame { background: var(--surface3) !important; }
 
-.dye-swatch-color {
-  width: 56px; height: 56px;
+.dye-icon-frame {
+  width: 60px; height: 60px;
   clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
-  border: 1px solid rgba(0,0,0,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dye-icon {
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
 }
 
 .dye-swatch-name {
@@ -742,3 +719,38 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 }
 
 .dye-search-result:hover { background: var(--surface2); }
+
+/* ── Recent drops ── */
+.dye-recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dye-recent-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 8px;
+  border-radius: var(--radius);
+}
+.dye-recent-row:hover { background: var(--surface2); }
+
+.dye-recent-icon-frame {
+  width: 34px; height: 34px;
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dye-recent-icon { width: 18px; height: 18px; image-rendering: pixelated; }
+
+.dye-recent-time {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}

@@ -56,7 +56,6 @@ export default function AppShell() {
 
           <div className="sidebar-group">
             <NavLink to="/dyes" className={navClass}>Dyes</NavLink>
-            {me?.is_admin && <NavLink to="/logs" className={navClass}>Logs</NavLink>}
             {me?.is_owner && <NavLink to="/admin" className={navClass}>Admin</NavLink>}
             {me?.is_admin && <NavLink to="/users" className={navClass}>Users</NavLink>}
           </div>

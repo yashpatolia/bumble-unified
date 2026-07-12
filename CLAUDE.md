@@ -112,12 +112,12 @@ bumble-unified/
     │   └── test_player.py       # player/*.py pure-function pieces
     │
     ├── web/                  # FastAPI web panel backend
-    │   ├── app.py             # create_app() factory — mounts routers, OAuth2, /api/me, WebSocket, SPA fallback
+    │   ├── app.py             # create_app() factory — mounts routers, OAuth2, /api/me, SPA fallback
     │   ├── auth.py             # Discord OAuth2 exchange, JWT create/verify, FastAPI permission dependencies
-    │   ├── logs.py             # LogBroadcaster (thread-safe store) + WebLogHandler (logging.Handler)
     │   └── routes/
     │       ├── bots.py         # /api/bots/* — bot status, guild overview/members/leaderboard, link mgmt, IPC proxy
-    │       └── users.py        # CRUD /api/users — panel user management (admin only)
+    │       ├── users.py        # CRUD /api/users — panel user management (admin only)
+    │       └── dyes.py         # /api/dyes/* — own/other players' dye profiles, search, recent drops
     │
     └── cogs/
         ├── errors/
@@ -155,7 +155,7 @@ bumble-unified/
 - `run_bot()` applies DB migrations, then runs the Discord client and the internal `bot_ipc` FastAPI server concurrently via `asyncio.gather`.
 
 ### `bot/web_main.py`
-- Separate process entry point for the web panel. Applies DB migrations, attaches `WebLogHandler` to the root logger, then serves `web/app.py`'s FastAPI app with uvicorn on `PANEL_PORT`.
+- Separate process entry point for the web panel. Applies DB migrations, then serves `web/app.py`'s FastAPI app with uvicorn on `PANEL_PORT`.
 - Does **not** hold a `Client` instance — all bot state is read through the IPC API in `web/routes/bots.py`.
 
 ### `bot/bot_ipc.py`
@@ -222,9 +222,9 @@ bumble-unified/
 - **To add a third guild:** add a new `GroupCog` subclass here and a line in `setup()`.
 
 ### `web/app.py`
-- `create_app()` takes no arguments (there's no live `Client` in this process) and mounts `web/routes/bots.py` and `web/routes/users.py` as routers.
+- `create_app()` takes no arguments (there's no live `Client` in this process) and mounts `web/routes/bots.py`, `web/routes/users.py`, and `web/routes/dyes.py` as routers.
 - Handles Discord OAuth2 callback: exchanges code for a Discord user object, auto-provisions the admin (`PANEL_ADMIN_DISCORD_ID`) as a `panel_users` row on first login, updates the stored Discord name/avatar on every login, issues a JWT, redirects to `/?token=...`.
-- Serves `GET /api/me` (returns JWT claims as JSON, including `can_control_bots`/`can_fetch_api`/`can_manage_links`/`is_owner`) and `WS /ws/logs` (streams log records from `LogBroadcaster`; requires `logs` or `admin` claim).
+- Serves `GET /api/me` (returns JWT claims as JSON, including `can_control_bots`/`can_fetch_api`/`can_manage_links`/`is_owner`).
 - If `frontend/dist/` exists, mounts `/assets` as static files and serves `index.html` for all other routes (SPA fallback). The HTML is **read at startup and cached**; restart the web process after a frontend rebuild or it will serve a stale `index.html` referencing the old JS bundle. If `frontend/dist/` doesn't exist, every route returns a 503 telling you to build it.
 
 ### `web/auth.py`
@@ -233,10 +233,9 @@ bumble-unified/
 - `create_token()` / `verify_token()` — HS256 JWT, **30-day** expiry. Payload keys: `sub` (discord_id str), `name`, `admin`, `bots` (can_control_bots), `fetch_api`, `manage_links`, `avatar`, `owner` (is `PANEL_ADMIN_DISCORD_ID`).
 - FastAPI dependencies: `require_auth`, `require_admin`, `require_bot_control`, `require_api_fetch`, `require_manage_links`, `require_owner` — all read `Authorization: Bearer <token>` and raise `HTTPException` on failure. Each permission (except `admin`/`owner`) is satisfied by either its own flag or `admin`.
 
-### `web/logs.py`
-- `LogBroadcaster` — thread-safe list protected by `threading.Lock`. `broadcast()` appends and trims to `MAX_HISTORY=500`. `snapshot()` returns full copy; `get_after(offset)` returns records from offset onward.
-- `WebLogHandler(logging.Handler)` — attached to the root logger at startup in `web_main.py` (the web process's own logs; the bot process's logs are separate and not streamed to the panel). `emit()` calls `broadcaster.broadcast()` directly (no asyncio, no queue) — safe from any thread because the broadcaster uses a plain `Lock`.
-- The WebSocket in `app.py` sends the full history on connect, then polls `get_after(sent)` every 200ms.
+### `web/routes/dyes.py`
+- All routes are `require_auth`-gated, read-only. `GET /api/dyes/me` — resolves the caller's uuid via `manager.get_user_by_discord`, returns `{"linked": false}` if unlinked. `GET /api/dyes/search?q=` — IGN search via `manager.search_users_with_dye_counts`. `GET /api/dyes/user/{uuid}` — another player's profile, 404 if unknown. `GET /api/dyes/recent` — the last 20 unlocks across all players via `manager.get_recent_drops`, newest first.
+- `_build_profile()` merges `manager.get_all_dyes()` (the full catalog) with `manager.get_unlocked_dyes(uuid)` and computes each dye's `"1 in N"` odds the same way `roll_dye.py` does, so the number shown in the panel always matches the in-game announcement.
 
 ### `web/routes/bots.py`
 - All routes are prefixed `/api/bots` and proxy to the bot process's IPC API (`BOT_IPC_URL`, default `http://localhost:8081`) using `aiohttp`, falling back to an "offline" shape (or a 503) if the bot process is unreachable.
@@ -255,19 +254,23 @@ bumble-unified/
 
 ### `frontend/src/App.tsx`
 - `AuthProvider` — reads `?token=` from URL on mount (OAuth redirect), stores in `localStorage`, fetches `/api/me`, exposes `{me, loading, logout}` context.
-- `AppRouter` — unauthenticated users see `Login`; authenticated users see `Home`, or nested routes under `/guilds/:key` (`GuildLayout` wraps `GuildOverview` / `GuildMembers` / `GuildLeaderboard`), plus `/admin` and `/users` (admin-only).
+- `AppRouter` — unauthenticated users see `Login`; authenticated users see everything else nested inside a single `<Protected><AppShell/></Protected>` layout route: `Home` at `/`, `/guilds/:key`, `/guilds/:key/members`, `/guilds/:key/leaderboard`, `/dyes`, `/admin`, and `/users` (admin-only). There is no per-guild layout route anymore — each guild sub-page reads `:key` via `useParams` independently.
 - `frontend/src/api.ts` centralizes all `fetch()` calls to the backend; `frontend/src/types.ts` holds shared TS types (`Me`, etc.).
+
+### `frontend/src/components/AppShell.tsx`
+- The persistent app chrome for every authenticated page: a fixed left sidebar (wordmark, Home link, both guilds' Overview/Members/Leaderboard sub-nav with a live connected/offline dot per guild polled from `api.bots()`, Dyes, and Admin/Users gated by `is_owner`/`is_admin`) plus a user chip with logout, and a `<main>` that renders the active page via `<Outlet/>`. Individual pages no longer render their own header — this replaced four separate hand-rolled headers (`Home.tsx`, the old `GuildLayout.tsx`, `Admin.tsx`, `Users.tsx`) that had drifted out of sync with each other.
 
 ### `frontend/src/pages/*.tsx`
 - `Login.tsx` — Discord OAuth2 login screen.
-- `Home.tsx` — landing page after login (guild picker / summary).
-- `GuildLayout.tsx` — shared shell + nav for a single guild's `/guilds/:key/*` routes.
+- `Home.tsx` — landing content after login (guild picker), chrome-free — just the page body, rendered inside `AppShell`.
 - `GuildOverview.tsx` — connection status, member count, recent chat for one guild.
 - `GuildMembers.tsx` — member list/table (rank, Skyblock level, last login, linked Discord account), backed by `GET /api/bots/{key}/members`.
 - `GuildLeaderboard.tsx` — message-count leaderboard (lifetime/month/week), backed by `GET /api/bots/{key}/leaderboard`.
 - `Admin.tsx` — bot control (start/stop/restart), manual stats refresh, API usage.
 - `Users.tsx` — table of all panel users with add/edit/delete (admin only).
-- `Logs.tsx` — connects to `WS /ws/logs?token=<jwt>`, auto-reconnects after 3s on disconnect; level filter, text search, pin-to-bottom.
+- `Dyes.tsx` — a player's own dye profile by default (`GET /api/dyes/me`), IGN search to view another player's (`GET /api/dyes/search` → `GET /api/dyes/user/{uuid}`), a "Recently Dropped" feed (`GET /api/dyes/recent`), and the full catalog with locked dyes shown desaturated (no lock icon) alongside their odds. Dye artwork is hotlinked directly from the Hypixel Skyblock wiki (`https://hypixelskyblock.minecraft.wiki/images/{Dye_Name}.png`, spaces replaced with underscores) rather than bundled — verified working for all 34 dyes but is an external dependency worth knowing about if it ever needs to move to a bundled asset.
+
+There is no log-streaming page — `Logs.tsx`, its `/ws/logs` backend endpoint, and `web/logs.py` (`LogBroadcaster`/`WebLogHandler`) were removed as unused.
 
 ---
 
@@ -432,9 +435,11 @@ dyes (
 );
 
 users_dyes (
-    uuid     TEXT REFERENCES users(uuid),
-    dye_id   TEXT REFERENCES dyes(dye_id),
-    received BOOLEAN DEFAULT FALSE
+    uuid         TEXT REFERENCES users(uuid),
+    dye_id       TEXT REFERENCES dyes(dye_id),
+    received     BOOLEAN DEFAULT FALSE,
+    unlocked_at  TIMESTAMPTZ,              -- set on every mark_dye_received(); powers the "recently dropped" feed
+    UNIQUE (uuid, dye_id)
 );
 
 panel_users (

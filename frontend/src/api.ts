@@ -1,4 +1,4 @@
-import type { ApiUsageStats, DyeProfile, DyeSearchResult, GuildMember, GuildOverview, GuildStatus, Me, PanelUser } from './types'
+import type { ApiUsageStats, DyeDrop, DyeProfile, DyeSearchResult, GuildMember, GuildOverview, GuildStatus, Me, PanelUser } from './types'
 
 function token(): string | null {
   return localStorage.getItem('token')
@@ -60,11 +60,5 @@ export const api = {
   myDyes: () => req<DyeProfile>('/api/dyes/me'),
   searchDyeUsers: (q: string) => req<{ results: DyeSearchResult[] }>(`/api/dyes/search?q=${encodeURIComponent(q)}`),
   userDyes: (uuid: string) => req<DyeProfile>(`/api/dyes/user/${uuid}`),
-}
-
-export function wsLogsUrl(): string {
-  const t = token() ?? ''
-  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  const host = window.location.host
-  return `${proto}://${host}/ws/logs?token=${encodeURIComponent(t)}`
+  recentDyeDrops: () => req<{ drops: DyeDrop[] }>('/api/dyes/recent'),
 }

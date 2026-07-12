@@ -1,0 +1,1 @@
+ALTER TABLE users_dyes ADD COLUMN unlocked_at TIMESTAMPTZ;

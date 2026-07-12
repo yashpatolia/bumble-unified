@@ -41,6 +41,41 @@ class TestMarkDyeReceived:
         query = cur.execute.call_args[0][0]
         assert "(uuid, dye_id)" in query
 
+    def test_sets_unlocked_at_on_insert_and_conflict(self):
+        mgr, cur = _manager_with_mock_cursor()
+
+        mgr.mark_dye_received("uuid-3", "necron_dye")
+
+        query = cur.execute.call_args[0][0]
+        assert "unlocked_at" in query
+        assert "NOW()" in query
+
+
+class TestGetRecentDrops:
+    def test_query_shape_and_limit(self):
+        mgr, cur = _manager_with_mock_cursor()
+        cur.fetchall.return_value = []
+
+        mgr.get_recent_drops(limit=10)
+
+        query, params = cur.execute.call_args[0]
+        assert "FROM users_dyes ud" in query
+        assert "JOIN dyes d ON d.dye_id = ud.dye_id" in query
+        assert "JOIN users u ON u.uuid = ud.uuid" in query
+        assert "ORDER BY ud.unlocked_at DESC" in query
+        assert params == (10,)
+
+    def test_returns_rows(self):
+        mgr, cur = _manager_with_mock_cursor()
+        cur.fetchall.return_value = [
+            ("carmine_dye", "Carmine Dye", "960018", "2026-07-12T00:00:00+00:00",
+             "uuid-1", "Player1", "Player1#0", None)
+        ]
+
+        result = mgr.get_recent_drops()
+
+        assert result[0][0] == "carmine_dye"
+
 
 class TestResetAllDyeRolls:
     def test_deletes_all_rows_and_returns_count(self):

@@ -66,3 +66,23 @@ async def get_user_dyes(uuid: str, _=Depends(require_auth)):
         raise HTTPException(status_code=404, detail="Unknown player")
     ign, discord_id, discord_name, discord_avatar = row
     return _build_profile(uuid, ign, discord_name, discord_avatar)
+
+
+@router.get("/recent")
+async def get_recent_drops(_=Depends(require_auth)):
+    rows = manager.get_recent_drops(limit=20)
+    return {
+        "drops": [
+            {
+                "dye_id": r[0],
+                "dye_name": r[1],
+                "hex": r[2],
+                "unlocked_at": r[3].isoformat() if r[3] else None,
+                "uuid": r[4],
+                "ign": r[5],
+                "discord_name": r[6],
+                "discord_avatar": r[7],
+            }
+            for r in rows
+        ]
+    }

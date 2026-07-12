@@ -173,10 +173,27 @@ class DatabaseManager:
     def mark_dye_received(self, uuid: str, dye_id: str) -> None:
         with self._cursor() as cur:
             cur.execute(
-                "INSERT INTO users_dyes (uuid, dye_id, received) VALUES (%s, %s, TRUE) "
-                "ON CONFLICT (uuid, dye_id) DO UPDATE SET received = TRUE",
+                "INSERT INTO users_dyes (uuid, dye_id, received, unlocked_at) VALUES (%s, %s, TRUE, NOW()) "
+                "ON CONFLICT (uuid, dye_id) DO UPDATE SET received = TRUE, unlocked_at = NOW()",
                 (uuid, dye_id),
             )
+
+    def get_recent_drops(self, limit: int = 20) -> list[tuple]:
+        """Returns [(dye_id, dye_name, hex, unlocked_at, uuid, ign, discord_name, discord_avatar), ...],
+        most recent first."""
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT ud.dye_id, d.dye_name, d.hex, ud.unlocked_at, "
+                "u.uuid, u.ign, u.discord_name, u.discord_avatar "
+                "FROM users_dyes ud "
+                "JOIN dyes d ON d.dye_id = ud.dye_id "
+                "JOIN users u ON u.uuid = ud.uuid "
+                "WHERE ud.received = TRUE AND ud.unlocked_at IS NOT NULL "
+                "ORDER BY ud.unlocked_at DESC "
+                "LIMIT %s",
+                (limit,),
+            )
+            return cur.fetchall()
 
     def add_dye(self, dye_id: str, dye_name: str, weight: float, hex_color: str) -> None:
         with self._cursor() as cur:

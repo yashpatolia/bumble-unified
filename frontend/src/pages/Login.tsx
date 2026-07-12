@@ -17,9 +17,9 @@ const FEATURES = [
     desc: 'Start, stop, and restart Mineflayer bots from the panel without touching the server.',
   },
   {
-    icon: '≡',
-    title: 'Live Logs',
-    desc: 'Stream real-time logs from both bot processes with level filtering and text search.',
+    icon: '⬢',
+    title: 'Dye Collecting',
+    desc: 'Track dye drops for every member, browse the full catalog, and see odds for what you haven\'t unlocked yet.',
   },
 ]
 

@@ -1,9 +1,7 @@
-import asyncio
-import json
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -14,9 +12,7 @@ from web.auth import (
     discord_oauth_url,
     exchange_code,
     require_auth,
-    verify_token,
 )
-from web.logs import broadcaster
 from web.routes import bots, dyes, users
 
 FRONTEND_DIST = Path(__file__).parent.parent.parent / "frontend" / "dist"
@@ -93,44 +89,6 @@ def create_app() -> FastAPI:
             "avatar_url": claims.get("avatar", ""),
             "is_owner": claims.get("owner", False),
         }
-
-    # --- Live log stream ---
-
-    @app.websocket("/ws/logs")
-    async def ws_logs(websocket: WebSocket):
-        token = websocket.query_params.get("token")
-        if not token:
-            return
-        try:
-            claims = verify_token(token)
-        except HTTPException:
-            return
-        if not claims.get("logs") and not claims.get("admin"):
-            return
-
-        await websocket.accept()
-
-        # Send current history immediately
-        history = broadcaster.snapshot()
-        for record in history:
-            try:
-                await websocket.send_text(json.dumps(record))
-            except Exception:
-                return
-        sent = len(history)
-
-        # Poll for new records every 200 ms
-        try:
-            while True:
-                await asyncio.sleep(0.2)
-                new = broadcaster.get_after(sent)
-                for record in new:
-                    await websocket.send_text(json.dumps(record))
-                sent += len(new)
-        except WebSocketDisconnect:
-            pass
-        except Exception:
-            pass
 
     # --- Serve built frontend (SPA fallback) ---
 
