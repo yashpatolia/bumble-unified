@@ -9,7 +9,6 @@ ALTER TABLE users_dyes
     ADD CONSTRAINT users_dyes_uuid_dye_id_key UNIQUE (uuid, dye_id);
 
 INSERT INTO dyes (dye_id, dye_name, weight, hex) VALUES
-    ('nothing', 'Nothing', 100, '000000'),
     ('carmine_dye', 'Carmine Dye', 2.0e-05, '960018'),
     ('archfiend_dye', 'Archfiend Dye', 0.015, 'B80036'),
     ('sangria_dye', 'Sangria Dye', 0.001, 'D40808'),

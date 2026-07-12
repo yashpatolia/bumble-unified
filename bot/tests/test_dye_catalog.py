@@ -26,11 +26,6 @@ def test_migration_file_exists():
     assert _MIGRATION.exists()
 
 
-def test_seed_includes_nothing_bucket(seeded):
-    assert "nothing" in seeded
-    assert seeded["nothing"]["hex"].upper() == "000000"
-
-
 def test_every_dye_role_is_seeded(seeded):
     """Every dye_id with a Discord role must have a matching seeded catalog row."""
     missing = set(DYE_ROLES) - set(seeded)
@@ -43,8 +38,8 @@ def test_every_dye_emoji_is_seeded(seeded):
 
 
 def test_no_extra_seeded_dyes(seeded):
-    """Every real (non-'nothing') seeded dye should have a role, or it can never be equipped."""
-    extra = (set(seeded) - {"nothing"}) - set(DYE_ROLES)
+    """Every seeded dye should have a role, or it can never be equipped."""
+    extra = set(seeded) - set(DYE_ROLES)
     assert not extra, f"Seeded dyes with no Discord role in DYE_ROLES: {extra}"
 
 
@@ -66,10 +61,9 @@ def test_weights_are_positive(seeded):
         assert weight > 0, f"{dye_id} has a non-positive weight"
 
 
-def test_nothing_dominates_the_pool(seeded):
-    """'nothing' must have the largest weight so most rolls result in no drop."""
-    nothing_weight = float(seeded["nothing"]["weight"])
-    for dye_id, row in seeded.items():
-        if dye_id == "nothing":
-            continue
-        assert float(row["weight"]) < nothing_weight
+def test_weights_fit_within_the_pool(seeded):
+    """Weights are percent chances out of a 100-point pool (see roll_dye());
+    the remainder is an implicit no-drop, so they must never sum past 100.
+    """
+    total = sum(float(row["weight"]) for row in seeded.values())
+    assert total < 100

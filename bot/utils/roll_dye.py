@@ -14,10 +14,18 @@ def roll_dye(username: str, bot, client) -> None:
         if not dyes:
             return
 
-        dye_ids, weights = zip(*dyes)
-        loot_id = random.choices(list(dye_ids), weights=weights, k=1)[0]
+        # Each dye's weight is its percent chance out of a 100-point pool;
+        # whatever isn't covered by real dyes is an implicit "no drop".
+        roll = random.uniform(0, 100)
+        cumulative = 0.0
+        loot_id = None
+        for dye_id, weight in dyes:
+            cumulative += weight
+            if roll <= cumulative:
+                loot_id = dye_id
+                break
 
-        if loot_id == "nothing":
+        if loot_id is None:
             return
 
         received = manager.get_dye_received(uuid, loot_id)

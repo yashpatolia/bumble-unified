@@ -19,12 +19,13 @@ def _bot():
 @patch("utils.roll_dye.manager")
 @patch("utils.roll_dye.get_uuid")
 class TestRollDye:
-    def test_rolling_nothing_sends_no_announcement(self, mock_get_uuid, mock_manager, mock_sleep):
+    def test_rolling_above_pool_sends_no_announcement(self, mock_get_uuid, mock_manager, mock_sleep):
         mock_get_uuid.return_value = "uuid-1"
-        mock_manager.get_all_dyes_weighted.return_value = [("nothing", 100)]
+        mock_manager.get_all_dyes_weighted.return_value = [("carmine_dye", 2.0e-05)]
         bot, client = _bot(), _client()
 
-        roll_dye("Player1", bot, client)
+        with patch("utils.roll_dye.random.uniform", return_value=50.0):
+            roll_dye("Player1", bot, client)
 
         mock_manager.mark_dye_received.assert_not_called()
         bot.chat.assert_not_called()
@@ -47,7 +48,7 @@ class TestRollDye:
         mock_manager.get_dye_received.return_value = True
         bot, client = _bot(), _client()
 
-        with patch("utils.roll_dye.random.choices", return_value=["carmine_dye"]):
+        with patch("utils.roll_dye.random.uniform", return_value=0.0):
             roll_dye("Player1", bot, client)
 
         mock_manager.mark_dye_received.assert_not_called()
@@ -61,7 +62,7 @@ class TestRollDye:
         mock_manager.get_dye_details.return_value = None
         bot, client = _bot(), _client()
 
-        with patch("utils.roll_dye.random.choices", return_value=["carmine_dye"]):
+        with patch("utils.roll_dye.random.uniform", return_value=0.0):
             roll_dye("Player1", bot, client)
 
         mock_manager.mark_dye_received.assert_not_called()
@@ -74,7 +75,7 @@ class TestRollDye:
         mock_manager.get_dye_details.return_value = ("Carmine Dye", 2.0e-05, "960018")
         bot, client = _bot(), _client()
 
-        with patch("utils.roll_dye.random.choices", return_value=["carmine_dye"]):
+        with patch("utils.roll_dye.random.uniform", return_value=0.0):
             roll_dye("Player1", bot, client)
 
         mock_manager.mark_dye_received.assert_called_once_with("uuid-1", "carmine_dye")
@@ -92,7 +93,7 @@ class TestRollDye:
         mock_manager.get_dye_details.return_value = ("Livid Dye", 0.02, "CEB7AA")
         bot, client = _bot(), _client()
 
-        with patch("utils.roll_dye.random.choices", return_value=["livid_dye"]):
+        with patch("utils.roll_dye.random.uniform", return_value=0.0):
             roll_dye("Player1", bot, client)
 
         assert "1/5,000" in bot.chat.call_args[0][0]
