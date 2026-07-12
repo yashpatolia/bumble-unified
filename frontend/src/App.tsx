@@ -10,6 +10,7 @@ import GuildMembers from './pages/GuildMembers'
 import GuildLeaderboard from './pages/GuildLeaderboard'
 import Admin from './pages/Admin'
 import Users from './pages/Users'
+import Dyes from './pages/Dyes'
 
 interface AuthCtx {
   me: Me | null
@@ -81,6 +82,7 @@ function AppRouter() {
       </Route>
       <Route path="/admin" element={<Protected><Admin /></Protected>} />
       <Route path="/users" element={<Protected adminOnly><Users /></Protected>} />
+      <Route path="/dyes" element={<Protected><Dyes /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

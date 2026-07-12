@@ -34,6 +34,7 @@ export default function Home() {
             <img src={me.avatar_url} alt="" style={{ width: 28, height: 28, borderRadius: '50%' }} />
           )}
           <span>{me?.discord_name}</span>
+          <button className="btn btn-ghost btn-sm" onClick={() => navigate('/dyes')}>Dyes</button>
           {me?.is_owner && (
             <button className="btn btn-ghost btn-sm" onClick={() => navigate('/admin')}>Admin</button>
           )}

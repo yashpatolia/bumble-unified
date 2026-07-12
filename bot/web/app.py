@@ -17,7 +17,7 @@ from web.auth import (
     verify_token,
 )
 from web.logs import broadcaster
-from web.routes import bots, users
+from web.routes import bots, dyes, users
 
 FRONTEND_DIST = Path(__file__).parent.parent.parent / "frontend" / "dist"
 _ADMIN_ID = int(os.getenv("PANEL_ADMIN_DISCORD_ID", "0"))
@@ -36,6 +36,7 @@ def create_app() -> FastAPI:
 
     app.include_router(bots.router)
     app.include_router(users.router)
+    app.include_router(dyes.router)
 
     # --- Auth ---
 

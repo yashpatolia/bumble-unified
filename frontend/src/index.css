@@ -641,3 +641,41 @@ input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent);
 .text-muted   { color: var(--text-secondary); }
 .text-green   { color: var(--green); }
 .text-red     { color: var(--red); }
+
+/* ── Dyes ── */
+.dye-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.dye-swatch {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dye-swatch.locked { opacity: 0.45; }
+
+.dye-swatch-color {
+  width: 100%;
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.dye-swatch-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dye-swatch-odds {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.dye-search-result:hover { background: var(--surface2); }

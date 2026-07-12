@@ -74,6 +74,33 @@ export interface PanelUser {
   is_owner: boolean
 }
 
+export interface Dye {
+  dye_id: string
+  dye_name: string
+  hex: string
+  weight: number
+  odds: string
+  unlocked: boolean
+}
+
+export interface DyeProfile {
+  linked: boolean
+  uuid?: string
+  ign?: string
+  discord_name?: string | null
+  discord_avatar?: string | null
+  dyes?: Dye[]
+}
+
+export interface DyeSearchResult {
+  uuid: string
+  ign: string
+  discord_id: string | null
+  discord_name: string | null
+  discord_avatar: string | null
+  unlocked_count: number
+}
+
 export interface LogRecord {
   type?: 'ping'
   time?: string

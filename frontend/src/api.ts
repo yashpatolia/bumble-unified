@@ -1,4 +1,4 @@
-import type { ApiUsageStats, GuildMember, GuildOverview, GuildStatus, Me, PanelUser } from './types'
+import type { ApiUsageStats, DyeProfile, DyeSearchResult, GuildMember, GuildOverview, GuildStatus, Me, PanelUser } from './types'
 
 function token(): string | null {
   return localStorage.getItem('token')
@@ -56,6 +56,10 @@ export const api = {
     req<{ status: string }>(`/api/bots/${key}/members/${encodeURIComponent(ign)}/link`, { method: 'POST', body: JSON.stringify(data) }),
   unlinkMember: (key: string, ign: string) =>
     req<{ status: string }>(`/api/bots/${key}/members/${encodeURIComponent(ign)}/link`, { method: 'DELETE' }),
+
+  myDyes: () => req<DyeProfile>('/api/dyes/me'),
+  searchDyeUsers: (q: string) => req<{ results: DyeSearchResult[] }>(`/api/dyes/search?q=${encodeURIComponent(q)}`),
+  userDyes: (uuid: string) => req<DyeProfile>(`/api/dyes/user/${uuid}`),
 }
 
 export function wsLogsUrl(): string {

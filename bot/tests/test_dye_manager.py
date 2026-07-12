@@ -51,3 +51,57 @@ class TestResetAllDyeRolls:
 
         cur.execute.assert_called_once_with("DELETE FROM users_dyes")
         assert result == 42
+
+
+class TestGetAllDyes:
+    def test_returns_full_rows_ordered_by_weight(self):
+        mgr, cur = _manager_with_mock_cursor()
+        cur.fetchall.return_value = [("dark_purple_dye", "Dark Purple Dye", 0.25, "301934")]
+
+        result = mgr.get_all_dyes()
+
+        query = cur.execute.call_args[0][0]
+        assert "SELECT dye_id, dye_name, weight, hex FROM dyes" in query
+        assert "ORDER BY weight DESC" in query
+        assert result == [("dark_purple_dye", "Dark Purple Dye", 0.25, "301934")]
+
+
+class TestGetUserByUuid:
+    def test_queries_by_uuid(self):
+        mgr, cur = _manager_with_mock_cursor()
+        cur.fetchone.return_value = ("Player1", 123, "Player1#0", "https://example.com/a.png")
+
+        result = mgr.get_user_by_uuid("uuid-1")
+
+        query, params = cur.execute.call_args[0]
+        assert "FROM users WHERE uuid = %s" in query
+        assert params == ("uuid-1",)
+        assert result == ("Player1", 123, "Player1#0", "https://example.com/a.png")
+
+    def test_returns_none_when_not_found(self):
+        mgr, cur = _manager_with_mock_cursor()
+        cur.fetchone.return_value = None
+
+        assert mgr.get_user_by_uuid("missing-uuid") is None
+
+
+class TestSearchUsersWithDyeCounts:
+    def test_query_shape_and_params(self):
+        mgr, cur = _manager_with_mock_cursor()
+        cur.fetchall.return_value = []
+
+        mgr.search_users_with_dye_counts("play", limit=10)
+
+        query, params = cur.execute.call_args[0]
+        assert "LEFT JOIN users_dyes" in query
+        assert "WHERE u.ign ILIKE %s" in query
+        assert "GROUP BY u.uuid" in query
+        assert params == ("%play%", 10)
+
+    def test_returns_rows(self):
+        mgr, cur = _manager_with_mock_cursor()
+        cur.fetchall.return_value = [("uuid-1", "Player1", 123, "Player1#0", None, 3)]
+
+        result = mgr.search_users_with_dye_counts("Player1")
+
+        assert result == [("uuid-1", "Player1", 123, "Player1#0", None, 3)]
