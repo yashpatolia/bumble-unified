@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../App'
 import type { ApiUsageStats } from '../types'
@@ -40,8 +40,8 @@ function ApiUsagePanel() {
 
   const cards = [
     { label: 'Last Minute',    value: hypixel.queries_in_past_minute ?? local.last_minute, max: Math.round(limit / windowMin),        color: 'var(--accent)', sub: `of ~${Math.round(limit / windowMin)} / min` },
-    { label: 'Last 5 Minutes', value: local.last_5min,                                     max: Math.round(limit / windowMin * 5),    color: '#5b8dd9',       sub: `of ~${Math.round(limit / windowMin * 5)} / 5 min` },
-    { label: 'Last Hour',      value: local.last_hour,                                     max: Math.round(limit / windowMin * 60),   color: '#6fbf7e',       sub: `of ~${Math.round(limit / windowMin * 60)} / hour` },
+    { label: 'Last 5 Minutes', value: local.last_5min,                                     max: Math.round(limit / windowMin * 5),    color: 'var(--blue)',   sub: `of ~${Math.round(limit / windowMin * 5)} / 5 min` },
+    { label: 'Last Hour',      value: local.last_hour,                                     max: Math.round(limit / windowMin * 60),   color: 'var(--green)',  sub: `of ~${Math.round(limit / windowMin * 60)} / hour` },
     { label: 'Last 24 Hours',  value: local.today,                                         max: Math.round(limit / windowMin * 1440), color: '#c87d4a',       sub: `of ~${Math.round(limit / windowMin * 1440).toLocaleString()} / day` },
   ]
 
@@ -76,50 +76,30 @@ function ApiUsagePanel() {
 }
 
 export default function Admin() {
-  const { me, loading, logout } = useAuth()
-  const navigate = useNavigate()
+  const { me, loading } = useAuth()
 
   if (loading) return null
   if (!me?.is_owner) return <Navigate to="/" replace />
 
   return (
-    <div className="guild-layout">
-      <header className="guild-header">
-        <div className="guild-header-left">
-          <span className="guild-header-back" onClick={() => navigate('/')}>← All Guilds</span>
-          <span className="guild-header-sep">/</span>
-          <span className="guild-header-name">Admin</span>
-        </div>
+    <div>
+      <div className="page-title">Admin</div>
+      <ApiUsagePanel />
 
-        <div className="guild-header-user">
-          {me.avatar_url && (
-            <img src={me.avatar_url} alt="" style={{ width: 28, height: 28, borderRadius: '50%' }} />
-          )}
-          <span>{me.discord_name}</span>
-          <button className="btn btn-ghost btn-sm" onClick={() => { logout(); navigate('/login') }}>Logout</button>
-        </div>
-      </header>
-
-      <main className="guild-main">
-        <div style={{ maxWidth: 960, margin: '0 auto' }}>
-          <ApiUsagePanel />
-
-          <div className="events-section-label">Management</div>
-          <div className="guild-cards">
-            <Link className="guild-card" to="/users">
-              <div className="guild-card-header">
-                <div>
-                  <div className="guild-card-name" style={{ fontSize: 18 }}>User Management</div>
-                  <div className="guild-card-tag">Add, edit, or remove panel users and their permissions</div>
-                </div>
-              </div>
-              <div className="guild-card-footer">
-                <span className="guild-enter">Manage Users →</span>
-              </div>
-            </Link>
+      <div className="events-section-label">Management</div>
+      <div className="guild-cards">
+        <Link className="guild-card" to="/users">
+          <div className="guild-card-header">
+            <div>
+              <div className="guild-card-name" style={{ fontSize: 18 }}>User Management</div>
+              <div className="guild-card-tag">Add, edit, or remove panel users and their permissions</div>
+            </div>
           </div>
-        </div>
-      </main>
+          <div className="guild-card-footer">
+            <span className="guild-enter">Manage Users →</span>
+          </div>
+        </Link>
+      </div>
     </div>
   )
 }

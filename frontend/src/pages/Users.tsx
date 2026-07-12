@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../App'
 import type { PanelUser } from '../types'
@@ -15,8 +14,7 @@ interface FormState {
 const defaultForm = (): FormState => ({ discord_id: '', discord_name: '', can_control_bots: false, can_fetch_api: false, can_manage_links: false })
 
 export default function Users() {
-  const { me, logout } = useAuth()
-  const navigate = useNavigate()
+  const { me } = useAuth()
   const [users, setUsers] = useState<PanelUser[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -77,23 +75,7 @@ export default function Users() {
   }
 
   return (
-    <div className="guild-layout">
-      <header className="guild-header">
-        <div className="guild-header-left">
-          <span className="guild-header-back" onClick={() => navigate('/')}>← All Guilds</span>
-          <span className="guild-header-sep">/</span>
-          <span className="guild-header-name">Admin</span>
-        </div>
-        <div className="guild-header-user">
-          {me?.avatar_url && (
-            <img src={me.avatar_url} alt="" style={{ width: 28, height: 28, borderRadius: '50%' }} />
-          )}
-          <span>{me?.discord_name}</span>
-          <button className="btn btn-ghost btn-sm" onClick={() => { logout(); navigate('/login') }}>Logout</button>
-        </div>
-      </header>
-
-      <main className="guild-main">
+    <div>
       <div className="header-row">
         <div className="page-title" style={{ marginBottom: 0 }}>Panel Users</div>
         <button className="btn btn-primary" onClick={openCreate}>+ Add User</button>
@@ -121,7 +103,7 @@ export default function Users() {
                 {users.map(u => (
                   <tr key={u.discord_id}>
                     <td>{u.discord_name}</td>
-                    <td style={{ color: 'var(--muted)', fontFamily: 'monospace' }}>{u.discord_id}</td>
+                    <td className="mono" style={{ color: 'var(--muted)' }}>{u.discord_id}</td>
                     <td>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                         {u.is_owner && <span className="badge badge-admin">Owner</span>}
@@ -146,8 +128,6 @@ export default function Users() {
           )}
         </div>
       </div>
-
-      </main>
 
       {showModal && (
         <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowModal(false) }}>

@@ -108,7 +108,7 @@ export default function GuildOverviewPage() {
             (data.recent_chat ?? []).map((msg, i) => (
               <div className="chat-line" key={i}>
                 <span className="chat-time">{msg.time}</span>
-                <img src={`https://mc-heads.net/avatar/${msg.player}/24`} alt="" style={{ width: 24, height: 24, borderRadius: 3, flexShrink: 0 }} />
+                <img className="hex-avatar" src={`https://mc-heads.net/avatar/${msg.player}/24`} alt="" style={{ width: 24, height: 24 }} />
                 <span className="chat-player">{msg.player}</span>
                 <span className="chat-msg">{msg.message}</span>
               </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../App'
 import type { GuildStatus } from '../types'
@@ -10,8 +10,7 @@ const FALLBACK: GuildStatus[] = [
 ]
 
 export default function Home() {
-  const { me, logout } = useAuth()
-  const navigate = useNavigate()
+  const { me } = useAuth()
   const [bots, setBots] = useState<GuildStatus[]>([])
 
   useEffect(() => {
@@ -26,46 +25,29 @@ export default function Home() {
   const guildList = bots.length > 0 ? bots : FALLBACK
 
   return (
-    <div className="home-page">
-      <header className="home-header">
-        <div className="home-logo">Bumble</div>
-        <div className="home-user">
-          {me?.avatar_url && (
-            <img src={me.avatar_url} alt="" style={{ width: 28, height: 28, borderRadius: '50%' }} />
-          )}
-          <span>{me?.discord_name}</span>
-          <button className="btn btn-ghost btn-sm" onClick={() => navigate('/dyes')}>Dyes</button>
-          {me?.is_owner && (
-            <button className="btn btn-ghost btn-sm" onClick={() => navigate('/admin')}>Admin</button>
-          )}
-          <button className="btn btn-ghost btn-sm" onClick={() => { logout(); navigate('/login') }}>Logout</button>
-        </div>
-      </header>
+    <div>
+      <div className="home-title">Welcome back{me?.discord_name ? `, ${me.discord_name}` : ''}</div>
+      <div className="home-sub">Select a guild to view its overview.</div>
 
-      <div className="home-body">
-        <div className="home-title">Welcome back{me?.discord_name ? `, ${me.discord_name}` : ''}</div>
-        <div className="home-sub">Select a guild to view its overview.</div>
-
-        <div className="events-section-label">Guilds</div>
-        <div className="guild-cards">
-          {guildList.map(bot => (
-            <Link key={bot.key} className="guild-card" to={`/guilds/${bot.key}`}>
-              <div className="guild-card-header">
-                <div>
-                  <div className="guild-card-name">{bot.name}</div>
-                  <div className="guild-card-tag">{bot.username}</div>
-                </div>
-                <div className="guild-card-status">
-                  <span className={`status-dot ${bot.connected ? 'online' : 'offline'}`} />
-                  {bot.connected ? 'Online' : 'Offline'}
-                </div>
+      <div className="events-section-label">Guilds</div>
+      <div className="guild-cards">
+        {guildList.map(bot => (
+          <Link key={bot.key} className="guild-card" to={`/guilds/${bot.key}`}>
+            <div className="guild-card-header">
+              <div>
+                <div className="guild-card-name">{bot.name}</div>
+                <div className="guild-card-tag">{bot.username}</div>
               </div>
-              <div className="guild-card-footer">
-                <span className="guild-enter">View Guild →</span>
+              <div className="guild-card-status">
+                <span className={`status-dot ${bot.connected ? 'online' : 'offline'}`} />
+                {bot.connected ? 'Online' : 'Offline'}
               </div>
-            </Link>
-          ))}
-        </div>
+            </div>
+            <div className="guild-card-footer">
+              <span className="guild-enter">View Guild →</span>
+            </div>
+          </Link>
+        ))}
       </div>
     </div>
   )

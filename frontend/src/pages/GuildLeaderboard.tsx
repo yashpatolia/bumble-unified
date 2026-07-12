@@ -74,13 +74,13 @@ export default function GuildLeaderboard() {
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: -4 }}>
                         {entry.uuid
-                          ? <img src={`https://mc-heads.net/avatar/${entry.uuid}/32`} alt="" style={{ width: 32, height: 32, borderRadius: 4, flexShrink: 0 }} />
-                          : <div style={{ width: 32, height: 32, borderRadius: 4, background: 'var(--surface3)', flexShrink: 0 }} />
+                          ? <img className="hex-avatar" src={`https://mc-heads.net/avatar/${entry.uuid}/32`} alt="" style={{ width: 32, height: 32 }} />
+                          : <div className="hex-avatar" style={{ width: 32, height: 32 }} />
                         }
                         <div>
                           <span style={{ fontWeight: 500 }}>{entry.ign}</span>
                           {entry.uuid && (
-                            <div style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--muted)', marginTop: 1 }}>
+                            <div className="mono" style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: 1 }}>
                               {entry.uuid}
                             </div>
                           )}
@@ -97,7 +97,7 @@ export default function GuildLeaderboard() {
                           <div>
                             <span style={{ fontWeight: 500 }}>{entry.discord_name}</span>
                             {entry.discord_id && (
-                              <div style={{ fontFamily: 'monospace', fontSize: '0.7rem', color: 'var(--muted)', marginTop: 1 }}>
+                              <div className="mono" style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: 1 }}>
                                 {entry.discord_id}
                               </div>
                             )}

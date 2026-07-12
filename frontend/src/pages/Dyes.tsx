@@ -93,7 +93,7 @@ export default function Dyes() {
                 style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px', borderRadius: 8, cursor: 'pointer' }}
                 className="dye-search-result"
               >
-                <img src={`https://mc-heads.net/avatar/${r.uuid}/28`} alt="" style={{ width: 28, height: 28, borderRadius: 4 }} />
+                <img className="hex-avatar" src={`https://mc-heads.net/avatar/${r.uuid}/28`} alt="" style={{ width: 28, height: 28 }} />
                 <span style={{ fontWeight: 500 }}>{r.ign}</span>
                 {r.discord_name && <span className="text-muted" style={{ fontSize: 12 }}>{r.discord_name}</span>}
                 <span className="text-muted" style={{ fontSize: 12, marginLeft: 'auto' }}>{r.unlocked_count} unlocked</span>

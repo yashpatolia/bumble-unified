@@ -2,15 +2,16 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { api } from './api'
 import type { Me } from './types'
+import AppShell from './components/AppShell'
 import Login from './pages/Login'
 import Home from './pages/Home'
-import GuildLayout from './pages/GuildLayout'
 import GuildOverview from './pages/GuildOverview'
 import GuildMembers from './pages/GuildMembers'
 import GuildLeaderboard from './pages/GuildLeaderboard'
 import Admin from './pages/Admin'
 import Users from './pages/Users'
 import Dyes from './pages/Dyes'
+import Logs from './pages/Logs'
 
 interface AuthCtx {
   me: Me | null
@@ -74,15 +75,16 @@ function AppRouter() {
   return (
     <Routes>
       <Route path="/login" element={me ? <Navigate to="/" replace /> : <Login />} />
-      <Route path="/" element={me ? <Home /> : <Navigate to="/login" replace />} />
-      <Route path="/guilds/:key" element={<Protected><GuildLayout /></Protected>}>
-        <Route index element={<GuildOverview />} />
-        <Route path="members" element={<GuildMembers />} />
-        <Route path="leaderboard" element={<GuildLeaderboard />} />
+      <Route element={<Protected><AppShell /></Protected>}>
+        <Route path="/" element={<Home />} />
+        <Route path="/guilds/:key" element={<GuildOverview />} />
+        <Route path="/guilds/:key/members" element={<GuildMembers />} />
+        <Route path="/guilds/:key/leaderboard" element={<GuildLeaderboard />} />
+        <Route path="/dyes" element={<Dyes />} />
+        <Route path="/logs" element={<Protected adminOnly><Logs /></Protected>} />
+        <Route path="/admin" element={<Admin />} />
+        <Route path="/users" element={<Protected adminOnly><Users /></Protected>} />
       </Route>
-      <Route path="/admin" element={<Protected><Admin /></Protected>} />
-      <Route path="/users" element={<Protected adminOnly><Users /></Protected>} />
-      <Route path="/dyes" element={<Protected><Dyes /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

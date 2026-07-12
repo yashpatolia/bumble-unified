@@ -13,9 +13,9 @@ const DAY_MS = 86400000
 type WarnLevel = 'yellow' | 'orange' | 'red'
 
 const WARN_STYLES: Record<WarnLevel, { background: string; color: string; border: string; label: string }> = {
-  yellow: { background: 'rgba(255,200,0,0.12)', color: '#e6b800', border: '1px solid rgba(255,200,0,0.3)', label: 'Low Activity' },
-  orange: { background: 'rgba(255,140,0,0.12)', color: '#ff8c00', border: '1px solid rgba(255,140,0,0.3)', label: 'Inactive' },
-  red:    { background: 'rgba(255,60,60,0.12)',  color: '#ff4444', border: '1px solid rgba(255,60,60,0.3)',  label: 'Kick Risk' },
+  yellow: { background: 'rgba(217,164,65,0.14)', color: '#d9a441', border: '1px solid rgba(217,164,65,0.35)', label: 'Low Activity' },
+  orange: { background: 'rgba(224,130,52,0.14)', color: '#e08234', border: '1px solid rgba(224,130,52,0.35)', label: 'Inactive' },
+  red:    { background: 'rgba(225,85,58,0.14)',  color: '#e1553a', border: '1px solid rgba(225,85,58,0.35)',  label: 'Kick Risk' },
 }
 
 function getWarnLevel(m: GuildMember, bottomIgns: Set<string>): WarnLevel | null {
@@ -309,8 +309,8 @@ export default function GuildMembers() {
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: -4 }}>
                         {m.uuid
-                          ? <img src={`https://mc-heads.net/avatar/${m.uuid}/32`} alt="" style={{ width: 32, height: 32, borderRadius: 4, flexShrink: 0 }} />
-                          : <div style={{ width: 32, height: 32, borderRadius: 4, background: 'var(--surface3)', flexShrink: 0 }} />
+                          ? <img className="hex-avatar" src={`https://mc-heads.net/avatar/${m.uuid}/32`} alt="" style={{ width: 32, height: 32 }} />
+                          : <div className="hex-avatar" style={{ width: 32, height: 32 }} />
                         }
                         <div>
                           <div style={{ fontWeight: 500 }}>
@@ -326,7 +326,7 @@ export default function GuildMembers() {
                               )
                             })()}
                           </div>
-                          {m.uuid && <div style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-secondary)', marginTop: 2 }}>{m.uuid}</div>}
+                          {m.uuid && <div className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{m.uuid}</div>}
                         </div>
                       </div>
                     </td>
@@ -339,7 +339,7 @@ export default function GuildMembers() {
                           }
                           <div>
                           <div style={{ fontWeight: 500 }}>{m.discord_name}</div>
-                          {m.discord_id && <div style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-secondary)', marginTop: 2 }}>{m.discord_id}</div>}
+                          {m.discord_id && <div className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{m.discord_id}</div>}
                           {canManageLinks && (
                             <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                               <button className="btn btn-ghost" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => openLink(m)}>Edit</button>
