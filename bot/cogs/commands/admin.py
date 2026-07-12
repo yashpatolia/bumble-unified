@@ -1,8 +1,12 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from config import EXEC_ROLE
+from config import EXEC_ROLE, OWNER_ID
 from db import manager
+
+
+def _is_owner(interaction: discord.Interaction) -> bool:
+    return interaction.user.id == OWNER_ID
 
 
 class AdminCommands(commands.GroupCog, name="admin"):
@@ -30,6 +34,17 @@ class AdminCommands(commands.GroupCog, name="admin"):
         try:
             manager.remove_dye(dye_id)
             embed = discord.Embed(colour=discord.Colour.green(), description=f"**Removed:** `{dye_id}`")
+        except Exception as e:
+            embed = discord.Embed(colour=discord.Colour.red(), description=str(e))
+        await interaction.edit_original_response(embed=embed)
+
+    @app_commands.command(name="reset-dyes", description="[TEMP] Wipe every player's rolled dyes")
+    @app_commands.check(_is_owner)
+    async def reset_dyes(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer()
+        try:
+            removed = manager.reset_all_dye_rolls()
+            embed = discord.Embed(colour=discord.Colour.green(), description=f"**Reset:** removed {removed} dye unlock(s) for all users")
         except Exception as e:
             embed = discord.Embed(colour=discord.Colour.red(), description=str(e))
         await interaction.edit_original_response(embed=embed)

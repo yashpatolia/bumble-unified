@@ -10,6 +10,7 @@ from javascript import On
 from config import GuildConfig
 from db import manager
 from utils.command_handler import bridge_commands
+from utils.roll_dye import roll_dye
 
 
 class GuildBridge(commands.Cog):
@@ -88,6 +89,8 @@ class GuildBridge(commands.Cog):
                 except Exception:
                     pass
 
+                roll_dye(sender, state.bot, self.client)
+
                 # Relay to all other guild bots
                 relay_state = "/oc" if chat_type == "Officer" else "/gc"
                 for key, other_state in self.client.guilds_state.items():
@@ -147,11 +150,16 @@ class GuildBridge(commands.Cog):
                 state.bot.chat(f"/{chat_state} {content}")
 
         if resolved_ign:
+            guild_key = self.config.key
             try:
                 guild_key = manager.get_guild_key_for_ign(resolved_ign) or self.config.key
                 manager.increment_message_count(guild_key, resolved_ign)
             except Exception:
                 pass
+
+            target_state = self.client.guilds_state.get(guild_key)
+            if target_state and target_state.bot:
+                asyncio.create_task(asyncio.to_thread(roll_dye, resolved_ign, target_state.bot, self.client))
 
         if command_check.startswith("."):
             run_coroutine_threadsafe(

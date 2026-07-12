@@ -141,8 +141,9 @@ class DatabaseManager:
     def mark_dye_received(self, uuid: str, dye_id: str) -> None:
         with self._cursor() as cur:
             cur.execute(
-                "UPDATE users_dyes SET received = TRUE WHERE dye_id = %s AND uuid = %s",
-                (dye_id, uuid),
+                "INSERT INTO users_dyes (uuid, dye_id, received) VALUES (%s, %s, TRUE) "
+                "ON CONFLICT (uuid, dye_id) DO UPDATE SET received = TRUE",
+                (uuid, dye_id),
             )
 
     def add_dye(self, dye_id: str, dye_name: str, weight: float, hex_color: str) -> None:
@@ -156,6 +157,12 @@ class DatabaseManager:
     def remove_dye(self, dye_id: str) -> None:
         with self._cursor() as cur:
             cur.execute("DELETE FROM dyes WHERE dye_id = %s", (dye_id,))
+
+    def reset_all_dye_rolls(self) -> int:
+        """Delete every player's dye-unlock records. Returns the number of rows removed."""
+        with self._cursor() as cur:
+            cur.execute("DELETE FROM users_dyes")
+            return cur.rowcount
 
     # --- Guild Members ---
 

@@ -20,6 +20,8 @@ class ErrorHandling(commands.Cog):
             message = "You don't have the required role to use this command."
         elif isinstance(error, app_commands.CommandOnCooldown):
             message = f"Command is on cooldown. Try again in {error.retry_after:.1f}s."
+        elif isinstance(error, app_commands.CheckFailure):
+            message = "You don't have permission to use this command."
         else:
             logging.error(f"Unhandled slash command error: {error}")
             message = "An unexpected error occurred. Please try again."
