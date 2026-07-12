@@ -6,7 +6,7 @@ from lib.get_uuid import get_uuid
 from db import manager
 
 
-def roll_dye(username: str, bot, client) -> None:
+def roll_dye(username: str, client) -> None:
     """Roll a random dye for a player and announce it if they get a new one."""
     try:
         uuid = get_uuid(username)
@@ -43,7 +43,10 @@ def roll_dye(username: str, bot, client) -> None:
         logging.warning(f"{username} unlocked {dye_name}! (1/{drop_rate:,})")
 
         time.sleep(0.5)
-        bot.chat(f"/gc DYE DROP: {username} found {dye_name} (1/{drop_rate:,})!")
+        message = f"/gc DYE DROP: {username} found {dye_name} (1/{drop_rate:,})!"
+        for state in client.guilds_state.values():
+            if state.bot:
+                state.bot.chat(message)
 
         embed = discord.Embed(
             color=discord.Color.from_str(f"#{hex_color.lower()}"),

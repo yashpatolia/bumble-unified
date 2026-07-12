@@ -89,7 +89,7 @@ class GuildBridge(commands.Cog):
                 except Exception:
                     pass
 
-                roll_dye(sender, state.bot, self.client)
+                roll_dye(sender, self.client)
 
                 # Relay to all other guild bots
                 relay_state = "/oc" if chat_type == "Officer" else "/gc"
@@ -150,16 +150,13 @@ class GuildBridge(commands.Cog):
                 state.bot.chat(f"/{chat_state} {content}")
 
         if resolved_ign:
-            guild_key = self.config.key
             try:
                 guild_key = manager.get_guild_key_for_ign(resolved_ign) or self.config.key
                 manager.increment_message_count(guild_key, resolved_ign)
             except Exception:
                 pass
 
-            target_state = self.client.guilds_state.get(guild_key)
-            if target_state and target_state.bot:
-                asyncio.create_task(asyncio.to_thread(roll_dye, resolved_ign, target_state.bot, self.client))
+            asyncio.create_task(asyncio.to_thread(roll_dye, resolved_ign, self.client))
 
         if command_check.startswith("."):
             run_coroutine_threadsafe(

@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from config import EXEC_ROLE, OWNER_ID
+from constants import DYE_ROLES
 from db import manager
 
 
@@ -44,7 +45,20 @@ class AdminCommands(commands.GroupCog, name="admin"):
         await interaction.response.defer()
         try:
             removed = manager.reset_all_dye_rolls()
-            embed = discord.Embed(colour=discord.Colour.green(), description=f"**Reset:** removed {removed} dye unlock(s) for all users")
+
+            roles_removed = 0
+            for role_id in set(DYE_ROLES.values()):
+                role = interaction.guild.get_role(role_id)
+                if role is None:
+                    continue
+                for member in list(role.members):
+                    await member.remove_roles(role)
+                    roles_removed += 1
+
+            embed = discord.Embed(
+                colour=discord.Colour.green(),
+                description=f"**Reset:** removed {removed} dye unlock(s) from the database and {roles_removed} dye role(s) in Discord",
+            )
         except Exception as e:
             embed = discord.Embed(colour=discord.Colour.red(), description=str(e))
         await interaction.edit_original_response(embed=embed)
