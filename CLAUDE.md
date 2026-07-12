@@ -12,9 +12,40 @@ Bumble is a Discord bot that acts as a bridge between two Hypixel Skyblock Minec
 - Cross-relays chat between the two guilds in-game (`[BK] player: message` appears in BU and vice versa)
 - Provides in-game dot-commands (`.lvl`, `.cata`, `.nw`, etc.) that query the Hypixel API
 - Exposes Discord slash commands for staff to manage guild members (invite, kick, mute, promote, demote)
+- Continuously refreshes guild member Skyblock stats in the background and auto-promotes/demotes members by level
 - Tracks armor dye drops per player and assigns Discord color roles
 - Links Discord accounts to Minecraft UUIDs via Hypixel social media verification
 - Manages guild application ticket channels
+- Exposes a web panel (React + FastAPI) for bot control, guild member/leaderboard browsing, and live log streaming
+
+---
+
+## Process Architecture
+
+The bot and the web panel are **two separate OS processes**, each with their own `asyncio` event loop, that never share Python objects. They coordinate only through:
+1. **PostgreSQL** — the source of truth for members, links, dyes, message counts, etc.
+2. **An internal HTTP IPC API** — the web process calls the bot process over `localhost` to read live state (connection status, recent chat) or trigger actions (restart/stop a Mineflayer bot).
+
+```
+bot/main.py            bot/web_main.py
+   (bot process)           (web process)
+   Discord client          FastAPI panel
+   + Mineflayer bots       + serves frontend/dist
+   + bot_ipc.py FastAPI    + calls bot IPC over HTTP
+     on 127.0.0.1:BOT_IPC_PORT
+        ▲                       │
+        └────── X-IPC-Secret ───┘
+                (BOT_IPC_URL)
+
+Both processes independently run `db.migrate.run_migrations()` on startup
+and both talk directly to PostgreSQL via `db/manager.py`.
+```
+
+Run them as two separate commands/services in production (see `deploy.sh`):
+```bash
+python bot/main.py       # Discord bot + Mineflayer + internal IPC API
+python bot/web_main.py   # Web panel (talks to the bot process via IPC)
+```
 
 ---
 
@@ -25,22 +56,29 @@ bumble-unified/
 ├── deploy.sh                 # VPS deploy script
 ├── example.env               # Template for .env — copy and fill before running
 │
+├── docs/                      # All project documentation other than this file
+│   ├── README.md               # Project overview, features, setup, architecture
+│   └── DEVELOPMENT.md          # Testing guide, prod DB copy script usage
+│
 ├── frontend/                 # React/Vite web panel UI
 │   └── src/
 │       └── ...
 │
 └── bot/                      # All Python + Node bot code
-    ├── main.py               # Bot entry point — Discord client, GuildState, cog loading
-    ├── web_main.py           # Web panel entry point (separate process)
-    ├── bot_ipc.py            # Internal FastAPI app for bot control (localhost only)
+    ├── main.py               # Bot process entry point — Discord client, GuildState, Mineflayer, IPC server
+    ├── web_main.py           # Web panel process entry point — runs migrations, serves FastAPI panel
+    ├── bot_ipc.py            # create_ipc_app(client) — internal FastAPI app exposed only on localhost
     ├── config.py             # All configuration + GuildConfig dataclass + BK/BU instances
     ├── constants.py          # Static lookup tables: dungeon XP, MP values, dye IDs/roles/emojis
     ├── requirements.txt      # Python dependencies
     ├── package.json          # Node.js dependencies (Mineflayer, skyhelper-networth)
+    ├── pytest.ini             # asyncio_mode = auto for the test suite
     │
     ├── db/
-    │   ├── __init__.py       # Exports `manager` singleton (DatabaseManager instance)
-    │   └── manager.py        # DatabaseManager — all SQLite access goes through here
+    │   ├── __init__.py       # Exports `manager` singleton (DatabaseManager instance), reads DATABASE_URL
+    │   ├── manager.py        # DatabaseManager — all PostgreSQL access goes through here (psycopg2 pool)
+    │   ├── migrate.py        # run_migrations(dsn) — applies db/migrations/*.sql in order, tracked in schema_migrations
+    │   └── migrations/       # Numbered SQL migration files (001_initial_schema.sql, 002_panel_users.sql, ...)
     │
     ├── lib/                  # Low-level utility functions (no Discord, no cog state)
     │   ├── __init__.py       # Re-exports all lib symbols
@@ -49,6 +87,8 @@ bumble-unified/
     │   ├── fetch.py          # async fetch() and sync request() for HTTP/JSON
     │   ├── get_username.py   # UUID → IGN, with DB cache
     │   ├── get_uuid.py       # IGN → UUID, with DB cache
+    │   ├── guild_list.py     # parse_guild_list() / parse_online_igns() — parses raw /guild list & /guild online text
+    │   ├── hypixel.py        # fetch_member_stats() / fetch_key_info() — Hypixel player+key lookups, records api_calls
     │   └── rankup.py         # guild_rank_change() — promotes/demotes a player in-game
     │
     ├── player/               # Hypixel Skyblock player data classes
@@ -64,13 +104,20 @@ bumble-unified/
     │   ├── command_handler.py # bridge_commands() — routes .commands from Minecraft/Discord
     │   └── roll_dye.py        # roll_dye() — weighted random dye drop, announces if new
     │
+    ├── tests/                 # pytest suite (pure-function tests, no live Discord/DB/HTTP)
+    │   ├── conftest.py          # Stubs heavy deps (discord, aiohttp, psycopg2, etc.) so tests run anywhere
+    │   ├── test_parsers.py      # lib/guild_list.py parsing
+    │   ├── test_rankup.py       # lib/rankup.py::guild_rank_change
+    │   ├── test_utils.py        # condense, deep_get
+    │   └── test_player.py       # player/*.py pure-function pieces
+    │
     ├── web/                  # FastAPI web panel backend
-    │   ├── app.py            # create_app() factory — mounts routes, auth, WebSocket, SPA fallback
-    │   ├── auth.py           # Discord OAuth2 exchange, JWT create/verify, FastAPI dependencies
-    │   ├── logs.py           # LogBroadcaster (thread-safe store) + WebLogHandler (logging.Handler)
+    │   ├── app.py             # create_app() factory — mounts routers, OAuth2, /api/me, WebSocket, SPA fallback
+    │   ├── auth.py             # Discord OAuth2 exchange, JWT create/verify, FastAPI permission dependencies
+    │   ├── logs.py             # LogBroadcaster (thread-safe store) + WebLogHandler (logging.Handler)
     │   └── routes/
-    │       ├── bots.py       # GET /api/bots, POST /api/bots/{key}/restart|stop (calls bot IPC)
-    │       └── users.py      # CRUD /api/users — panel user management (admin only)
+    │       ├── bots.py         # /api/bots/* — bot status, guild overview/members/leaderboard, link mgmt, IPC proxy
+    │       └── users.py        # CRUD /api/users — panel user management (admin only)
     │
     └── cogs/
         ├── errors/
@@ -86,10 +133,14 @@ bumble-unified/
         │   ├── apply.py          # /apply — create a private application ticket channel
         │   └── exec.py           # /bk-exec, /bu-exec — run raw MC commands (exec role only)
         │
-        └── bridge/               # One set of cogs handles both guilds via GuildConfig
-            ├── bridge.py         # GuildBridge — MC→Discord chat relay + Discord→MC listener
-            ├── connections.py    # GuildConnections — spawn/disconnect events, auto-reconnect
-            └── message_handler.py# GuildMessageHandler — system messages (join/leave/kick/mute/invite)
+        ├── bridge/               # One set of cogs handles both guilds via GuildConfig
+        │   ├── bridge.py         # GuildBridge — MC→Discord chat relay + Discord→MC listener
+        │   ├── connections.py    # GuildConnections — spawn/disconnect events, auto-reconnect, Hypixel member sync
+        │   └── message_handler.py# GuildMessageHandler — system messages (join/leave/kick/mute/invite), auto-rank on join
+        │
+        └── tasks/
+            └── member_refresh.py # MemberRefreshTask — background loop that continuously refreshes one member's
+                                   # stats at a time and auto-ranks them (see "Background member refresh" below)
 ```
 
 ---
@@ -97,48 +148,73 @@ bumble-unified/
 ## Key Files and Their Responsibilities
 
 ### `bot/main.py`
-- Defines `GuildState` dataclass: holds the live Mineflayer bot instance, guild list buffer, invite result buffer, and logs webhook for one guild.
+- Defines `GuildState` dataclass: holds the live Mineflayer bot instance, `connected` flag, guild-list/guild-online buffers, invite result buffer, per-guild logs webhook, `manual_stop` flag, `guild_member_count`, and a `recent_chat` deque (last 50 messages, used by the web panel's guild overview).
 - Defines `Client(commands.Bot)`: holds `guild_configs` (static config map) and `guilds_state` (runtime state map, both keyed `'bk'`/`'bu'`), shared webhooks, and the skyhelper JS reference.
-- `setup_hook()` runs on startup: creates Mineflayer bots, sets per-guild log webhooks, sets shared webhooks, then dynamically loads every `.py` file inside every `cogs/` subdirectory.
-- `start_mineflayer()` is also called on reconnect (via `connections.py`) with `restart=True` to reload bridge cogs against the new bot instance.
+- `setup_hook()` runs on startup: creates Mineflayer bots, sets per-guild log webhooks, sets shared webhooks, then dynamically loads every `.py` file inside every `cogs/` subdirectory (including `cogs/tasks/`).
+- `start_mineflayer()` is also called on reconnect (via `connections.py`) with `restart=True` to reload the `connections`, `bridge`, and `message_handler` cogs against the new bot instance.
+- `run_bot()` applies DB migrations, then runs the Discord client and the internal `bot_ipc` FastAPI server concurrently via `asyncio.gather`.
+
+### `bot/web_main.py`
+- Separate process entry point for the web panel. Applies DB migrations, attaches `WebLogHandler` to the root logger, then serves `web/app.py`'s FastAPI app with uvicorn on `PANEL_PORT`.
+- Does **not** hold a `Client` instance — all bot state is read through the IPC API in `web/routes/bots.py`.
+
+### `bot/bot_ipc.py`
+- `create_ipc_app(client)` builds a FastAPI app that runs only inside the bot process, bound to `127.0.0.1:BOT_IPC_PORT`.
+- Every route requires the `X-IPC-Secret` header (via `_verify`) to match `BOT_IPC_SECRET` when that env var is set.
+- Routes: `GET /status` (per-guild connection status), `GET /guild/{key}/overview` (live member count + recent chat), `GET /guild/{key}/members` (triggers `/guild list` + `/guild online` in-game, parses the output, syncs it to `guild_members`, and returns the merged online/offline member list — falls back to the DB cache if the bot isn't connected), `POST /restart/{key}`, `POST /stop/{key}`, `GET /api-usage`.
 
 ### `config.py`
 - Loads all env vars and defines every scalar config constant the rest of the code imports.
 - Defines `GuildConfig` dataclass — the single source of truth for per-guild settings:
   - `key` (`'bk'`/`'bu'`) — used as dict key everywhere
-  - `mc_options` — passed directly to `mineflayer.createBot()`
-  - `guild_name` — matched against `/guild list` output to accumulate the list
+  - `display_name` / `short_name` — e.g. `'Bumble Kindergarten'` / `'BK'`
+  - `mc_options` — passed directly to `mineflayer.createBot()`; `mc_username` property reads the username out of it
+  - `guild_name` — matched against `/guild list` output and used for the Hypixel guild API sync
   - `staff_role_id`, `member_role_id` — Discord role IDs for permission checks
   - `ranks` — `{bot_rank_key: skyblock_level_requirement}` for auto-rankup
-  - `rank_update_users` — IGNs authorized to run `.ranks`
-  - `discord_rank_map` — maps Hypixel guild rank names to bot rank keys for bulk `.ranks`
+  - `discord_rank_map` — maps Hypixel guild rank names to bot rank keys, used by the background refresh task and auto-rank-on-join
   - `bridge_channel_id` / `officer_channel_id` — which Discord channels feed into this guild's MC chat (`None` = no Discord→MC listener for that guild)
-- `GUILD_CONFIGS: dict[str, GuildConfig]` — the master registry. **Adding a new guild = adding one entry here.**
-- Backward-compatible flat constants (`BK_STAFF_ROLE`, `BRIDGE_CHANNEL_ID`, etc.) are still exported for cogs that reference them directly.
+- `GUILD_CONFIGS: dict[str, GuildConfig] = {'bk': BK_CONFIG, 'bu': BU_CONFIG}` — the master registry. **Adding a new guild = adding one entry here.**
+- Also defines `BOT_IPC_PORT` and (read directly via `os.getenv`, not exported as a constant) `BOT_IPC_URL`/`BOT_IPC_SECRET`, consumed by `web/routes/bots.py`.
 
 ### `db/manager.py`
-- `DatabaseManager` provides typed methods for every DB operation so raw SQL is never written inline in cogs.
-- All connections enable `PRAGMA foreign_keys = ON` via the `connection()` context manager.
-- Key methods: `get_ign()`, `get_uuid_by_discord()`, `get_user_by_discord()`, `get_user_by_ign()`, `link_user()`, `is_linked()`, `get_unlocked_dyes()`, `get_all_dyes_weighted()`, `mark_dye_received()`, `add_dye()`, `remove_dye()`.
-- `db/__init__.py` exports a module-level `manager` singleton — cogs do `from db import manager`.
-- `lib/get_uuid.py` and `lib/get_username.py` use `sqlite3` directly (not `DatabaseManager`) because they are synchronous low-level utilities called from non-cog contexts.
+- `DatabaseManager` wraps a `psycopg2.pool.ThreadedConnectionPool` (min 1, max 10). `_cursor()` is a context manager that commits on success and rolls back on exception, so cog code never manages transactions manually.
+- Grouped into sections: Users, Dyes, Guild Members, API Usage Tracking, Panel Users, Message Counts — roughly 35 methods total. See "Database Schema" below for the tables backing each group.
+- `db/__init__.py` builds the module-level `manager` singleton from `DATABASE_URL` — cogs do `from db import manager`.
+- `lib/get_uuid.py` and `lib/get_username.py` still talk to `users` directly (not through `DatabaseManager`) because they are synchronous low-level cache utilities called from non-cog contexts.
+
+### `db/migrate.py`
+- `run_migrations(dsn)` creates a `schema_migrations` tracking table if needed, then applies every `*.sql` file in `db/migrations/` whose numeric prefix isn't already recorded, committing after each file.
+- Called at startup by **both** `main.py` and `web_main.py`, so either process can be started first/alone and the schema will be current.
 
 ### `cogs/bridge/bridge.py`
 - `GuildBridge` is instantiated once per guild by its `setup()`. Each instance registers a Mineflayer `On(state.bot, "chat")` handler scoped to that guild's bot.
-- **MC → Discord**: parses rank/player/message from guild chat, sends to the shared bridge or officer webhook, logs to message_logs, then relays to all *other* guild bots with a `[BK]`/`[BU]` prefix.
-- **Discord → MC**: only active when `config.bridge_channel_id` is not `None` (currently only BK). Resolves the author's IGN from DB, formats the message (handling replies), and sends to every guild bot.
-- `.commands` in Minecraft chat are routed to `bridge_commands()` via `run_coroutine_threadsafe` (Mineflayer callbacks run in a thread, not the asyncio event loop).
+- **MC → Discord**: parses rank/player/message from guild chat, sends to the shared bridge or officer webhook, logs to `message_logs`, appends to `state.recent_chat` (guild chat only), increments the sender's message count via `manager.increment_message_count`, then relays to all *other* guild bots with a `[BK]`/`[BU]` prefix.
+- **Discord → MC**: only active when `config.bridge_channel_id` is not `None` (currently only BK). Resolves the author's IGN from DB, formats the message (handling replies), sends to every guild bot, and increments the message count for the resolved guild.
+- `.commands` in Minecraft or Discord chat are routed to `bridge_commands()` via `run_coroutine_threadsafe` (Mineflayer callbacks run in a thread, not the asyncio event loop).
+
+### `cogs/bridge/connections.py`
+- `GuildConnections` handles Mineflayer `spawn` and `end` events per guild.
+- On `spawn`: marks `state.connected = True` and kicks off `_sync_guild_members_from_api()` on a background `threading.Thread` — this hits the Hypixel `/v2/guild` API directly (not the bridge's Mineflayer chat), resolves each member's IGN via `get_username()`, and calls `manager.sync_guild_members()` to reconcile the `guild_members` table.
+- On `end`: if `state.manual_stop` was set (by the web panel's stop endpoint), it clears the flag and does **not** reconnect. Otherwise it schedules a reconnect via `run_coroutine_threadsafe(reconnect(), self.client.loop)`, which sleeps 5s and calls `start_mineflayer(restart=True, account=config.key)` — this now uses the bot's own running event loop rather than spinning up a separate one.
 
 ### `cogs/bridge/message_handler.py`
 - Listens to `messagestr` (raw text lines from Minecraft, not parsed chat).
-- Accumulates `/guild list` and `/guild online` output into `state.guild_list` (used by `/bk-guild list` slash command).
-- Detects system events (join, leave, kick, mute, unmute, promote, demote, invite result, join request) and sends embeds to bridge/officer/logs webhooks.
+- Accumulates `/guild list` output into `state.guild_list` and `/guild online` output into `state.guild_online`; both flags (`save_guild_list` / `save_guild_online`) are set externally, primarily by `bot_ipc.py`'s `/guild/{key}/members` endpoint (and `save_guild_list` also by the `/bk-guild list` / `/bu-guild list` slash commands).
+- Detects system events (join, leave, kick, mute, unmute, promote, demote, invite result, join request) and sends embeds to bridge/officer/logs webhooks; join/leave/kick/promote/demote also update the `guild_members` table via regex-extracted IGN/rank.
+- On a `joined the guild!` message, schedules `_auto_fetch_and_rank()`: waits 5s, resolves the new member's UUID, fetches their Skyblock stats, stores them, and immediately runs `guild_rank_change()` against the guild's starting rank so new members are correctly ranked without waiting for the background refresh cycle.
 - For join requests, fetches the applicant's Skyblock level via `skyblock.Player` and includes it in the embed.
 
+### `cogs/tasks/member_refresh.py`
+- `MemberRefreshTask` is a `discord.ext.tasks` loop (`_MEMBER_INTERVAL = 5` seconds) that continuously refreshes exactly one guild member's stats per tick, picking `manager.get_oldest_stats_member()` (oldest `stats_fetched_at`, `NULL`s first) each time.
+- Sized to the Hypixel budget of 300 req/5min: ~24 req/min reserved for this loop (2 calls per member every 5s), leaving ~36 req/min for user dot-commands. A full ~250-member cycle takes roughly 21 minutes.
+- After updating stats, if the member's rank changed via `guild_rank_change()`, it writes the new Hypixel rank name back to `guild_members` immediately (via `config.discord_rank_map` reversed) — this avoids a race where the next cycle re-reads a stale/partial rank captured by `message_handler.py`'s regex and undoes the promotion.
+- Waits 60s after `wait_until_ready()` before starting, so it doesn't compete with startup traffic.
+
 ### `utils/command_handler.py`
-- `bridge_commands(client, message, username, guild_rank, chat_state, config)` dispatches `.help`, `.lvl`, `.hlvl`, `.nw`, `.slayer`, `.cata`, `.pb`, `.mp`, `.bank`, `.chim`, `.ranks`.
+- `bridge_commands(client, message, username, guild_rank, chat_state, config)` dispatches `.help`, `.lvl`, `.hlvl`, `.nw`, `.slayer`/`.slayers`, `.slayerxp <type>`, `.cata`, `.pb`, `.mp`, `.bank`, `.chim <looting> <mf>`, `.petscore`.
 - Each handler is a private `async` function that returns `(display_name, response_text, raw_username)`. The dispatcher sends the response to all guild bots and the appropriate webhook.
-- `.ranks` uses `config.rank_update_users` to authorize, `config.discord_rank_map` to translate Hypixel rank names, and `config.ranks` + `guild_rank_change()` to do the actual promotions/demotions.
+- There is no in-game `.ranks` command anymore — rank auto-updates happen continuously via `cogs/tasks/member_refresh.py` and immediately on join via `message_handler.py`'s `_auto_fetch_and_rank()`.
 
 ### `cogs/commands/guild_commands.py`
 - Contains `BKGuild` and `BUGuild` as two `GroupCog` classes in one file. Shared helper `_guild_list_embed()` avoids duplication.
@@ -146,27 +222,32 @@ bumble-unified/
 - **To add a third guild:** add a new `GroupCog` subclass here and a line in `setup()`.
 
 ### `web/app.py`
-- `create_app(client)` receives the live `Client` instance and stores it as `app.state.client` so routes can access it.
-- Mounts `web/routes/bots.py` and `web/routes/users.py` as routers.
-- Handles Discord OAuth2 callback: exchanges code for a Discord user object, auto-provisions the admin user on first login, issues a JWT, redirects to `/?token=...`.
-- Serves `GET /api/me` (returns JWT claims as JSON) and `WS /ws/logs` (streams log records from `LogBroadcaster`).
-- If `frontend/dist/` exists, mounts `/assets` as static files and serves `index.html` for all other routes (SPA fallback). The HTML is **read at startup and cached**; restart the server after a frontend rebuild or it will serve a stale `index.html` referencing the old JS bundle.
+- `create_app()` takes no arguments (there's no live `Client` in this process) and mounts `web/routes/bots.py` and `web/routes/users.py` as routers.
+- Handles Discord OAuth2 callback: exchanges code for a Discord user object, auto-provisions the admin (`PANEL_ADMIN_DISCORD_ID`) as a `panel_users` row on first login, updates the stored Discord name/avatar on every login, issues a JWT, redirects to `/?token=...`.
+- Serves `GET /api/me` (returns JWT claims as JSON, including `can_control_bots`/`can_fetch_api`/`can_manage_links`/`is_owner`) and `WS /ws/logs` (streams log records from `LogBroadcaster`; requires `logs` or `admin` claim).
+- If `frontend/dist/` exists, mounts `/assets` as static files and serves `index.html` for all other routes (SPA fallback). The HTML is **read at startup and cached**; restart the web process after a frontend rebuild or it will serve a stale `index.html` referencing the old JS bundle. If `frontend/dist/` doesn't exist, every route returns a 503 telling you to build it.
 
 ### `web/auth.py`
 - `discord_oauth_url()` builds the Discord OAuth2 authorization URL.
 - `exchange_code(code)` exchanges the authorization code for the user's Discord profile dict via aiohttp.
-- `create_token()` / `verify_token()` — HS256 JWT, 24-hour expiry. Payload keys: `sub` (discord_id str), `name`, `admin` (bool), `logs` (bool), `avatar` (URL str).
-- FastAPI dependencies: `require_auth`, `require_admin`, `require_logs` — all read `Authorization: Bearer <token>` and raise `HTTPException` on failure.
+- `create_token()` / `verify_token()` — HS256 JWT, **30-day** expiry. Payload keys: `sub` (discord_id str), `name`, `admin`, `bots` (can_control_bots), `fetch_api`, `manage_links`, `avatar`, `owner` (is `PANEL_ADMIN_DISCORD_ID`).
+- FastAPI dependencies: `require_auth`, `require_admin`, `require_bot_control`, `require_api_fetch`, `require_manage_links`, `require_owner` — all read `Authorization: Bearer <token>` and raise `HTTPException` on failure. Each permission (except `admin`/`owner`) is satisfied by either its own flag or `admin`.
 
 ### `web/logs.py`
 - `LogBroadcaster` — thread-safe list protected by `threading.Lock`. `broadcast()` appends and trims to `MAX_HISTORY=500`. `snapshot()` returns full copy; `get_after(offset)` returns records from offset onward.
-- `WebLogHandler(logging.Handler)` — attached to the root logger at startup (`main.py`). `emit()` calls `broadcaster.broadcast()` directly (no asyncio, no queue). This is the only correct approach: the log handler runs in arbitrary threads; the broadcaster uses a plain `Lock` so it's safe from any thread.
+- `WebLogHandler(logging.Handler)` — attached to the root logger at startup in `web_main.py` (the web process's own logs; the bot process's logs are separate and not streamed to the panel). `emit()` calls `broadcaster.broadcast()` directly (no asyncio, no queue) — safe from any thread because the broadcaster uses a plain `Lock`.
 - The WebSocket in `app.py` sends the full history on connect, then polls `get_after(sent)` every 200ms.
 
 ### `web/routes/bots.py`
-- `GET /api/bots` — returns `{key: {key, name, short_name, username, connected}}` for all guilds. `connected` is derived from `not getattr(state.bot, "ended", True)`.
-- `POST /api/bots/{key}/restart` — calls `await client.start_mineflayer(restart=True, account=key)`.
-- `POST /api/bots/{key}/stop` — sets `state.manual_stop = True`, then calls `state.bot.end()`. The `manual_stop` flag prevents `connections.py` from auto-reconnecting.
+- All routes are prefixed `/api/bots` and proxy to the bot process's IPC API (`BOT_IPC_URL`, default `http://localhost:8081`) using `aiohttp`, falling back to an "offline" shape (or a 503) if the bot process is unreachable.
+- `GET /api/bots` (`require_bot_control`) — per-guild connection status.
+- `GET /api/bots/{key}/overview` (`require_auth`) — live member count + recent chat, or an offline placeholder.
+- `GET /api/bots/{key}/members` (`require_auth`) — proxies to `GET /guild/{key}/members` on the bot's IPC (which itself triggers `/guild list`/`/guild online` in-game).
+- `POST /api/bots/{key}/restart` / `POST /api/bots/{key}/stop` (`require_bot_control`) — proxy to the bot's IPC restart/stop endpoints.
+- `POST /api/bots/{key}/members/{ign}/link` / `DELETE .../link` (`require_manage_links`) — link/unlink a `guild_members` row's UUID to a Discord account directly from the panel (no in-game `/link` flow needed).
+- `POST /api/bots/{key}/refresh-stats` / `GET /api/bots/{key}/stats-status` (`require_api_fetch`) — kicks off (and reports progress of) an eager, manual stats refresh for every member of a guild via a local `asyncio.create_task`, independent of the background `MemberRefreshTask` running in the bot process. Deliberately slower (1 req/s) since it's user-triggered and shares the same Hypixel budget.
+- `GET /api/bots/api-usage` (`require_owner`) — combines local `api_calls` counts (`manager.get_api_call_counts()`) with live Hypixel key usage (`fetch_key_info()`).
+- `GET /api/bots/{key}/leaderboard` (`require_auth`) — message-count leaderboard for `lifetime` / `month` / `week`, backed by `manager.get_message_leaderboard()`.
 
 ### `web/routes/users.py`
 - CRUD for the `panel_users` table: list, create, update permissions, delete.
@@ -174,19 +255,19 @@ bumble-unified/
 
 ### `frontend/src/App.tsx`
 - `AuthProvider` — reads `?token=` from URL on mount (OAuth redirect), stores in `localStorage`, fetches `/api/me`, exposes `{me, loading, logout}` context.
-- `Layout` — sidebar with nav links (Dashboard always visible; Logs if admin or can_view_logs; Users if admin), Discord avatar + username, Logout button.
-- `AppRouter` — unauthenticated users see `Login`; authenticated users see `Layout` with nested routes.
+- `AppRouter` — unauthenticated users see `Login`; authenticated users see `Home`, or nested routes under `/guilds/:key` (`GuildLayout` wraps `GuildOverview` / `GuildMembers` / `GuildLeaderboard`), plus `/admin` and `/users` (admin-only).
+- `frontend/src/api.ts` centralizes all `fetch()` calls to the backend; `frontend/src/types.ts` holds shared TS types (`Me`, etc.).
 
-### `frontend/src/pages/Dashboard.tsx`
-- Polls `/api/bots` every 10s. Each bot card shows name, MC username, online/offline status dot, and Start/Stop + Restart buttons.
-- Stop/Start are mutually exclusive based on `bot.connected`. Stop optimistically sets `connected: false` in local state immediately after the API call succeeds. Restart polls after 3s to pick up the new connection.
-
-### `frontend/src/pages/Logs.tsx`
-- Connects to `WS /ws/logs?token=<jwt>`. Auto-reconnects after 3s on disconnect.
-- Renders each record as a log line with timestamp, source file, level badge, and message. Supports level filter and text search. Pin-to-bottom toggle.
-
-### `frontend/src/pages/Users.tsx`
-- Table of all panel users with add/edit/delete. Add and edit use the same modal with discord_id, display name, is_admin, can_view_logs fields.
+### `frontend/src/pages/*.tsx`
+- `Login.tsx` — Discord OAuth2 login screen.
+- `Home.tsx` — landing page after login (guild picker / summary).
+- `GuildLayout.tsx` — shared shell + nav for a single guild's `/guilds/:key/*` routes.
+- `GuildOverview.tsx` — connection status, member count, recent chat for one guild.
+- `GuildMembers.tsx` — member list/table (rank, Skyblock level, last login, linked Discord account), backed by `GET /api/bots/{key}/members`.
+- `GuildLeaderboard.tsx` — message-count leaderboard (lifetime/month/week), backed by `GET /api/bots/{key}/leaderboard`.
+- `Admin.tsx` — bot control (start/stop/restart), manual stats refresh, API usage.
+- `Users.tsx` — table of all panel users with add/edit/delete (admin only).
+- `Logs.tsx` — connects to `WS /ws/logs?token=<jwt>`, auto-reconnects after 3s on disconnect; level filter, text search, pin-to-bottom.
 
 ---
 
@@ -198,15 +279,17 @@ bumble-unified/
 | `discord.py >= 2.6.4` | Discord bot framework — slash commands, webhooks, events |
 | `javascript >= 1!1.2.6` | Bridges Python ↔ Node.js; lets Python call Mineflayer and skyhelper |
 | `python-dotenv` | Loads `.env` file into `os.environ` |
-| `aiohttp` | Async HTTP for `lib/fetch.py` and Discord OAuth2 token exchange |
-| `requests` | Sync HTTP for `lib/fetch.py` (used in synchronous player data fetches) |
+| `aiohttp` | Async HTTP for `lib/fetch.py`, `lib/hypixel.py`, Discord OAuth2 token exchange, and the web→bot IPC calls |
+| `requests` | Sync HTTP for `lib/fetch.py` and the Mineflayer-thread Hypixel guild sync in `connections.py` |
 | `emoji` | Converts Discord emoji to text (`:bee:`) before sending to Minecraft |
 | `NBT` | Decodes base64-encoded NBT data from talisman bags (magical power calc) |
-| `fastapi >= 0.115.0` | Web panel API framework |
-| `uvicorn >= 0.32.0` | ASGI server — runs FastAPI alongside the Discord bot via `asyncio.gather` |
+| `fastapi >= 0.115.0` | Both the web panel API and the bot process's internal IPC API |
+| `uvicorn >= 0.32.0` | ASGI server — runs the panel and IPC FastAPI apps |
 | `websockets >= 13.0` | WebSocket support for the live log stream endpoint |
 | `PyJWT >= 2.10.0` | JWT creation and verification for stateless panel sessions |
 | `pydantic >= 2.0.0` | Request body validation for FastAPI routes |
+| `psycopg2-binary >= 2.9.0` | PostgreSQL driver used by `db/manager.py` and `db/migrate.py` |
+| `pytest` / `pytest-asyncio` | Test-only; see `docs/DEVELOPMENT.md` |
 
 ### Node.js (`package.json`)
 | Package | Why |
@@ -218,7 +301,7 @@ bumble-unified/
 | Package | Why |
 |---------|-----|
 | `react` / `react-dom` | UI framework |
-| `react-router-dom` | Client-side routing (Dashboard, Logs, Users) |
+| `react-router-dom` | Client-side routing (Home, guild pages, Admin, Users, Logs) |
 | `vite` | Build tool; also runs a dev server that proxies `/api` and `/ws` to the Python backend |
 | `typescript` | Type safety across all frontend code |
 
@@ -231,18 +314,28 @@ Discord Server
     │
     │  webhooks (SyncWebhook)         slash commands (app_commands)
     ▼                                         ▼
-Client (main.py)  ◄────────────────  cogs/commands/*.py
+Client (bot/main.py)  ◄──────────────  cogs/commands/*.py
     │                                         │
-    │  guilds_state['bk'].bot                 │  db/manager.py (DatabaseManager)
+    │  guilds_state['bk'].bot                 │  db/manager.py (psycopg2 pool)
     │  guilds_state['bu'].bot                 │
     ▼                                         ▼
-Mineflayer bots (JS/Node.js)          bumble.db (SQLite3)
-    │
-    │  On("chat") / On("messagestr")
-    ▼
+Mineflayer bots (JS/Node.js)          PostgreSQL (DATABASE_URL)
+    │                                         ▲
+    │  On("chat") / On("messagestr")          │  same DB, no shared process memory
+    ▼                                         │
 cogs/bridge/bridge.py        →  utils/command_handler.py  →  player/*.py  →  Hypixel API
 cogs/bridge/message_handler.py
 cogs/bridge/connections.py
+cogs/tasks/member_refresh.py
+
+bot_ipc.py (127.0.0.1:BOT_IPC_PORT, inside the bot process)
+    ▲
+    │  HTTP + X-IPC-Secret
+    │
+web/routes/bots.py  (inside the web/panel process, bot/web_main.py)
+    │
+    ▼
+frontend/dist (React SPA served by web/app.py)
 ```
 
 **Request path for an in-game `.lvl` command:**
@@ -259,6 +352,12 @@ cogs/bridge/connections.py
 3. Content formatted (emoji demojized, reply chain resolved)
 4. Sent to `guilds_state['bk'].bot.chat()` and `guilds_state['bu'].bot.chat()` simultaneously
 
+**Request path for the web panel's member list (`GET /api/bots/{key}/members`):**
+1. Panel process (`web/routes/bots.py`) makes an authenticated HTTP call to the bot process's IPC API
+2. `bot_ipc.py`'s `get_guild_members()` sends `/guild list` and `/guild online` in-game, waits 1.5s each, and parses the accumulated `messagestr` lines via `lib/guild_list.py`
+3. Parsed results are written to `guild_members` via `manager.sync_guild_members()`
+4. The merged member list (DB stats + live online status) is returned to the panel
+
 ---
 
 ## Data Flow
@@ -268,6 +367,7 @@ cogs/bridge/connections.py
 Mineflayer "chat" event
   → GuildBridge parses rank/player/message via regex
   → Sends to bridge or officer SyncWebhook
+  → Increments message_counts, appends to state.recent_chat
   → Relays to all other guild bots with [BK]/[BU] prefix
   → If message starts with ".", dispatches to bridge_commands()
 ```
@@ -285,47 +385,100 @@ on_message (only BK bridge channel / officer channel)
 Mineflayer "messagestr" event
   → GuildMessageHandler matches known phrases
   → Sends embed to bridge + officer + per-guild logs webhook
+  → Updates guild_members (upsert/remove) for join/leave/kick/promote/demote
+  → On join: schedules _auto_fetch_and_rank() (fetch stats + rank immediately)
+```
+
+### Background member refresh (rank automation)
+```
+cogs/tasks/member_refresh.py, every 5s
+  → manager.get_oldest_stats_member() picks the member due for a refresh
+  → Fetches Skyblock level + last_login from Hypixel
+  → guild_rank_change() promotes/demotes if the level crossed a threshold
+  → Writes the new rank back to guild_members immediately to avoid races
 ```
 
 ### Auto-reconnect
 ```
 Mineflayer "end" event
-  → GuildConnections sends disconnect embed
-  → asyncio.sleep(5) then client.start_mineflayer(restart=True, account=config.key)
-  → Reloads bridge extension modules against the new bot instance
+  → GuildConnections sends disconnect embed (unless state.manual_stop)
+  → run_coroutine_threadsafe(reconnect(), client.loop): sleep 5s, then
+    client.start_mineflayer(restart=True, account=config.key)
+  → Reloads connections/bridge/message_handler cogs against the new bot instance
 ```
 
 ---
 
 ## Database Schema
 
-Three tables in `bumble.db` (SQLite3):
+PostgreSQL, accessed exclusively through `psycopg2` (`db/manager.py`). Schema is managed by numbered migrations in `db/migrations/`, applied by `db/migrate.py` and tracked in a `schema_migrations` table. Both `main.py` and `web_main.py` run migrations on startup.
+
+Core tables (see the migration files for exact DDL/history — `ign` columns use `citext` for case-insensitive matching, added in migration 004):
 
 ```sql
-CREATE TABLE users (
-    uuid         TEXT PRIMARY KEY,
-    ign          TEXT,
-    discord_id   INTEGER,      -- NULL until linked
-    discord_name TEXT          -- NULL until linked
+users (
+    uuid            TEXT PRIMARY KEY,
+    ign             TEXT,
+    discord_id      BIGINT UNIQUE,     -- NULL until linked
+    discord_name    TEXT,              -- NULL until linked
+    discord_avatar  TEXT               -- NULL until linked; avatar URL, refreshed on every login
 );
 
-CREATE TABLE dyes (
+dyes (
     dye_id   TEXT PRIMARY KEY,
     dye_name TEXT,
-    weight   REAL,             -- higher weight = more common drop
-    hex      TEXT              -- color hex for embed, e.g. "FF3C3C"
+    weight   REAL,                     -- higher weight = more common drop
+    hex      TEXT                      -- color hex for embed, e.g. "FF3C3C"
 );
 
-CREATE TABLE users_dyes (
+users_dyes (
     uuid     TEXT REFERENCES users(uuid),
     dye_id   TEXT REFERENCES dyes(dye_id),
-    received INTEGER DEFAULT 0  -- 0 = not yet received, 1 = received
+    received BOOLEAN DEFAULT FALSE
+);
+
+panel_users (
+    discord_id        BIGINT PRIMARY KEY,
+    discord_name      TEXT,
+    is_admin          BOOLEAN DEFAULT FALSE,
+    can_control_bots  BOOLEAN DEFAULT FALSE,
+    can_fetch_api     BOOLEAN DEFAULT FALSE,
+    can_manage_links  BOOLEAN DEFAULT FALSE
+);
+
+guild_members (
+    guild_key         TEXT,            -- 'bk' / 'bu'
+    ign               CITEXT,
+    uuid              TEXT,
+    rank              TEXT,
+    skyblock_level    REAL,
+    last_login        BIGINT,
+    stats_fetched_at  BIGINT,          -- unix seconds; NULL = never fetched, refreshed first
+    PRIMARY KEY (guild_key, ign)
+);
+
+message_counts (
+    guild_key    TEXT,
+    uuid         TEXT,
+    ign          TEXT,
+    period_type  TEXT,                 -- 'lifetime' / 'month' / 'week'
+    period_key   TEXT,                 -- '' for lifetime, 'YYYY-MM' for month, ISO 'GGGG-Www' for week
+    count        INTEGER DEFAULT 0,
+    UNIQUE (guild_key, uuid, period_type, period_key)
+);
+
+api_calls (
+    called_at  TIMESTAMPTZ,
+    endpoint   TEXT,
+    success    BOOLEAN
 );
 ```
 
-`PRAGMA foreign_keys = ON` is set on every connection via `DatabaseManager.connection()`.
-
-UUID resolution (`get_uuid` / `get_username`) always writes to `users` as a side effect, so `users` doubles as a UUID↔IGN cache even for players who never link their Discord.
+Notes:
+- `guild_members` is the roster source of truth for the web panel and background refresh; it's kept in sync three ways: the Hypixel `/v2/guild` API on bot spawn (`connections.py`), `/guild list` parsing on demand (`bot_ipc.py`'s members endpoint), and regex-matched system messages (`message_handler.py`).
+- `message_counts` is only incremented for IGNs that resolve to a `guild_members` row with a non-empty UUID — messages from players not yet synced to the roster aren't counted.
+- `api_calls` is written by `lib/hypixel.py` on every Hypixel API request and read by `manager.get_api_call_counts()` for the panel's API usage view.
+- UUID resolution (`get_uuid` / `get_username`) always writes to `users` as a side effect, so `users` doubles as a UUID↔IGN cache even for players who never link their Discord.
 
 ---
 
@@ -346,9 +499,10 @@ run_coroutine_threadsafe(some_coroutine(...), self.client.loop)
 ### Synchronous vs async HTTP
 - `lib/fetch.py::fetch()` — async, use inside `async def` (Discord cogs, bridge_commands)
 - `lib/fetch.py::request()` — synchronous, use inside Mineflayer callbacks or `Player.__init__` (which runs synchronously during profile fetch)
+- `lib/hypixel.py::fetch_member_stats()` — async, aiohttp-based, used by both the background refresh task and the panel's manual refresh endpoint; records every call to `api_calls`.
 
 ### DatabaseManager usage
-All cog-level DB access goes through `from db import manager` and calls its typed methods. Raw `sqlite3.connect()` is only acceptable inside `lib/get_uuid.py` and `lib/get_username.py` (low-level cache utilities predating the manager).
+All cog-level and web-route DB access goes through `from db import manager` and calls its typed methods. Direct `sqlite3`/`psycopg2` access is only acceptable inside `lib/get_uuid.py`, `lib/get_username.py`, and `db/migrate.py` (low-level utilities predating/outside the manager).
 
 ### Webhook vs interaction response
 - Bridge messages use `SyncWebhook.send()` (synchronous, called from threads or sync contexts)
@@ -356,6 +510,9 @@ All cog-level DB access goes through `from db import manager` and calls its type
 
 ### Deferred interactions
 Any slash command that does I/O (DB, Hypixel API, `asyncio.sleep`) must call `await interaction.response.defer()` first, then `await interaction.edit_original_response(embed=embed)` when done. Commands that are instant (mute, unmute, kick) can use `send_message()` directly.
+
+### Web panel permissions
+Panel permissions are per-flag (`can_control_bots`, `can_fetch_api`, `can_manage_links`) plus `is_admin` (grants everything) and `is_owner` (matches `PANEL_ADMIN_DISCORD_ID`, gates only `/api/bots/api-usage`). New panel endpoints should pick the narrowest matching `require_*` dependency from `web/auth.py` rather than defaulting to `require_admin`.
 
 ---
 
@@ -365,25 +522,28 @@ Any slash command that does I/O (DB, Hypixel API, `asyncio.sleep`) must call `aw
 All Mineflayer event handlers (`@On`, `@Once`) run in their own thread. Accessing `client` attributes from inside them is safe for reads, but any mutation of shared state (like `state.guild_list`) must be treated carefully. Currently the only writes are appends to lists and simple flag assignments, which is safe enough in CPython due to the GIL.
 
 ### Reconnect reloads bridge extensions
-`start_mineflayer(restart=True)` calls `reload_extension("cogs.bridge.*")` for all three bridge modules. This re-runs their `setup()` functions, which create new cog instances with fresh Mineflayer event bindings. Old bindings on the dead bot instance are abandoned. If you add new bridge modules, add their reload call to `start_mineflayer()`.
+`start_mineflayer(restart=True)` removes and re-adds the `connections`, `bridge`, and `message_handler` cogs for that guild key. This re-runs their `__init__`, which creates fresh Mineflayer event bindings against the new bot instance. Old bindings on the dead bot instance are abandoned. If you add new bridge modules, add their reload to `start_mineflayer()`'s suffix list in `main.py`.
 
-### `asyncio.run()` inside Mineflayer callbacks
-`connections.py` uses `asyncio.run(reconnect())` inside the `end` handler. This creates a new event loop in the callback thread specifically for the reconnect sleep + restart sequence. It works but is fragile — if the reconnect itself errors, the exception is swallowed by the thread. This matches the original design and is flagged as a known rough edge.
+### The bot and web processes are independent
+`web/routes/bots.py` never touches a live `Client` object — it only reaches the bot process via HTTP IPC (`BOT_IPC_URL`/`BOT_IPC_SECRET`) or reads shared PostgreSQL state. If the bot process is down, IPC calls fail and routes fall back to DB-cached/offline data (or a 503) rather than crashing. Don't reintroduce a shared in-process `Client` reference between the two — they are meant to be deployable and restartable independently.
 
 ### Guild list race condition
-`/bk-guild list` sends `/guild list` to Minecraft, sets `state.save_guild_list = True`, sleeps 0.75s, then reads `state.guild_list`. If two people run the command simultaneously, the lists will get interleaved. The 0.75s sleep is a best-effort wait, not a proper lock. Don't add concurrent guild list features without addressing this.
+Both `/bk-guild list`/`/bu-guild list` and `bot_ipc.py`'s `/guild/{key}/members` endpoint send `/guild list` (and `/guild online`) to Minecraft and then sleep before reading the accumulated buffer (`state.guild_list` / `state.guild_online`). If two callers trigger this concurrently, the buffers can interleave. The sleep is a best-effort wait, not a proper lock — don't add more concurrent consumers of these buffers without addressing this.
 
 ### `skyblock.Player` is synchronous and slow
 `Player.__init__` makes multiple blocking HTTP requests (Mojang UUID lookup, Hypixel profiles). It should never be constructed inside a Mineflayer callback directly — always schedule it via `run_coroutine_threadsafe` and use an async wrapper. Bridge commands already do this correctly.
 
-### Frontend rebuild requires server restart
-`web/app.py` reads `frontend/dist/index.html` once at startup and caches it in memory. After running `npm run build`, the new JS bundle gets a new filename hash. If the server is not restarted it will keep serving the old `index.html`, which references the missing old bundle — the browser loads a blank page. Always restart the Python process after a frontend rebuild.
+### Frontend rebuild requires web process restart
+`web/app.py` reads `frontend/dist/index.html` once at startup and caches it in memory. After running `npm run build`, the new JS bundle gets a new filename hash. If the web process is not restarted it will keep serving the old `index.html`, which references the missing old bundle — the browser loads a blank page. Always restart `web_main.py` (not `main.py`) after a frontend rebuild.
 
-### panel_users is a separate DB table from users
-The `panel_users` table (created by `manager.setup_panel_tables()`) holds web panel access control and is completely separate from the `users` table (which stores Discord↔Minecraft links). A user can exist in `users` without being in `panel_users` and vice versa. The first login by `PANEL_ADMIN_DISCORD_ID` auto-creates their `panel_users` row if it doesn't exist yet.
+### panel_users is a separate table from users
+`panel_users` holds web panel access control and is completely separate from `users` (which stores Discord↔Minecraft links). A user can exist in `users` without being in `panel_users` and vice versa. The first login by `PANEL_ADMIN_DISCORD_ID` auto-creates their `panel_users` row as admin if it doesn't exist yet.
 
 ### JWT permissions are baked in at login time
-The JWT encodes `admin` and `logs` permissions at the moment of login and is valid for 24 hours. If an admin changes a user's permissions in the Users panel, the change takes effect only after that user's token expires and they log in again. There is no token revocation mechanism.
+The JWT encodes `admin`/`bots`/`fetch_api`/`manage_links`/`owner` at the moment of login and is valid for 30 days. If an admin changes a user's permissions in the Users panel, the change takes effect only after that user's token expires and they log in again. There is no token revocation mechanism.
+
+### Hypixel API budget is shared and tight
+The key is limited to 300 requests/5min. `cogs/tasks/member_refresh.py` reserves ~24 req/min for its continuous background cycle; the panel's manual "refresh stats" button (`web/routes/bots.py::_do_refresh_stats`) deliberately paces itself at 1 request/second to avoid starving both the background loop and live dot-commands. Any new bulk Hypixel-calling feature must budget against this same 300/5min ceiling — check `GET /api/bots/api-usage` before adding one.
 
 ### NBT parsing monkey-patch
 `player/magical_power.py` monkey-patches `nbt.nbt.TAG_String._parse_buffer` to handle non-UTF-8 strings in talisman NBT data. This runs at import time. It is a workaround for malformed Minecraft item names and must not be removed.
@@ -397,7 +557,7 @@ The JWT encodes `admin` and `logs` permissions at the moment of login and is val
 3. Add it to `GUILD_CONFIGS`
 4. Add its log webhook URL to `log_urls` in `main.py`
 5. Add a new `XGuild(commands.GroupCog, name="x-guild")` class in `guild_commands.py` and register it in `setup()`
-6. Everything else (bridge relay, `.ranks`, reconnect) picks up the new guild automatically
+6. Everything else (bridge relay, background rank refresh, reconnect, web panel guild pages) picks up the new guild automatically from `GUILD_CONFIGS`
 
 ---
 
@@ -409,14 +569,19 @@ See `example.env` for the full list. Critical ones:
 |----------|---------|
 | `DISCORD_BOT_TOKEN` | `config.py` → `main.py` login |
 | `HYPIXEL_API_KEY` | All Hypixel API requests in `lib/` and `player/` |
+| `DATABASE_URL` | PostgreSQL connection string — `db/__init__.py`, `db/migrate.py` |
 | `KINDERGARTEN_USERNAME` / `UNIVERSITY_USERNAME` | Mineflayer login; also used to filter the bot's own messages |
-| `KINDERGARTEN_BRIDGE_CHANNEL` (webhook URL) | `client.bridge` SyncWebhook |
-| `KINDERGARTEN_BRIDGE_CHANNEL_ID` (channel ID) | `GuildBridge.on_message` filter |
+| `KINDERGARTEN_LOGS_CHANNEL` / `UNIVERSITY_LOGS_CHANNEL` | Per-guild logs `SyncWebhook` URLs |
+| `BRIDGE_CHANNEL` / `OFFICER_CHANNEL` | Shared bridge/officer `SyncWebhook` URLs |
+| `BRIDGE_CHANNEL_ID` / `OFFICER_CHANNEL_ID` | `GuildBridge.on_message` channel filter (BK) |
 | `BK_STAFF_ROLE_ID` / `BU_STAFF_ROLE_ID` | Slash command permission checks |
 | `EXEC_ROLE_ID` | `/admin` and `/bk-exec`/`/bu-exec` permission checks |
-| `PANEL_PORT` | Port uvicorn listens on (default 8000) |
+| `BOT_IPC_PORT` | Port the bot process's internal IPC API listens on (default 8081), bound to `127.0.0.1` only |
+| `BOT_IPC_URL` | Base URL the web process uses to reach the bot's IPC API (default `http://localhost:8081`) |
+| `BOT_IPC_SECRET` | Shared secret sent as `X-IPC-Secret`; required by `bot_ipc.py` if set |
+| `PANEL_PORT` | Port uvicorn listens on for the web panel (default 8080) |
 | `PANEL_DISCORD_CLIENT_ID` | Discord OAuth2 app client ID (`web/auth.py`) |
 | `PANEL_DISCORD_CLIENT_SECRET` | Discord OAuth2 app client secret (`web/auth.py`) |
 | `PANEL_REDIRECT_URI` | OAuth2 redirect URI, e.g. `https://bumble.seazyns.dev/auth/callback` |
 | `PANEL_JWT_SECRET` | Random secret for signing JWTs — keep private |
-| `PANEL_ADMIN_DISCORD_ID` | Discord ID of the panel owner; auto-provisioned as admin on first login |
+| `PANEL_ADMIN_DISCORD_ID` | Discord ID of the panel owner; auto-provisioned as admin on first login, gates `require_owner` |
