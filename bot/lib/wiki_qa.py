@@ -31,13 +31,20 @@ TITLES_TTL_SECONDS = 30 * 24 * 3600  # the set of page titles churns slower than
 USER_AGENT = "bumble-bridge-bot/1.0 (wiki Q&A)"
 MODEL = "claude-haiku-4-5"
 
-SYSTEM_INSTRUCTIONS = """You answer questions about Hypixel Skyblock. You have two tools: search_wiki (game mechanics,
-items, drop rates, recipes, events -- general game knowledge) and get_player_stats (a specific player's live stats).
-Use search_wiki for anything general. Use get_player_stats when the question names a specific player/IGN. Use both
-if the question needs a player's raw number combined with a wiki page's rules to answer (e.g. a skill level from raw
-XP -- get_player_stats gives raw skill XP fields, not computed levels, since Hypixel doesn't return the level
-directly; call search_wiki for that skill's page, which documents the XP-per-level breakpoints, and compute the
-level yourself from the XP given). Never answer from outside knowledge -- always ground the answer in a tool call.
+SYSTEM_INSTRUCTIONS = """You answer questions about Hypixel Skyblock. You have three tools: search_wiki (game
+mechanics, items, drop rates, recipes, events -- general game knowledge), get_player_stats (a specific player's
+commonly-needed live stats), and get_player_raw_data (that player's full raw Hypixel profile JSON, for anything
+get_player_stats doesn't cover).
+Use search_wiki for anything general. Use get_player_stats when the question names a specific player/IGN. If the
+stat asked for isn't one get_player_stats returns (e.g. Magic Find, pet luck, a specific accessory bonus, anything
+not in its field list), call get_player_raw_data for that player and search through the JSON yourself using your
+knowledge of the Hypixel Skyblock API -- don't say a stat "isn't available" just because get_player_stats didn't
+have it; dig through get_player_raw_data first and only say it's unavailable if it's genuinely not in there either.
+Use both a player tool and search_wiki if the question needs a player's raw number combined with a wiki page's
+rules to answer (e.g. a skill level from raw XP -- get_player_stats/get_player_raw_data give raw skill XP fields,
+not computed levels, since Hypixel doesn't return the level directly; call search_wiki for that skill's page, which
+documents the XP-per-level breakpoints, and compute the level yourself from the XP given). Never answer from
+outside knowledge -- always ground the answer in a tool call.
 
 Your answer will be typed directly into Minecraft chat, which has a strict per-line length limit, so it must be as
 short as physically possible -- every extra word is a cost.
@@ -103,9 +110,35 @@ TOOLS = [
             "required": ["ign"],
         },
     },
+    {
+        "name": "get_player_raw_data",
+        "description": (
+            "Fetch a player's full raw Hypixel Skyblock profile JSON (item inventory/backpack/wardrobe contents "
+            "stripped out -- everything else included as Hypixel returns it). Fallback for stats get_player_stats "
+            "doesn't return: Magic Find, pet luck, individual accessory bonuses, etc. Search the JSON yourself "
+            "using your knowledge of the Hypixel Skyblock API schema. Response can be large -- only call this "
+            "after checking get_player_stats doesn't already have what's needed."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ign": {
+                    "type": "string",
+                    "description": (
+                        "The player's Minecraft IGN, copied EXACTLY as it appears in the question -- character "
+                        "for character, including any trailing 's'. Minecraft usernames can end in 's' as part "
+                        "of the name itself (e.g. 'seazyns'); never strip a trailing 's' as if it were a "
+                        "possessive apostrophe-s, the question won't use a real apostrophe for that."
+                    ),
+                },
+            },
+            "required": ["ign"],
+        },
+    },
 ]
 
 MAX_TOOL_HOPS = 4
+_RAW_DATA_CHAR_LIMIT = 20_000
 
 # Filler words stripped when falling back to network search on an unresolved query --
 # irrelevant to local substring/overlap matching, which works on raw text.
@@ -339,19 +372,34 @@ def _search_wiki_tool(query: str, ttl_seconds: float, refresh: bool) -> str:
     return result
 
 
-def _get_player_stats_tool(ign: str) -> str:
+def _resolve_player(ign: str, player_cache: dict):
+    """Look up (and cache within one answer_question() call) a Player, or an error string.
+
+    Both player tools can be called for the same IGN in one conversation (a quick-stats
+    check followed by a raw-data dig) -- cache so that doesn't cost a second Hypixel fetch.
+    """
     ign = (ign or "").strip()
     if not ign:
         return "No IGN given."
+    if ign in player_cache:
+        return player_cache[ign]
 
     from player import skyblock, PlayerNotFoundError, HypixelAPIError
 
     try:
-        player = skyblock.Player(username=ign)
+        result = skyblock.Player(username=ign)
     except PlayerNotFoundError:
-        return f"No Minecraft account named '{ign}' found."
+        result = f"No Minecraft account named '{ign}' found."
     except HypixelAPIError as e:
-        return f"Hypixel API error looking up '{ign}': {e}"
+        result = f"Hypixel API error looking up '{ign}': {e}"
+    player_cache[ign] = result
+    return result
+
+
+def _get_player_stats_tool(ign: str, player_cache: dict) -> str:
+    player = _resolve_player(ign, player_cache)
+    if isinstance(player, str):
+        return player
 
     stats = {
         "ign": player.username,
@@ -371,11 +419,24 @@ def _get_player_stats_tool(ign: str) -> str:
     return json.dumps(stats)
 
 
-def _run_tool(name: str, tool_input: dict, ttl_seconds: float, refresh: bool) -> str:
+def _get_player_raw_data_tool(ign: str, player_cache: dict) -> str:
+    player = _resolve_player(ign, player_cache)
+    if isinstance(player, str):
+        return player
+
+    raw = json.dumps(player.raw_member_data)
+    if len(raw) > _RAW_DATA_CHAR_LIMIT:
+        raw = raw[:_RAW_DATA_CHAR_LIMIT] + "... (truncated)"
+    return raw
+
+
+def _run_tool(name: str, tool_input: dict, ttl_seconds: float, refresh: bool, player_cache: dict) -> str:
     if name == "search_wiki":
         return _search_wiki_tool(tool_input.get("query", ""), ttl_seconds, refresh)
     if name == "get_player_stats":
-        return _get_player_stats_tool(tool_input.get("ign", ""))
+        return _get_player_stats_tool(tool_input.get("ign", ""), player_cache)
+    if name == "get_player_raw_data":
+        return _get_player_raw_data_tool(tool_input.get("ign", ""), player_cache)
     return f"Unknown tool '{name}'."
 
 
@@ -385,6 +446,7 @@ def answer_question(question: str, ttl_days: float = DEFAULT_TTL_DAYS, refresh: 
     system = [{"type": "text", "text": SYSTEM_INSTRUCTIONS, "cache_control": {"type": "ephemeral"}}]
     messages = [{"role": "user", "content": question}]
     client = _get_client()
+    player_cache: dict = {}
 
     for _ in range(MAX_TOOL_HOPS):
         response = client.messages.create(
@@ -396,7 +458,7 @@ def answer_question(question: str, ttl_days: float = DEFAULT_TTL_DAYS, refresh: 
 
         messages.append({"role": "assistant", "content": response.content})
         tool_results = [
-            {"type": "tool_result", "tool_use_id": block.id, "content": _run_tool(block.name, block.input, ttl_seconds, refresh)}
+            {"type": "tool_result", "tool_use_id": block.id, "content": _run_tool(block.name, block.input, ttl_seconds, refresh, player_cache)}
             for block in response.content if block.type == "tool_use"
         ]
         messages.append({"role": "user", "content": tool_results})
