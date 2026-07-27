@@ -117,3 +117,21 @@ class Player:
     def magical_power(self) -> MagicalPower:
         return self._magical_power
 
+    @property
+    def raw_skill_experience(self) -> dict:
+        """Best-effort dump of every skill-XP-looking field on the profile.
+
+        This codebase doesn't maintain a skill level table (mining/foraging/farming/etc.),
+        so unlike level/catacombs/slayers this returns raw XP rather than a computed level.
+        Callers that need an actual level should pair this with the skill's wiki page, which
+        documents the XP-per-level breakpoints.
+        """
+        skills = {
+            k: v for k, v in self.__member_data.items()
+            if "skill" in k.lower() and isinstance(v, (int, float))
+        }
+        experience = deep_get(self.__member_data, ["player_data", "experience"], default={})
+        if isinstance(experience, dict):
+            skills.update({k: v for k, v in experience.items() if isinstance(v, (int, float))})
+        return skills
+

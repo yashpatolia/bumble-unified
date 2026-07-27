@@ -24,7 +24,7 @@ def _chunk_message(text: str, limit: int = _MC_CHAT_LIMIT) -> list[str]:
             current = candidate
     if current:
         chunks.append(current)
-    return chunks
+    return chunks or [text]
 
 
 async def bridge_commands(client, message: str, username: str, guild_rank: str,

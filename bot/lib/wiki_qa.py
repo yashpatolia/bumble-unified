@@ -31,24 +31,66 @@ TITLES_TTL_SECONDS = 30 * 24 * 3600  # the set of page titles churns slower than
 USER_AGENT = "bumble-bridge-bot/1.0 (wiki Q&A)"
 MODEL = "claude-haiku-4-5"
 
-SYSTEM_INSTRUCTIONS = """You answer questions about Hypixel Skyblock using ONLY the wiki page content given below.
+SYSTEM_INSTRUCTIONS = """You answer questions about Hypixel Skyblock. You have two tools: search_wiki (game mechanics,
+items, drop rates, recipes, events -- general game knowledge) and get_player_stats (a specific player's live stats).
+Use search_wiki for anything general. Use get_player_stats when the question names a specific player/IGN. Use both
+if the question needs a player's raw number combined with a wiki page's rules to answer (e.g. a skill level from raw
+XP -- get_player_stats gives raw skill XP fields, not computed levels, since Hypixel doesn't return the level
+directly; call search_wiki for that skill's page, which documents the XP-per-level breakpoints, and compute the
+level yourself from the XP given). Never answer from outside knowledge -- always ground the answer in a tool call.
+
 Your answer will be typed directly into Minecraft chat, which has a strict per-line length limit, so it must be as
 short as physically possible -- every extra word is a cost.
 
 Rules:
-- Answer in the fewest words that still contain the exact fact asked for. A terse sentence fragment beats a full
-  sentence beats two sentences. Drop connecting words like "about", "approximately", "which means", "without bonuses" --
-  just state the number/name/fact. Do not restate the question, add caveats, or explain mechanics unless the question
-  specifically asked about that mechanic.
+- Write in telegraphic/caveman style: drop articles (a, an, the), linking verbs (is, are, has), and any word that
+  isn't load-bearing for the fact. "Better Together: Dwarven Mines/Crystal Hollows, 20min, +250 Mining Speed +20
+  Mining Fortune per player in zone, max 5" not "Better Together is a passive event that occurs in the Dwarven
+  Mines and Crystal Hollows and lasts for 20 minutes...". Use commas/slashes instead of "and"/"or" where it still reads clearly.
+- Answer in the fewest words that still contain the exact fact asked for. Do not restate the question, add caveats,
+  or explain mechanics unless the question specifically asked about that mechanic.
 - Only answer exactly what was asked. If asked for one number, give one number -- don't also add related numbers,
   variants, or context nobody asked for.
-- No markdown formatting (no *, -, #), but terse fragments and dropped grammar are fine and preferred over full prose.
-- If the given content doesn't fully answer the question but one of the linked pages listed at the end of the user's message likely does, respond with NOTHING but a single line: NEED_PAGE: <exact title from that list>
-  Do not add any other text before or after that line. Only do this once per question -- do not ask for a page a second time.
-- If you don't know, or the content doesn't cover it, say so in as few words as possible. Never guess or use outside knowledge.
-- Hypixel Skyblock changes over time. If the content looks like it may describe an outdated or removed mechanic, note that briefly in the same sentence."""
+- No markdown formatting (no *, -, #), but dropped grammar/articles/verbs is fine and preferred over full prose.
+- If a tool call fails or comes back empty (page not found, player not found), say so in as few words as possible.
+  Never guess or fabricate a number or fact you didn't get from a tool.
+- Hypixel Skyblock changes over time. If wiki content looks like it may describe an outdated/removed mechanic, note that briefly."""
 
-NEED_PAGE_RE = re.compile(r"NEED_PAGE:\s*(.+)")
+TOOLS = [
+    {
+        "name": "search_wiki",
+        "description": (
+            "Look up a Hypixel Skyblock wiki page by topic/item/mob/mechanic/skill name. Returns the page's full "
+            "text content and the titles of pages it links to. Call again with a different query (e.g. a linked "
+            "page title) if the first result doesn't answer the question."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Topic to look up, e.g. 'Foraging', \"Necron's Handle\", 'Better Together'"},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "get_player_stats",
+        "description": (
+            "Fetch a specific player's live Hypixel Skyblock stats: Skyblock level, catacombs level/secrets, slayer "
+            "levels, magical power, bank/purse balance, pet score, and raw skill XP (mining/foraging/farming/combat/"
+            "etc -- these are unprocessed XP numbers, not levels; pair with search_wiki for the skill's level table "
+            "if a computed level is needed). Only call this when the question names a specific in-game player."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ign": {"type": "string", "description": "The player's Minecraft IGN"},
+            },
+            "required": ["ign"],
+        },
+    },
+]
+
+MAX_TOOL_HOPS = 4
 
 # Filler words stripped when falling back to network search on an unresolved query --
 # irrelevant to local substring/overlap matching, which works on raw text.
@@ -223,55 +265,91 @@ def _get_page(title: str, ttl_seconds: float, force_refresh: bool = False) -> Wi
     return page
 
 
-def _page_block(page: WikiPage) -> dict:
-    return {"type": "text", "text": f"=== {page.title} ===\n{page.content}"}
+def _search_wiki_tool(query: str, ttl_seconds: float, refresh: bool) -> str:
+    query = (query or "").strip()
+    if not query:
+        return "No query given."
+
+    all_titles = _get_all_titles()
+    matched = _match_titles(query, all_titles, limit=1)
+    title = matched[0] if matched else (_search_title(_strip_stopwords(query)) or _search_title(query))
+    if not title:
+        return f"No wiki page found for '{query}'."
+
+    try:
+        page = _get_page(title, ttl_seconds=ttl_seconds, force_refresh=refresh)
+    except ValueError:
+        return f"No wiki page found for '{query}'."
+
+    result = f"=== {page.title} ===\n{page.content}"
+    if page.links:
+        result += "\n\n(Linked pages: " + ", ".join(sorted(set(page.links))[:60]) + ")"
+    return result
 
 
-def _ask(question: str, pages: list[WikiPage]) -> str:
-    # Only two cache_control breakpoints: one after the (always-identical) instructions,
-    # one at the very end. That's enough to cache the whole prefix and stays well under
-    # the API's 4-breakpoint limit even when a NEED_PAGE hop adds another page block.
-    system = [{"type": "text", "text": SYSTEM_INSTRUCTIONS, "cache_control": {"type": "ephemeral"}}]
-    system += [_page_block(p) for p in pages]
-    if system:
-        system[-1] = {**system[-1], "cache_control": {"type": "ephemeral"}}
+def _get_player_stats_tool(ign: str) -> str:
+    ign = (ign or "").strip()
+    if not ign:
+        return "No IGN given."
 
-    user_content = question
-    all_links = sorted({link for p in pages for link in p.links})
-    if all_links:
-        user_content += "\n\n(Pages linked from the above, in case you need one: " + ", ".join(all_links[:80]) + ")"
+    from player import skyblock, PlayerNotFoundError, HypixelAPIError
 
-    response = _get_client().messages.create(
-        model=MODEL,
-        max_tokens=120,
-        system=system,
-        messages=[{"role": "user", "content": user_content}],
-    )
-    return next((b.text for b in response.content if b.type == "text"), "").strip()
+    try:
+        player = skyblock.Player(username=ign)
+    except PlayerNotFoundError:
+        return f"No Minecraft account named '{ign}' found."
+    except HypixelAPIError as e:
+        return f"Hypixel API error looking up '{ign}': {e}"
+
+    stats = {
+        "ign": player.username,
+        "gamemode": player.gamemode or "Normal",
+        "skyblock_level": round(player.level.current, 2),
+        "highest_skyblock_level": round(player.level.highest[0], 2),
+        "catacombs_level": player.catacombs.level,
+        "dungeon_secrets": player.catacombs.secrets,
+        "slayer_levels": player.slayers.levels,
+        "magical_power": player.magical_power.total,
+        "highest_magical_power": player.magical_power.highest,
+        "bank_balance": player.bank,
+        "purse": player.purse,
+        "pet_score": player.pet_score,
+        "raw_skill_experience": player.raw_skill_experience,
+    }
+    return json.dumps(stats)
+
+
+def _run_tool(name: str, tool_input: dict, ttl_seconds: float, refresh: bool) -> str:
+    if name == "search_wiki":
+        return _search_wiki_tool(tool_input.get("query", ""), ttl_seconds, refresh)
+    if name == "get_player_stats":
+        return _get_player_stats_tool(tool_input.get("ign", ""))
+    return f"Unknown tool '{name}'."
 
 
 def answer_question(question: str, ttl_days: float = DEFAULT_TTL_DAYS, refresh: bool = False) -> str:
-    """Answer a free-form Skyblock question using wiki content, chat-ready plain prose."""
+    """Answer a free-form Skyblock question, letting Claude call the wiki/player-stats tools as needed."""
     ttl_seconds = ttl_days * 24 * 3600
+    system = [{"type": "text", "text": SYSTEM_INSTRUCTIONS, "cache_control": {"type": "ephemeral"}}]
+    messages = [{"role": "user", "content": question}]
+    client = _get_client()
 
-    all_titles = _get_all_titles()
-    matched_titles = _match_titles(question, all_titles)
-    if not matched_titles:
-        fallback = _search_title(_strip_stopwords(question)) or _search_title(question)
-        if not fallback:
-            return "Couldn't find a wiki page matching that. Try rephrasing."
-        matched_titles = [fallback]
+    for _ in range(MAX_TOOL_HOPS):
+        response = client.messages.create(
+            model=MODEL, max_tokens=250, system=system, tools=TOOLS, messages=messages,
+        )
+        if response.stop_reason != "tool_use":
+            reply = next((b.text for b in response.content if b.type == "text"), "").strip()
+            return reply or "Couldn't find an answer for that."
 
-    pages = [_get_page(t, ttl_seconds=ttl_seconds, force_refresh=refresh) for t in matched_titles]
-    reply = _ask(question, pages)
+        messages.append({"role": "assistant", "content": response.content})
+        tool_results = [
+            {"type": "tool_result", "tool_use_id": block.id, "content": _run_tool(block.name, block.input, ttl_seconds, refresh)}
+            for block in response.content if block.type == "tool_use"
+        ]
+        messages.append({"role": "user", "content": tool_results})
 
-    match = NEED_PAGE_RE.search(reply)
-    if match:
-        needed_title = match.group(1).strip().strip('"\'.')
-        try:
-            second_page = _get_page(needed_title, ttl_seconds=ttl_seconds, force_refresh=refresh)
-            reply = _ask(question, pages + [second_page])
-        except ValueError:
-            pass  # linked page didn't resolve -- fall back to the first-pass answer
-
-    return reply
+    # Ran out of tool hops -- force a final answer with what's already been gathered.
+    response = client.messages.create(model=MODEL, max_tokens=150, system=system, messages=messages)
+    reply = next((b.text for b in response.content if b.type == "text"), "").strip()
+    return reply or "Couldn't find an answer for that."

@@ -90,7 +90,7 @@ bumble-unified/
     │   ├── guild_list.py     # parse_guild_list() / parse_online_igns() — parses raw /guild list & /guild online text
     │   ├── hypixel.py        # fetch_member_stats() / fetch_key_info() — Hypixel player+key lookups, records api_calls
     │   ├── rankup.py         # guild_rank_change() — promotes/demotes a player in-game
-    │   └── wiki_qa.py        # answer_question() — Skyblock wiki Q&A via Claude, powers the in-game .q command
+    │   └── wiki_qa.py        # answer_question() — Claude tool-use loop (wiki lookup + live player stats), powers .q
     │
     ├── player/               # Hypixel Skyblock player data classes
     │   ├── __init__.py       # Exports Player
@@ -217,6 +217,7 @@ bumble-unified/
 - Each handler is a private `async` function that returns `(display_name, response_text, raw_username)`. The dispatcher sends the response to all guild bots (chunked at `_MC_CHAT_LIMIT` so long replies like `.q` answers don't get cut off by Minecraft's chat line limit) and the appropriate webhook.
 - `PlayerNotFoundError`/`HypixelAPIError` (raised by `player.skyblock.Player`) and any other exception are caught centrally and turned into a real chat reply instead of a silently-dropped response — see "Things to Watch Out For" below.
 - `.q <question>` is gated to a single hardcoded IGN (`config.WIKI_QA_ALLOWED_IGN`, currently `"seazyns"`) checked case-insensitively against the `username` the dispatcher was given (an MC IGN from the bridge, or a Discord display name when triggered from Discord — same caveat as every other command's default-target resolution). It runs `lib/wiki_qa.py::answer_question()` off the event loop via `asyncio.to_thread` since it round-trips both the Skyblock wiki and the Claude API.
+- `lib/wiki_qa.py::answer_question()` is a real Claude tool-use loop (up to `MAX_TOOL_HOPS` round trips), not a single prompt-stuff-and-ask call. Claude has two tools: `search_wiki` (resolves a free-text query to a wiki page and returns its content — same title-matching/search/cache pipeline the standalone skyblock-info CLI used) and `get_player_stats` (calls `player.skyblock.Player` for a given IGN and returns computed stats plus `Player.raw_skill_experience` — raw per-skill XP fields, since this codebase has no skill level table). For skill-level questions Claude is expected to fetch the raw XP via `get_player_stats` and the skill's XP-per-level breakpoints via `search_wiki`, then compute the level itself. Both tool implementations catch their own errors and return a description string rather than raising, so a bad IGN or missing wiki page becomes something Claude can react to instead of crashing the loop.
 - There is no in-game `.ranks` command anymore — rank auto-updates happen continuously via `cogs/tasks/member_refresh.py` and immediately on join via `message_handler.py`'s `_auto_fetch_and_rank()`.
 
 ### `cogs/commands/guild_commands.py`
