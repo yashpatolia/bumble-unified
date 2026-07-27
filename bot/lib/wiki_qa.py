@@ -15,7 +15,7 @@ from typing import Optional
 
 import anthropic
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString, Tag
 
 from config import ANTHROPIC_API_KEY
 
@@ -54,7 +54,14 @@ Rules:
 - No markdown formatting (no *, -, #), but dropped grammar/articles/verbs is fine and preferred over full prose.
 - If a tool call fails or comes back empty (page not found, player not found), say so in as few words as possible.
   Never guess or fabricate a number or fact you didn't get from a tool.
-- Hypixel Skyblock changes over time. If wiki content looks like it may describe an outdated/removed mechanic, note that briefly."""
+- Hypixel Skyblock changes over time. If wiki content looks like it may describe an outdated/removed mechanic, note that briefly.
+- Dungeon floors: "F<n>" or "Floor <n>" means Normal Mode; "M<n>" or "Master Mode <n>"/"Master <n>" means Master
+  Mode -- a separate, harder floor with its own higher requirements. Wiki tables list these as distinct sections
+  (e.g. tagged [Master Mode] per row) -- never answer an M<n> question with an F<n> row's numbers or vice versa.
+- If asked to pick/choose/recommend/suggest one option at random from a known, fixed set of game options (a class,
+  a weapon, an enchant, etc.), just pick one yourself and say it -- do NOT refuse for lacking a "random number
+  generator" tool. Look the valid options up with search_wiki first if you don't already know them from this
+  conversation, then commit to a single pick. Never refuse a request just because it's phrased as "random"."""
 
 TOOLS = [
     {
@@ -229,6 +236,41 @@ def _search_title(query: str) -> Optional[str]:
     return results[0]["title"] if results else None
 
 
+def _flatten_table(table: Tag) -> str:
+    """Render an HTML table as one line per row instead of one line per cell.
+
+    Wiki pages often use a single table for both "Normal Mode" and "Master Mode" rows
+    (e.g. Catacombs floor requirements), separated by a full-width section-header row.
+    Plain get_text() puts every cell on its own line with no row/column grouping, which
+    makes it impossible to tell "Combat Level: 24" (Normal F7) apart from "Combat Level:
+    36" (Master M7) once flattened -- this keeps each row's cells, and its section, together.
+    """
+    lines, headers, section = [], [], ""
+    for tr in table.find_all("tr"):
+        cells = tr.find_all(["th", "td"])
+        if not cells:
+            continue
+        texts = [c.get_text(" ", strip=True) for c in cells]
+
+        # A lone <th> spanning the row is a section divider (e.g. "Master Mode"), not data.
+        if len(cells) == 1 and cells[0].name == "th":
+            section = texts[0]
+            continue
+        if not headers and all(c.name == "th" for c in cells):
+            headers = texts
+            continue
+
+        if headers and len(texts) == len(headers):
+            row = ", ".join(f"{h}: {v}" for h, v in zip(headers, texts) if v)
+        else:
+            row = " | ".join(t for t in texts if t)
+        if not row:
+            continue
+        lines.append(f"[{section}] {row}" if section else row)
+
+    return "\n".join(lines)
+
+
 def _fetch_from_wiki(title: str) -> WikiPage:
     resp = requests.get(
         API_URL,
@@ -248,6 +290,8 @@ def _fetch_from_wiki(title: str) -> WikiPage:
         tag.decompose()
     for tag in soup.select("table.navbox, .mw-editsection, .reference"):
         tag.decompose()
+    for table in soup.find_all("table"):
+        table.replace_with(NavigableString(f"\n{_flatten_table(table)}\n"))
     content = soup.get_text(separator="\n", strip=True)
 
     # Existing (blue) links carry an "exists" key; red links to missing pages don't.
