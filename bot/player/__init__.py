@@ -1,3 +1,3 @@
-from .skyblock import Player
+from .skyblock import Player, PlayerNotFoundError, HypixelAPIError
 
-__all__ = ["Player"]
+__all__ = ["Player", "PlayerNotFoundError", "HypixelAPIError"]

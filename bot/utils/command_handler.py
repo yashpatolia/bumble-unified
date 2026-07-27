@@ -1,6 +1,7 @@
 import logging
 from lib import condense
 from player import skyblock
+from player import PlayerNotFoundError, HypixelAPIError
 from config import GuildConfig
 
 
@@ -13,19 +14,29 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
         webhook = client.officer if chat_state in ("Officer", "oc") else client.bridge
 
         command_map = {
-            ".help":       _help,
-            ".lvl":        _skyblock_level,
-            ".hlvl":       _highest_level,
-            ".nw":         _networth,
-            ".slayer":     _slayers,
-            ".slayers":    _slayers,
-            ".slayerxp":   _slayer_xp,
-            ".cata":       _catacombs,
-            ".pb":         _catacombs_pb,
-            ".mp":         _magical_power,
-            ".bank":       _bank,
-            ".chim":       _chim,
-            ".petscore":   _petscore,
+            ".help":        _help,
+            ".commands":    _help,
+            ".lvl":         _skyblock_level,
+            ".level":       _skyblock_level,
+            ".sblvl":       _skyblock_level,
+            ".hlvl":        _highest_level,
+            ".hlevel":      _highest_level,
+            ".nw":          _networth,
+            ".networth":    _networth,
+            ".slayer":      _slayers,
+            ".slayers":     _slayers,
+            ".slayerxp":    _slayer_xp,
+            ".sxp":         _slayer_xp,
+            ".cata":        _catacombs,
+            ".catacombs":   _catacombs,
+            ".pb":          _catacombs_pb,
+            ".pbs":         _catacombs_pb,
+            ".mp":          _magical_power,
+            ".magicalpower": _magical_power,
+            ".bank":        _bank,
+            ".chim":        _chim,
+            ".petscore":    _petscore,
+            ".pets":        _petscore,
         }
 
         handler = command_map.get(parts[0])
@@ -34,10 +45,21 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
 
         try:
             result = await handler(username, parts, client)
-            if result is None:
-                return
-            name, response, raw_username = result
+        except PlayerNotFoundError as e:
+            target = str(e) or username
+            result = (username, f"Couldn't find a Minecraft account named '{target}'", username)
+        except HypixelAPIError as e:
+            logging.exception(e)
+            result = (username, "Hypixel API error, try that again in a moment", username)
+        except Exception as e:
+            logging.exception(e)
+            result = (username, "Something went wrong running that command", username)
 
+        if result is None:
+            return
+        name, response, raw_username = result
+
+        try:
             for state_obj in client.guilds_state.values():
                 if state_obj.bot:
                     state_obj.bot.chat(f"{state} {name}: {response}")
@@ -87,7 +109,7 @@ async def _slayers(username: str, parts: list, client):
 
 async def _slayer_xp(username: str, parts: list, client):
     if len(parts) < 2:
-        return None
+        return username, "Usage: .slayerxp <type> [username]", username
     slayer_alias = parts[1]
     username = parts[2] if len(parts) > 2 else username
     player = skyblock.Player(username=username)
@@ -110,8 +132,8 @@ async def _catacombs(username: str, parts: list, client):
 
 
 async def _catacombs_pb(username: str, parts: list, client):
-    if len(parts) < 2:
-        return None
+    if len(parts) < 2 or len(parts[1]) != 2 or parts[1][0] not in ("f", "m"):
+        return username, "Usage: .pb (f/m)(1-7) [username], e.g. .pb f7", username
     username = parts[2] if len(parts) > 2 else username
     floor_type, floor = parts[1][0], parts[1][1]
     player = skyblock.Player(username=username)
@@ -137,8 +159,8 @@ async def _bank(username: str, parts: list, client):
 
 
 async def _chim(username: str, parts: list, client):
-    if len(parts) < 3:
-        return None
+    if len(parts) < 3 or not parts[1].isdigit() or not parts[2].isdigit():
+        return username, "Usage: .chim <looting level> <magic find>", username
     looting, magic_find = int(parts[1]), int(parts[2])
     leg = 1 * (1 + looting * 0.15) * (1 + magic_find / 100)
     mythic = 1.25 * (1 + looting * 0.15) * (1 + magic_find / 100)

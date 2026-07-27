@@ -10,7 +10,9 @@ class Networth:
         if not member_data or not profile_id:
             return 0, 0
 
+        from db import manager
         museum = request(f"https://api.hypixel.net/v2/skyblock/museum?profile={profile_id}&key={API_KEY}")
+        manager.record_api_call("/v2/skyblock/museum", bool(museum.get("success")))
         museum_data = deep_get(museum, ["members", uuid], default=None)
 
         if museum_data:

@@ -8,9 +8,19 @@ from player.slayers import Slayers
 from player.magical_power import MagicalPower
 
 
+class PlayerNotFoundError(Exception):
+    """Raised when a username/uuid can't be resolved to a Mojang account."""
+
+
+class HypixelAPIError(Exception):
+    """Raised when the Hypixel API rejects or fails a request (e.g. bad key, API down)."""
+
+
 class Player:
     def __init__(self, uuid: str = None, username: str = None):
         self.__uuid = uuid or get_uuid(username=username)
+        if not self.__uuid:
+            raise PlayerNotFoundError(username or uuid)
         self.__username = username or get_username(uuid=uuid)
 
         self.__profiles = self.__fetch_skyblock_profiles()
@@ -35,7 +45,10 @@ class Player:
     def __fetch_skyblock_profiles(self) -> list:
         from db import manager
         data = request(f"https://api.hypixel.net/v2/skyblock/profiles?uuid={self.uuid}&key={API_KEY}")
-        manager.record_api_call("/v2/skyblock/profiles", bool(data.get("success")))
+        success = bool(data.get("success"))
+        manager.record_api_call("/v2/skyblock/profiles", success)
+        if not success:
+            raise HypixelAPIError(data.get("cause") or "Hypixel API request failed")
         return data.get("profiles") or []
 
     def __get_selected_profile(self) -> tuple[dict | None, str]:
