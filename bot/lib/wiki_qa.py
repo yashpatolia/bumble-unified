@@ -83,7 +83,15 @@ TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "ign": {"type": "string", "description": "The player's Minecraft IGN"},
+                "ign": {
+                    "type": "string",
+                    "description": (
+                        "The player's Minecraft IGN, copied EXACTLY as it appears in the question -- character "
+                        "for character, including any trailing 's'. Minecraft usernames can end in 's' as part "
+                        "of the name itself (e.g. 'seazyns'); never strip a trailing 's' as if it were a "
+                        "possessive apostrophe-s, the question won't use a real apostrophe for that."
+                    ),
+                },
             },
             "required": ["ign"],
         },
