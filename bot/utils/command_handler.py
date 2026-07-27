@@ -1,8 +1,30 @@
+import asyncio
 import logging
 from lib import condense
+from lib import wiki_qa
 from player import skyblock
 from player import PlayerNotFoundError, HypixelAPIError
-from config import GuildConfig
+from config import GuildConfig, WIKI_QA_ALLOWED_IGN
+
+# Hypixel guild chat trims long lines; conservative enough to leave room for the
+# "Guild > [RANK] BotName: " prefix Hypixel adds on top of ours.
+_MC_CHAT_LIMIT = 200
+
+
+def _chunk_message(text: str, limit: int = _MC_CHAT_LIMIT) -> list[str]:
+    """Split text on whitespace into chat-safe chunks, never breaking mid-word."""
+    words = text.split(" ")
+    chunks, current = [], ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if len(candidate) > limit and current:
+            chunks.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        chunks.append(current)
+    return chunks
 
 
 async def bridge_commands(client, message: str, username: str, guild_rank: str,
@@ -37,6 +59,7 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
             ".chim":        _chim,
             ".petscore":    _petscore,
             ".pets":        _petscore,
+            ".q":           _wiki_question,
         }
 
         handler = command_map.get(parts[0])
@@ -60,9 +83,10 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
         name, response, raw_username = result
 
         try:
-            for state_obj in client.guilds_state.values():
-                if state_obj.bot:
-                    state_obj.bot.chat(f"{state} {name}: {response}")
+            for chunk in _chunk_message(response):
+                for state_obj in client.guilds_state.values():
+                    if state_obj.bot:
+                        state_obj.bot.chat(f"{state} {name}: {chunk}")
             webhook.send(response, username=name, avatar_url=f"https://mc-heads.net/avatar/{raw_username}")
         except Exception as e:
             logging.exception(e)
@@ -171,5 +195,15 @@ async def _petscore(username: str, parts: list, client):
     username = parts[1] if len(parts) > 1 else username
     player = skyblock.Player(username=username)
     return f"{player.username}{player.gamemode}", f"Pet Score - {player.pet_score}", username
+
+
+async def _wiki_question(username: str, parts: list, client):
+    if username.lower() != WIKI_QA_ALLOWED_IGN:
+        return username, "You don't have permission to use this command", username
+    question = " ".join(parts[1:]).strip()
+    if not question:
+        return username, "Usage: .q <question>", username
+    answer = await asyncio.to_thread(wiki_qa.answer_question, question)
+    return username, answer, username
 
 

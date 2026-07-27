@@ -27,6 +27,8 @@ _STUBS = [
     # HTTP libs — unit tests never make real network calls
     "aiohttp",
     "requests",
+    "bs4",
+    "anthropic",
     # python-dotenv — load_dotenv becomes a no-op; env vars are set below
     "dotenv",
 ]

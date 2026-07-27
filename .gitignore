@@ -21,6 +21,9 @@ frontend/dist/
 *.db-shm
 *.db-wal
 
+# Wiki Q&A page cache
+bot/.cache/
+
 # Logs
 *.log
 

@@ -89,7 +89,8 @@ bumble-unified/
     │   ├── get_uuid.py       # IGN → UUID, with DB cache
     │   ├── guild_list.py     # parse_guild_list() / parse_online_igns() — parses raw /guild list & /guild online text
     │   ├── hypixel.py        # fetch_member_stats() / fetch_key_info() — Hypixel player+key lookups, records api_calls
-    │   └── rankup.py         # guild_rank_change() — promotes/demotes a player in-game
+    │   ├── rankup.py         # guild_rank_change() — promotes/demotes a player in-game
+    │   └── wiki_qa.py        # answer_question() — Skyblock wiki Q&A via Claude, powers the in-game .q command
     │
     ├── player/               # Hypixel Skyblock player data classes
     │   ├── __init__.py       # Exports Player
@@ -212,8 +213,10 @@ bumble-unified/
 - Waits 60s after `wait_until_ready()` before starting, so it doesn't compete with startup traffic.
 
 ### `utils/command_handler.py`
-- `bridge_commands(client, message, username, guild_rank, chat_state, config)` dispatches `.help`, `.lvl`, `.hlvl`, `.nw`, `.slayer`/`.slayers`, `.slayerxp <type>`, `.cata`, `.pb`, `.mp`, `.bank`, `.chim <looting> <mf>`, `.petscore`.
-- Each handler is a private `async` function that returns `(display_name, response_text, raw_username)`. The dispatcher sends the response to all guild bots and the appropriate webhook.
+- `bridge_commands(client, message, username, guild_rank, chat_state, config)` dispatches `.help`, `.lvl`, `.hlvl`, `.nw`, `.slayer`/`.slayers`, `.slayerxp <type>`, `.cata`, `.pb`, `.mp`, `.bank`, `.chim <looting> <mf>`, `.petscore`, `.q <question>` (plus a handful of longer aliases per command, e.g. `.level`, `.networth`, `.catacombs`).
+- Each handler is a private `async` function that returns `(display_name, response_text, raw_username)`. The dispatcher sends the response to all guild bots (chunked at `_MC_CHAT_LIMIT` so long replies like `.q` answers don't get cut off by Minecraft's chat line limit) and the appropriate webhook.
+- `PlayerNotFoundError`/`HypixelAPIError` (raised by `player.skyblock.Player`) and any other exception are caught centrally and turned into a real chat reply instead of a silently-dropped response — see "Things to Watch Out For" below.
+- `.q <question>` is gated to a single hardcoded IGN (`config.WIKI_QA_ALLOWED_IGN`, currently `"seazyns"`) checked case-insensitively against the `username` the dispatcher was given (an MC IGN from the bridge, or a Discord display name when triggered from Discord — same caveat as every other command's default-target resolution). It runs `lib/wiki_qa.py::answer_question()` off the event loop via `asyncio.to_thread` since it round-trips both the Skyblock wiki and the Claude API.
 - There is no in-game `.ranks` command anymore — rank auto-updates happen continuously via `cogs/tasks/member_refresh.py` and immediately on join via `message_handler.py`'s `_auto_fetch_and_rank()`.
 
 ### `cogs/commands/guild_commands.py`
@@ -292,6 +295,8 @@ There is no log-streaming page — `Logs.tsx`, its `/ws/logs` backend endpoint, 
 | `PyJWT >= 2.10.0` | JWT creation and verification for stateless panel sessions |
 | `pydantic >= 2.0.0` | Request body validation for FastAPI routes |
 | `psycopg2-binary >= 2.9.0` | PostgreSQL driver used by `db/manager.py` and `db/migrate.py` |
+| `anthropic >= 0.40.0` | Claude API client — answers `.q` wiki questions in `lib/wiki_qa.py` |
+| `beautifulsoup4 >= 4.12.0` | Strips HTML from fetched Skyblock wiki pages in `lib/wiki_qa.py` |
 | `pytest` / `pytest-asyncio` | Test-only; see `docs/DEVELOPMENT.md` |
 
 ### Node.js (`package.json`)
@@ -574,6 +579,7 @@ See `example.env` for the full list. Critical ones:
 |----------|---------|
 | `DISCORD_BOT_TOKEN` | `config.py` → `main.py` login |
 | `HYPIXEL_API_KEY` | All Hypixel API requests in `lib/` and `player/` |
+| `ANTHROPIC_API_KEY` | Claude API key used by `lib/wiki_qa.py` to answer the in-game `.q` command |
 | `DATABASE_URL` | PostgreSQL connection string — `db/__init__.py`, `db/migrate.py` |
 | `KINDERGARTEN_USERNAME` / `UNIVERSITY_USERNAME` | Mineflayer login; also used to filter the bot's own messages |
 | `KINDERGARTEN_LOGS_CHANNEL` / `UNIVERSITY_LOGS_CHANNEL` | Per-guild logs `SyncWebhook` URLs |
