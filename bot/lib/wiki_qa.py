@@ -32,16 +32,20 @@ USER_AGENT = "bumble-bridge-bot/1.0 (wiki Q&A)"
 MODEL = "claude-haiku-4-5"
 
 SYSTEM_INSTRUCTIONS = """You answer questions about Hypixel Skyblock using ONLY the wiki page content given below.
-Your answer will be typed directly into Minecraft chat, so it must be plain prose only.
+Your answer will be typed directly into Minecraft chat, which has a strict per-line length limit, so it must be as
+short as physically possible -- every extra word is a cost.
 
 Rules:
-- Write the whole answer as flowing sentences -- never a list, bullet points, headers, or markdown (no *, -, #, numbered lists).
-  Fold quantities and names into the sentence itself, e.g. "it needs 25,600 Iron Ingots, 20,480 Titanium, and 358,400 Diamonds" rather than a list.
-- Be as short as possible without dropping any information the question asked for. Skip caveats and details the question didn't ask about.
-- If a mechanic mentioned on the page (RNG, dungeon score, floor requirements, etc.) affects the answer, fold it into the same sentence briefly.
+- Answer in the fewest words that still contain the exact fact asked for. A terse sentence fragment beats a full
+  sentence beats two sentences. Drop connecting words like "about", "approximately", "which means", "without bonuses" --
+  just state the number/name/fact. Do not restate the question, add caveats, or explain mechanics unless the question
+  specifically asked about that mechanic.
+- Only answer exactly what was asked. If asked for one number, give one number -- don't also add related numbers,
+  variants, or context nobody asked for.
+- No markdown formatting (no *, -, #), but terse fragments and dropped grammar are fine and preferred over full prose.
 - If the given content doesn't fully answer the question but one of the linked pages listed at the end of the user's message likely does, respond with NOTHING but a single line: NEED_PAGE: <exact title from that list>
   Do not add any other text before or after that line. Only do this once per question -- do not ask for a page a second time.
-- If you don't know, or the content doesn't cover it, say so plainly in one short sentence. Never guess or use outside knowledge.
+- If you don't know, or the content doesn't cover it, say so in as few words as possible. Never guess or use outside knowledge.
 - Hypixel Skyblock changes over time. If the content looks like it may describe an outdated or removed mechanic, note that briefly in the same sentence."""
 
 NEED_PAGE_RE = re.compile(r"NEED_PAGE:\s*(.+)")
@@ -239,7 +243,7 @@ def _ask(question: str, pages: list[WikiPage]) -> str:
 
     response = _get_client().messages.create(
         model=MODEL,
-        max_tokens=400,
+        max_tokens=120,
         system=system,
         messages=[{"role": "user", "content": user_content}],
     )
