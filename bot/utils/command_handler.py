@@ -59,7 +59,7 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
             ".chim":        _chim,
             ".petscore":    _petscore,
             ".pets":        _petscore,
-            ".q":           _wiki_question,
+            ".q":           lambda u, p, c: _wiki_question(u, p, c, chat_state),
         }
 
         handler = command_map.get(parts[0])
@@ -197,7 +197,12 @@ async def _petscore(username: str, parts: list, client):
     return f"{player.username}{player.gamemode}", f"Pet Score - {player.pet_score}", username
 
 
-async def _wiki_question(username: str, parts: list, client):
+async def _wiki_question(username: str, parts: list, client, chat_state: str):
+    # Discord's "username" here is an editable display name, not a verified IGN -- anyone
+    # could rename themselves to the allowed IGN. Only trust the check from in-game chat,
+    # where "username" comes from Hypixel's own guild/officer chat line, not the client.
+    if chat_state not in ("Guild", "Officer"):
+        return username, "This command only works in-game", username
     if username.lower() != WIKI_QA_ALLOWED_IGN:
         return username, "You don't have permission to use this command", username
     question = " ".join(parts[1:]).strip()
