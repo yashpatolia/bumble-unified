@@ -2,6 +2,7 @@ import logging
 from lib import condense
 from player import skyblock
 from player import PlayerNotFoundError, HypixelAPIError
+from player.chimera import chim_drop_rates
 from config import GuildConfig
 
 
@@ -162,9 +163,8 @@ async def _chim(username: str, parts: list, client):
     if len(parts) < 3 or not parts[1].isdigit() or not parts[2].isdigit():
         return username, "Usage: .chim <looting level> <magic find>", username
     looting, magic_find = int(parts[1]), int(parts[2])
-    leg = 1 * (1 + looting * 0.15) * (1 + magic_find / 100)
-    mythic = 1.25 * (1 + looting * 0.15) * (1 + magic_find / 100)
-    return username, f"Chim Drop Rate: L{looting} & {magic_find}✯ [Leg: {leg:.2f}%] [Mythic: {mythic:.2f}%]", username
+    rates = chim_drop_rates(looting, magic_find)
+    return username, f"Chim Drop Rate: L{looting} & {magic_find}✯ [Leg: {rates['legendary']:.2f}%] [Mythic: {rates['mythic']:.2f}%]", username
 
 
 async def _petscore(username: str, parts: list, client):
