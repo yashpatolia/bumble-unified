@@ -66,6 +66,5 @@ ENDSSH
 echo ""
 echo "✓ Done. '$LOCAL_DB' is ready."
 echo ""
-echo "Run tests against it:"
-echo "  cd bot"
-echo "  DATABASE_URL=postgresql://localhost/$LOCAL_DB pytest"
+echo "Point the bot at it:"
+echo "  DATABASE_URL=postgresql://localhost/$LOCAL_DB python bot/main.py"

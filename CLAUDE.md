@@ -58,7 +58,7 @@ bumble-unified/
 │
 ├── docs/                      # All project documentation other than this file
 │   ├── README.md               # Project overview, features, setup, architecture
-│   └── DEVELOPMENT.md          # Testing guide, prod DB copy script usage
+│   └── DEVELOPMENT.md          # Prod DB copy script usage
 │
 ├── frontend/                 # React/Vite web panel UI
 │   └── src/
@@ -72,7 +72,6 @@ bumble-unified/
     ├── constants.py          # Static lookup tables: dungeon XP, MP values, dye IDs/roles/emojis
     ├── requirements.txt      # Python dependencies
     ├── package.json          # Node.js dependencies (Mineflayer, skyhelper-networth)
-    ├── pytest.ini             # asyncio_mode = auto for the test suite
     │
     ├── db/
     │   ├── __init__.py       # Exports `manager` singleton (DatabaseManager instance), reads DATABASE_URL
@@ -103,13 +102,6 @@ bumble-unified/
     ├── utils/
     │   ├── command_handler.py # bridge_commands() — routes .commands from Minecraft/Discord
     │   └── roll_dye.py        # roll_dye() — weighted random dye drop, announces if new
-    │
-    ├── tests/                 # pytest suite (pure-function tests, no live Discord/DB/HTTP)
-    │   ├── conftest.py          # Stubs heavy deps (discord, aiohttp, psycopg2, etc.) so tests run anywhere
-    │   ├── test_parsers.py      # lib/guild_list.py parsing
-    │   ├── test_rankup.py       # lib/rankup.py::guild_rank_change
-    │   ├── test_utils.py        # condense, deep_get
-    │   └── test_player.py       # player/*.py pure-function pieces
     │
     ├── web/                  # FastAPI web panel backend
     │   ├── app.py             # create_app() factory — mounts routers, OAuth2, /api/me, SPA fallback
@@ -292,7 +284,6 @@ There is no log-streaming page — `Logs.tsx`, its `/ws/logs` backend endpoint, 
 | `PyJWT >= 2.10.0` | JWT creation and verification for stateless panel sessions |
 | `pydantic >= 2.0.0` | Request body validation for FastAPI routes |
 | `psycopg2-binary >= 2.9.0` | PostgreSQL driver used by `db/manager.py` and `db/migrate.py` |
-| `pytest` / `pytest-asyncio` | Test-only; see `docs/DEVELOPMENT.md` |
 
 ### Node.js (`package.json`)
 | Package | Why |
