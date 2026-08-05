@@ -6,6 +6,9 @@ import aiohttp
 import jwt
 from fastapi import HTTPException, Request
 
+from config import PANEL_ADMIN_DISCORD_ID
+from db import manager
+
 DISCORD_API = "https://discord.com/api/v10"
 _CLIENT_ID = os.getenv("PANEL_DISCORD_CLIENT_ID")
 _CLIENT_SECRET = os.getenv("PANEL_DISCORD_CLIENT_SECRET")
@@ -116,3 +119,32 @@ async def exchange_code(code: str) -> dict:
         headers = {"Authorization": f"Bearer {token_data['access_token']}"}
         async with session.get(f"{DISCORD_API}/users/@me", headers=headers) as resp:
             return await resp.json()
+
+
+def complete_login(discord_user: dict) -> str:
+    """Given a Discord user profile from exchange_code(), auto-provision the
+    panel owner on first login, refresh their stored name/avatar, and issue
+    a JWT. Returns the token."""
+    discord_id = int(discord_user["id"])
+    discord_name = discord_user.get("username", "Unknown")
+    avatar_hash = discord_user.get("avatar")
+    if avatar_hash:
+        avatar_url = f"https://cdn.discordapp.com/avatars/{discord_id}/{avatar_hash}.png?size=64"
+    else:
+        avatar_url = f"https://cdn.discordapp.com/embed/avatars/{(discord_id >> 22) % 6}.png"
+
+    if discord_id == PANEL_ADMIN_DISCORD_ID and not manager.get_panel_user(discord_id):
+        manager.create_panel_user(discord_id, discord_name, is_admin=True)
+
+    panel_user = manager.get_panel_user(discord_id)
+    if panel_user:
+        manager.upsert_panel_user_name(discord_id, discord_name)
+        manager.update_user_avatar(discord_id, avatar_url)
+
+    is_admin = bool(panel_user[2]) if panel_user else False
+    can_control_bots = bool(panel_user[3]) if panel_user else False
+    can_fetch_api = bool(panel_user[4]) if panel_user and len(panel_user) > 4 else False
+    can_manage_links = bool(panel_user[5]) if panel_user and len(panel_user) > 5 else False
+    return create_token(discord_id, discord_name, is_admin, can_control_bots, avatar_url,
+                         is_owner=(discord_id == PANEL_ADMIN_DISCORD_ID), can_fetch_api=can_fetch_api,
+                         can_manage_links=can_manage_links)
