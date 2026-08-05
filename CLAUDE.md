@@ -75,7 +75,15 @@ bumble-unified/
     │
     ├── db/
     │   ├── __init__.py       # Exports `manager` singleton (DatabaseManager instance), reads DATABASE_URL
-    │   ├── manager.py        # DatabaseManager — all PostgreSQL access goes through here (psycopg2 pool)
+    │   ├── base.py           # BaseQueries — shared connection pool + _cursor() contextmanager, inherited by every mixin below
+    │   ├── manager.py        # DatabaseManager — composes the query mixins below; all PostgreSQL access goes through `from db import manager`
+    │   ├── queries/          # One mixin per domain, each inheriting BaseQueries; DatabaseManager multiply-inherits all of them
+    │   │   ├── users.py        # UsersQueries — Discord<->MC links (`users` table), incl. link_user/unlink_user
+    │   │   ├── dyes.py         # DyesQueries — dye catalog + per-player unlocks (`dyes`/`users_dyes`)
+    │   │   ├── guild_members.py# GuildMembersQueries — roster + stats (`guild_members`)
+    │   │   ├── panel_users.py  # PanelUsersQueries — web panel access control (`panel_users`)
+    │   │   ├── api_usage.py    # ApiUsageQueries — Hypixel call logging (`api_calls`)
+    │   │   └── message_counts.py # MessageCountsQueries — per-player message counts/leaderboard (`message_counts`)
     │   ├── migrate.py        # run_migrations(dsn) — applies db/migrations/*.sql in order, tracked in schema_migrations
     │   └── migrations/       # Numbered SQL migration files (001_initial_schema.sql, 002_panel_users.sql, ...)
     │
@@ -169,10 +177,10 @@ bumble-unified/
 - `GUILD_CONFIGS: dict[str, GuildConfig] = {'bk': BK_CONFIG, 'bu': BU_CONFIG}` — the master registry. **Adding a new guild = adding one entry here.**
 - Also defines `BOT_IPC_PORT` and (read directly via `os.getenv`, not exported as a constant) `BOT_IPC_URL`/`BOT_IPC_SECRET`, consumed by `web/routes/bots.py`.
 
-### `db/manager.py`
-- `DatabaseManager` wraps a `psycopg2.pool.ThreadedConnectionPool` (min 1, max 10). `_cursor()` is a context manager that commits on success and rolls back on exception, so cog code never manages transactions manually.
-- Grouped into sections: Users, Dyes, Guild Members, API Usage Tracking, Panel Users, Message Counts — roughly 35 methods total. See "Database Schema" below for the tables backing each group.
-- `db/__init__.py` builds the module-level `manager` singleton from `DATABASE_URL` — cogs do `from db import manager`.
+### `db/base.py` + `db/manager.py` + `db/queries/`
+- `BaseQueries` (`db/base.py`) wraps a `psycopg2.pool.ThreadedConnectionPool` (min 1, max 10). `_cursor()` is a context manager that commits on success and rolls back on exception, so cog code never manages transactions manually.
+- Each domain — Users, Dyes, Guild Members, Panel Users, API Usage Tracking, Message Counts — is its own mixin under `db/queries/`, inheriting `BaseQueries` for `self._cursor()`. See "Database Schema" below for the tables backing each. A handful of methods legitimately join across two tables (e.g. `UsersQueries.search_users_with_dye_counts` joins `users_dyes`, `DyesQueries.get_recent_drops` joins `users`) — they just live in the mixin for their primary table; no cross-mixin calls are needed since it's all plain SQL.
+- `DatabaseManager` (`db/manager.py`) multiply-inherits all six query mixins and adds nothing else — it's a thin composition root. `db/__init__.py` builds the module-level `manager` singleton from `DATABASE_URL` — cogs do `from db import manager` and call `manager.<any method from any mixin>` exactly as before; the split is invisible to callers.
 - `lib/get_uuid.py` and `lib/get_username.py` still talk to `users` directly (not through `DatabaseManager`) because they are synchronous low-level cache utilities called from non-cog contexts.
 
 ### `db/migrate.py`
