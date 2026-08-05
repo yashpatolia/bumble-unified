@@ -5,7 +5,6 @@ import os
 import uvicorn
 
 from config import PANEL_PORT
-from db import manager
 
 logging.basicConfig(
     level=logging.INFO,

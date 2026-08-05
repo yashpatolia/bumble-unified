@@ -298,7 +298,6 @@ There is no log-streaming page — `Logs.tsx`, its `/ws/logs` backend endpoint, 
 | `NBT` | Decodes base64-encoded NBT data from talisman bags (magical power calc) |
 | `fastapi >= 0.115.0` | Both the web panel API and the bot process's internal IPC API |
 | `uvicorn >= 0.32.0` | ASGI server — runs the panel and IPC FastAPI apps |
-| `websockets >= 13.0` | WebSocket support for the live log stream endpoint |
 | `PyJWT >= 2.10.0` | JWT creation and verification for stateless panel sessions |
 | `pydantic >= 2.0.0` | Request body validation for FastAPI routes |
 | `psycopg2-binary >= 2.9.0` | PostgreSQL driver used by `db/manager.py` and `db/migrate.py` |
