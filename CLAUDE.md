@@ -58,7 +58,7 @@ bumble-unified/
 │
 ├── docs/                      # All project documentation other than this file
 │   ├── README.md               # Project overview, features, setup, architecture
-│   └── DEVELOPMENT.md          # Testing guide, prod DB copy script usage
+│   └── DEVELOPMENT.md          # Prod DB copy script usage
 │
 ├── frontend/                 # React/Vite web panel UI
 │   └── src/
@@ -72,7 +72,6 @@ bumble-unified/
     ├── constants.py          # Static lookup tables: dungeon XP, MP values, dye IDs/roles/emojis
     ├── requirements.txt      # Python dependencies
     ├── package.json          # Node.js dependencies (Mineflayer, skyhelper-networth)
-    ├── pytest.ini             # asyncio_mode = auto for the test suite
     │
     ├── db/
     │   ├── __init__.py       # Exports `manager` singleton (DatabaseManager instance), reads DATABASE_URL
@@ -89,8 +88,7 @@ bumble-unified/
     │   ├── get_uuid.py       # IGN → UUID, with DB cache
     │   ├── guild_list.py     # parse_guild_list() / parse_online_igns() — parses raw /guild list & /guild online text
     │   ├── hypixel.py        # fetch_member_stats() / fetch_key_info() — Hypixel player+key lookups, records api_calls
-    │   ├── rankup.py         # guild_rank_change() — promotes/demotes a player in-game
-    │   └── wiki_qa.py        # answer_question() — Claude tool-use loop (wiki lookup + live player stats), powers .q
+    │   └── rankup.py         # guild_rank_change() — promotes/demotes a player in-game
     │
     ├── player/               # Hypixel Skyblock player data classes
     │   ├── __init__.py       # Exports Player
@@ -104,13 +102,6 @@ bumble-unified/
     ├── utils/
     │   ├── command_handler.py # bridge_commands() — routes .commands from Minecraft/Discord
     │   └── roll_dye.py        # roll_dye() — weighted random dye drop, announces if new
-    │
-    ├── tests/                 # pytest suite (pure-function tests, no live Discord/DB/HTTP)
-    │   ├── conftest.py          # Stubs heavy deps (discord, aiohttp, psycopg2, etc.) so tests run anywhere
-    │   ├── test_parsers.py      # lib/guild_list.py parsing
-    │   ├── test_rankup.py       # lib/rankup.py::guild_rank_change
-    │   ├── test_utils.py        # condense, deep_get
-    │   └── test_player.py       # player/*.py pure-function pieces
     │
     ├── web/                  # FastAPI web panel backend
     │   ├── app.py             # create_app() factory — mounts routers, OAuth2, /api/me, SPA fallback
@@ -213,11 +204,8 @@ bumble-unified/
 - Waits 60s after `wait_until_ready()` before starting, so it doesn't compete with startup traffic.
 
 ### `utils/command_handler.py`
-- `bridge_commands(client, message, username, guild_rank, chat_state, config)` dispatches `.help`, `.lvl`, `.hlvl`, `.nw`, `.slayer`/`.slayers`, `.slayerxp <type>`, `.cata`, `.pb`, `.mp`, `.bank`, `.chim <looting> <mf>`, `.petscore`, `.q <question>` (plus a handful of longer aliases per command, e.g. `.level`, `.networth`, `.catacombs`).
-- Each handler is a private `async` function that returns `(display_name, response_text, raw_username)`. The dispatcher sends the response to all guild bots (chunked at `_MC_CHAT_LIMIT` so long replies like `.q` answers don't get cut off by Minecraft's chat line limit) and the appropriate webhook.
-- `PlayerNotFoundError`/`HypixelAPIError` (raised by `player.skyblock.Player`) and any other exception are caught centrally and turned into a real chat reply instead of a silently-dropped response — see "Things to Watch Out For" below.
-- `.q <question>` only works from in-game Guild/Officer chat, gated to a single hardcoded IGN (`config.WIKI_QA_ALLOWED_IGN`, currently `"seazyns"`) checked case-insensitively against `username`. It's restricted to `chat_state in ("Guild", "Officer")` on purpose — every other command's `username` default-target trusts whatever string the dispatcher was given (an MC IGN from the bridge, or an editable Discord display name when triggered from Discord), but `.q`'s permission check can't: a Discord display name is self-service and anyone could rename themselves to the allowed IGN, whereas the in-game value comes from Hypixel's own chat line and can't be spoofed that way. It runs `lib/wiki_qa.py::answer_question()` off the event loop via `asyncio.to_thread` since it round-trips both the Skyblock wiki and the Claude API.
-- `lib/wiki_qa.py::answer_question()` is a real Claude tool-use loop (up to `MAX_TOOL_HOPS` round trips), not a single prompt-stuff-and-ask call. Claude has three tools: `search_wiki` (resolves a free-text query to a wiki page and returns its content — same title-matching/search/cache pipeline the standalone skyblock-info CLI used, with `_flatten_table()` rendering each HTML table row on one line, tagged with its section header, so e.g. Normal Mode vs Master Mode dungeon requirement rows don't get scrambled together by plain text extraction); `get_player_stats` (calls `player.skyblock.Player` for a given IGN and returns computed stats plus `Player.raw_skill_experience` — raw per-skill XP fields, since this codebase has no skill level table); and `get_player_raw_data` (returns that player's full raw profile JSON via `Player.raw_member_data`, item/inventory binary blobs stripped, as a fallback for any stat `get_player_stats` doesn't expose — Claude is expected to search it using its own knowledge of the Hypixel API schema rather than declaring a stat "unavailable"). For skill-level questions Claude is expected to fetch the raw XP via a player tool and the skill's XP-per-level breakpoints via `search_wiki`, then compute the level itself. All three tool implementations catch their own errors and return a description string rather than raising, so a bad IGN or missing wiki page becomes something Claude can react to instead of crashing the loop. The two player tools share a per-`answer_question()`-call `player_cache` dict so asking for both stats and raw data on the same IGN only fetches from Hypixel once.
+- `bridge_commands(client, message, username, guild_rank, chat_state, config)` dispatches `.help`, `.lvl`, `.hlvl`, `.nw`, `.slayer`/`.slayers`, `.slayerxp <type>`, `.cata`, `.pb`, `.mp`, `.bank`, `.chim <looting> <mf>`, `.petscore`.
+- Each handler is a private `async` function that returns `(display_name, response_text, raw_username)`. The dispatcher sends the response to all guild bots and the appropriate webhook.
 - There is no in-game `.ranks` command anymore — rank auto-updates happen continuously via `cogs/tasks/member_refresh.py` and immediately on join via `message_handler.py`'s `_auto_fetch_and_rank()`.
 
 ### `cogs/commands/guild_commands.py`
@@ -296,9 +284,6 @@ There is no log-streaming page — `Logs.tsx`, its `/ws/logs` backend endpoint, 
 | `PyJWT >= 2.10.0` | JWT creation and verification for stateless panel sessions |
 | `pydantic >= 2.0.0` | Request body validation for FastAPI routes |
 | `psycopg2-binary >= 2.9.0` | PostgreSQL driver used by `db/manager.py` and `db/migrate.py` |
-| `anthropic >= 0.40.0` | Claude API client — answers `.q` wiki questions in `lib/wiki_qa.py` |
-| `beautifulsoup4 >= 4.12.0` | Strips HTML from fetched Skyblock wiki pages in `lib/wiki_qa.py` |
-| `pytest` / `pytest-asyncio` | Test-only; see `docs/DEVELOPMENT.md` |
 
 ### Node.js (`package.json`)
 | Package | Why |
@@ -580,7 +565,6 @@ See `example.env` for the full list. Critical ones:
 |----------|---------|
 | `DISCORD_BOT_TOKEN` | `config.py` → `main.py` login |
 | `HYPIXEL_API_KEY` | All Hypixel API requests in `lib/` and `player/` |
-| `ANTHROPIC_API_KEY` | Claude API key used by `lib/wiki_qa.py` to answer the in-game `.q` command |
 | `DATABASE_URL` | PostgreSQL connection string — `db/__init__.py`, `db/migrate.py` |
 | `KINDERGARTEN_USERNAME` / `UNIVERSITY_USERNAME` | Mineflayer login; also used to filter the bot's own messages |
 | `KINDERGARTEN_LOGS_CHANNEL` / `UNIVERSITY_LOGS_CHANNEL` | Per-guild logs `SyncWebhook` URLs |
