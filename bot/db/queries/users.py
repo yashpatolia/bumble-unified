@@ -36,12 +36,6 @@ class UsersQueries(BaseQueries):
             row = cur.fetchone()
             return row[0] if row else None
 
-    def get_discord_id_by_uuid(self, uuid: str) -> Optional[int]:
-        with self._cursor() as cur:
-            cur.execute("SELECT discord_id FROM users WHERE uuid = %s", (uuid,))
-            row = cur.fetchone()
-            return row[0] if row else None
-
     def get_user_by_uuid(self, uuid: str) -> Optional[tuple]:
         """Returns (ign, discord_id, discord_name, discord_avatar) or None."""
         with self._cursor() as cur:

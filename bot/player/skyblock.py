@@ -66,16 +66,6 @@ class Player:
         return self.__username
 
     @property
-    def get_profile_names(self) -> list[str]:
-        return [profile["cute_name"] for profile in self.__profiles]
-
-    def get_profile_id(self, profile_name: str) -> str | None:
-        for profile in self.__profiles:
-            if profile["cute_name"].lower() == profile_name.lower():
-                return profile["profile_id"]
-        return None
-
-    @property
     def gamemode(self) -> str:
         return self.__gamemode
 

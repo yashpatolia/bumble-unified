@@ -19,7 +19,6 @@ from config import (
     GUILD_CONFIGS,
     BOT_IPC_PORT,
 )
-from db import manager
 
 mineflayer = require("mineflayer")
 skyhelper = require("skyhelper-networth")
