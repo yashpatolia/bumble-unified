@@ -41,6 +41,22 @@ def _sync_guild_members_from_api(config: GuildConfig) -> None:
         logging.error(f"[{config.short_name}] Hypixel guild sync failed: {e}")
 
 
+async def reload_bridge_cogs(client, config: GuildConfig) -> None:
+    """Re-register the connections/bridge/message_handler cogs for one guild
+    against a freshly (re)created Mineflayer bot instance. The old cogs' event
+    bindings are tied to the dead bot object and must be replaced, not reused.
+    Called after client.start_mineflayer(account=config.key) on both a
+    disconnect-triggered reconnect and a manual restart from the web panel."""
+    from cogs.bridge.bridge import GuildBridge
+    from cogs.bridge.message_handler import GuildMessageHandler
+
+    for suffix in ("connections", "bridge", "message_handler"):
+        await client.remove_cog(f"{config.key}_{suffix}")
+    await client.add_cog(GuildConnections(client, config))
+    await client.add_cog(GuildBridge(client, config))
+    await client.add_cog(GuildMessageHandler(client, config))
+
+
 class GuildConnections(commands.Cog):
     """Handles Mineflayer spawn/disconnect events for one guild."""
 
@@ -87,7 +103,8 @@ class GuildConnections(commands.Cog):
 
             async def reconnect():
                 await asyncio.sleep(5)
-                await self.client.start_mineflayer(restart=True, account=config.key)
+                await self.client.start_mineflayer(account=config.key)
+                await reload_bridge_cogs(self.client, config)
 
             run_coroutine_threadsafe(reconnect(), self.client.loop)
 

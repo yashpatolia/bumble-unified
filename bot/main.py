@@ -60,22 +60,18 @@ class Client(commands.Bot):
         self.dyes: SyncWebhook = None     # type: ignore
         self.message_logs: SyncWebhook = None  # type: ignore
 
-    async def start_mineflayer(self, restart: bool = False, account: str = "both") -> None:
-        from cogs.bridge.connections import GuildConnections
-        from cogs.bridge.bridge import GuildBridge
-        from cogs.bridge.message_handler import GuildMessageHandler
-
+    async def start_mineflayer(self, account: str = "both") -> None:
+        """Create (or recreate) the raw Mineflayer bot object(s). On reconnect,
+        cogs/bridge/connections.py::reload_bridge_cogs() must be called
+        afterward to rebind the bridge cogs to the new bot instance — the two
+        are separate steps so the initial-boot path (which loads cogs once,
+        generically, in setup_hook) doesn't need to know about cog reloading
+        at all."""
         for key, config in self.guild_configs.items():
             if account not in (key, "both"):
                 continue
             logging.info(f"Logging in Mineflayer bot: {config.display_name} ({config.mc_username})")
             self.guilds_state[key].bot = mineflayer.createBot(config.mc_options)
-            if restart:
-                for suffix in ("connections", "bridge", "message_handler"):
-                    await self.remove_cog(f"{key}_{suffix}")
-                await self.add_cog(GuildConnections(self, config))
-                await self.add_cog(GuildBridge(self, config))
-                await self.add_cog(GuildMessageHandler(self, config))
 
     async def setup_hook(self) -> None:
         await self.start_mineflayer()

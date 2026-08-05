@@ -151,7 +151,7 @@ bumble-unified/
 - Defines `GuildState` dataclass: holds the live Mineflayer bot instance, `connected` flag, guild-list/guild-online buffers, invite result buffer, per-guild logs webhook, `manual_stop` flag, `guild_member_count`, and a `recent_chat` deque (last 50 messages, used by the web panel's guild overview).
 - Defines `Client(commands.Bot)`: holds `guild_configs` (static config map) and `guilds_state` (runtime state map, both keyed `'bk'`/`'bu'`), shared webhooks, and the skyhelper JS reference.
 - `setup_hook()` runs on startup: creates Mineflayer bots, sets per-guild log webhooks, sets shared webhooks, then dynamically loads every `.py` file inside every `cogs/` subdirectory (including `cogs/tasks/`).
-- `start_mineflayer()` is also called on reconnect (via `connections.py`) with `restart=True` to reload the `connections`, `bridge`, and `message_handler` cogs against the new bot instance.
+- `start_mineflayer()` only creates the raw Mineflayer bot object(s); it no longer knows about cog reloading. On reconnect (via `connections.py`) or a manual restart (via `bot_ipc.py`), the caller follows it with `cogs.bridge.connections.reload_bridge_cogs(client, config)` to reload the `connections`, `bridge`, and `message_handler` cogs against the new bot instance — see `cogs/bridge/connections.py` below.
 - `run_bot()` applies DB migrations, then runs the Discord client and the internal `bot_ipc` FastAPI server concurrently via `asyncio.gather`.
 
 ### `bot/web_main.py`
@@ -196,7 +196,8 @@ bumble-unified/
 ### `cogs/bridge/connections.py`
 - `GuildConnections` handles Mineflayer `spawn` and `end` events per guild.
 - On `spawn`: marks `state.connected = True` and kicks off `_sync_guild_members_from_api()` on a background `threading.Thread` — this hits the Hypixel `/v2/guild` API directly (not the bridge's Mineflayer chat), resolves each member's IGN via `get_username()`, and calls `manager.sync_guild_members()` to reconcile the `guild_members` table.
-- On `end`: if `state.manual_stop` was set (by the web panel's stop endpoint), it clears the flag and does **not** reconnect. Otherwise it schedules a reconnect via `run_coroutine_threadsafe(reconnect(), self.client.loop)`, which sleeps 5s and calls `start_mineflayer(restart=True, account=config.key)` — this now uses the bot's own running event loop rather than spinning up a separate one.
+- On `end`: if `state.manual_stop` was set (by the web panel's stop endpoint), it clears the flag and does **not** reconnect. Otherwise it schedules a reconnect via `run_coroutine_threadsafe(reconnect(), self.client.loop)`, which sleeps 5s, calls `start_mineflayer(account=config.key)` to get a fresh bot object, then `reload_bridge_cogs(client, config)` to rebind the `connections`/`bridge`/`message_handler` cogs to it — this now uses the bot's own running event loop rather than spinning up a separate one.
+- `reload_bridge_cogs(client, config)` (module-level function, not a method) removes and re-adds those three cogs for one guild key. This re-runs their `__init__`, which creates fresh Mineflayer event bindings against the new bot instance; old bindings on the dead bot instance are abandoned. It's called from both the auto-reconnect path above and `bot_ipc.py`'s manual `/restart/{key}` endpoint — the two are the only places a bot instance gets replaced after startup.
 
 ### `cogs/bridge/message_handler.py`
 - Listens to `messagestr` (raw text lines from Minecraft, not parsed chat).
@@ -405,8 +406,9 @@ cogs/tasks/member_refresh.py, every 5s
 Mineflayer "end" event
   → GuildConnections sends disconnect embed (unless state.manual_stop)
   → run_coroutine_threadsafe(reconnect(), client.loop): sleep 5s, then
-    client.start_mineflayer(restart=True, account=config.key)
-  → Reloads connections/bridge/message_handler cogs against the new bot instance
+    client.start_mineflayer(account=config.key)
+  → cogs.bridge.connections.reload_bridge_cogs(client, config) reloads
+    connections/bridge/message_handler cogs against the new bot instance
 ```
 
 ---
@@ -526,7 +528,7 @@ Panel permissions are per-flag (`can_control_bots`, `can_fetch_api`, `can_manage
 All Mineflayer event handlers (`@On`, `@Once`) run in their own thread. Accessing `client` attributes from inside them is safe for reads, but any mutation of shared state (like `state.guild_list`) must be treated carefully. Currently the only writes are appends to lists and simple flag assignments, which is safe enough in CPython due to the GIL.
 
 ### Reconnect reloads bridge extensions
-`start_mineflayer(restart=True)` removes and re-adds the `connections`, `bridge`, and `message_handler` cogs for that guild key. This re-runs their `__init__`, which creates fresh Mineflayer event bindings against the new bot instance. Old bindings on the dead bot instance are abandoned. If you add new bridge modules, add their reload to `start_mineflayer()`'s suffix list in `main.py`.
+`cogs/bridge/connections.py::reload_bridge_cogs(client, config)` removes and re-adds the `connections`, `bridge`, and `message_handler` cogs for that guild key, always immediately after `client.start_mineflayer(account=config.key)` creates a fresh bot object. This re-runs their `__init__`, which creates fresh Mineflayer event bindings against the new bot instance. Old bindings on the dead bot instance are abandoned. If you add new bridge modules, add their reload to `reload_bridge_cogs()`'s suffix list.
 
 ### The bot and web processes are independent
 `web/routes/bots.py` never touches a live `Client` object — it only reaches the bot process via HTTP IPC (`BOT_IPC_URL`/`BOT_IPC_SECRET`) or reads shared PostgreSQL state. If the bot process is down, IPC calls fail and routes fall back to DB-cached/offline data (or a 503) rather than crashing. Don't reintroduce a shared in-process `Client` reference between the two — they are meant to be deployable and restartable independently.

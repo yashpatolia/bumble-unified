@@ -84,9 +84,12 @@ def create_ipc_app(client):
 
     @app.post("/restart/{key}", dependencies=[Depends(_verify)])
     async def restart_bot(key: str):
+        from cogs.bridge.connections import reload_bridge_cogs
+
         if key not in client.guild_configs:
             raise HTTPException(status_code=404, detail="Unknown bot key")
-        await client.start_mineflayer(restart=True, account=key)
+        await client.start_mineflayer(account=key)
+        await reload_bridge_cogs(client, client.guild_configs[key])
         return {"status": "restarting", "key": key}
 
     @app.post("/stop/{key}", dependencies=[Depends(_verify)])
