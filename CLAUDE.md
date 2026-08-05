@@ -75,7 +75,15 @@ bumble-unified/
     │
     ├── db/
     │   ├── __init__.py       # Exports `manager` singleton (DatabaseManager instance), reads DATABASE_URL
-    │   ├── manager.py        # DatabaseManager — all PostgreSQL access goes through here (psycopg2 pool)
+    │   ├── base.py           # BaseQueries — shared connection pool + _cursor() contextmanager, inherited by every mixin below
+    │   ├── manager.py        # DatabaseManager — composes the query mixins below; all PostgreSQL access goes through `from db import manager`
+    │   ├── queries/          # One mixin per domain, each inheriting BaseQueries; DatabaseManager multiply-inherits all of them
+    │   │   ├── users.py        # UsersQueries — Discord<->MC links (`users` table), incl. link_user/unlink_user
+    │   │   ├── dyes.py         # DyesQueries — dye catalog + per-player unlocks (`dyes`/`users_dyes`)
+    │   │   ├── guild_members.py# GuildMembersQueries — roster + stats (`guild_members`)
+    │   │   ├── panel_users.py  # PanelUsersQueries — web panel access control (`panel_users`)
+    │   │   ├── api_usage.py    # ApiUsageQueries — Hypixel call logging (`api_calls`)
+    │   │   └── message_counts.py # MessageCountsQueries — per-player message counts/leaderboard (`message_counts`)
     │   ├── migrate.py        # run_migrations(dsn) — applies db/migrations/*.sql in order, tracked in schema_migrations
     │   └── migrations/       # Numbered SQL migration files (001_initial_schema.sql, 002_panel_users.sql, ...)
     │
@@ -143,7 +151,7 @@ bumble-unified/
 - Defines `GuildState` dataclass: holds the live Mineflayer bot instance, `connected` flag, guild-list/guild-online buffers, invite result buffer, per-guild logs webhook, `manual_stop` flag, `guild_member_count`, and a `recent_chat` deque (last 50 messages, used by the web panel's guild overview).
 - Defines `Client(commands.Bot)`: holds `guild_configs` (static config map) and `guilds_state` (runtime state map, both keyed `'bk'`/`'bu'`), shared webhooks, and the skyhelper JS reference.
 - `setup_hook()` runs on startup: creates Mineflayer bots, sets per-guild log webhooks, sets shared webhooks, then dynamically loads every `.py` file inside every `cogs/` subdirectory (including `cogs/tasks/`).
-- `start_mineflayer()` is also called on reconnect (via `connections.py`) with `restart=True` to reload the `connections`, `bridge`, and `message_handler` cogs against the new bot instance.
+- `start_mineflayer()` only creates the raw Mineflayer bot object(s); it no longer knows about cog reloading. On reconnect (via `connections.py`) or a manual restart (via `bot_ipc.py`), the caller follows it with `cogs.bridge.connections.reload_bridge_cogs(client, config)` to reload the `connections`, `bridge`, and `message_handler` cogs against the new bot instance — see `cogs/bridge/connections.py` below.
 - `run_bot()` applies DB migrations, then runs the Discord client and the internal `bot_ipc` FastAPI server concurrently via `asyncio.gather`.
 
 ### `bot/web_main.py`
@@ -169,10 +177,10 @@ bumble-unified/
 - `GUILD_CONFIGS: dict[str, GuildConfig] = {'bk': BK_CONFIG, 'bu': BU_CONFIG}` — the master registry. **Adding a new guild = adding one entry here.**
 - Also defines `BOT_IPC_PORT` and (read directly via `os.getenv`, not exported as a constant) `BOT_IPC_URL`/`BOT_IPC_SECRET`, consumed by `web/routes/bots.py`.
 
-### `db/manager.py`
-- `DatabaseManager` wraps a `psycopg2.pool.ThreadedConnectionPool` (min 1, max 10). `_cursor()` is a context manager that commits on success and rolls back on exception, so cog code never manages transactions manually.
-- Grouped into sections: Users, Dyes, Guild Members, API Usage Tracking, Panel Users, Message Counts — roughly 35 methods total. See "Database Schema" below for the tables backing each group.
-- `db/__init__.py` builds the module-level `manager` singleton from `DATABASE_URL` — cogs do `from db import manager`.
+### `db/base.py` + `db/manager.py` + `db/queries/`
+- `BaseQueries` (`db/base.py`) wraps a `psycopg2.pool.ThreadedConnectionPool` (min 1, max 10). `_cursor()` is a context manager that commits on success and rolls back on exception, so cog code never manages transactions manually.
+- Each domain — Users, Dyes, Guild Members, Panel Users, API Usage Tracking, Message Counts — is its own mixin under `db/queries/`, inheriting `BaseQueries` for `self._cursor()`. See "Database Schema" below for the tables backing each. A handful of methods legitimately join across two tables (e.g. `UsersQueries.search_users_with_dye_counts` joins `users_dyes`, `DyesQueries.get_recent_drops` joins `users`) — they just live in the mixin for their primary table; no cross-mixin calls are needed since it's all plain SQL.
+- `DatabaseManager` (`db/manager.py`) multiply-inherits all six query mixins and adds nothing else — it's a thin composition root. `db/__init__.py` builds the module-level `manager` singleton from `DATABASE_URL` — cogs do `from db import manager` and call `manager.<any method from any mixin>` exactly as before; the split is invisible to callers.
 - `lib/get_uuid.py` and `lib/get_username.py` still talk to `users` directly (not through `DatabaseManager`) because they are synchronous low-level cache utilities called from non-cog contexts.
 
 ### `db/migrate.py`
@@ -188,7 +196,8 @@ bumble-unified/
 ### `cogs/bridge/connections.py`
 - `GuildConnections` handles Mineflayer `spawn` and `end` events per guild.
 - On `spawn`: marks `state.connected = True` and kicks off `_sync_guild_members_from_api()` on a background `threading.Thread` — this hits the Hypixel `/v2/guild` API directly (not the bridge's Mineflayer chat), resolves each member's IGN via `get_username()`, and calls `manager.sync_guild_members()` to reconcile the `guild_members` table.
-- On `end`: if `state.manual_stop` was set (by the web panel's stop endpoint), it clears the flag and does **not** reconnect. Otherwise it schedules a reconnect via `run_coroutine_threadsafe(reconnect(), self.client.loop)`, which sleeps 5s and calls `start_mineflayer(restart=True, account=config.key)` — this now uses the bot's own running event loop rather than spinning up a separate one.
+- On `end`: if `state.manual_stop` was set (by the web panel's stop endpoint), it clears the flag and does **not** reconnect. Otherwise it schedules a reconnect via `run_coroutine_threadsafe(reconnect(), self.client.loop)`, which sleeps 5s, calls `start_mineflayer(account=config.key)` to get a fresh bot object, then `reload_bridge_cogs(client, config)` to rebind the `connections`/`bridge`/`message_handler` cogs to it — this now uses the bot's own running event loop rather than spinning up a separate one.
+- `reload_bridge_cogs(client, config)` (module-level function, not a method) removes and re-adds those three cogs for one guild key. This re-runs their `__init__`, which creates fresh Mineflayer event bindings against the new bot instance; old bindings on the dead bot instance are abandoned. It's called from both the auto-reconnect path above and `bot_ipc.py`'s manual `/restart/{key}` endpoint — the two are the only places a bot instance gets replaced after startup.
 
 ### `cogs/bridge/message_handler.py`
 - Listens to `messagestr` (raw text lines from Minecraft, not parsed chat).
@@ -251,6 +260,15 @@ bumble-unified/
 
 ### `frontend/src/components/AppShell.tsx`
 - The persistent app chrome for every authenticated page: a fixed left sidebar (wordmark, Home link, both guilds' Overview/Members/Leaderboard sub-nav with a live connected/offline dot per guild polled from `api.bots()`, Dyes, and Admin/Users gated by `is_owner`/`is_admin`) plus a user chip with logout, and a `<main>` that renders the active page via `<Outlet/>`. Individual pages no longer render their own header — this replaced four separate hand-rolled headers (`Home.tsx`, the old `GuildLayout.tsx`, `Admin.tsx`, `Users.tsx`) that had drifted out of sync with each other.
+
+### `frontend/src/components/IdentityCell.tsx` + `Modal.tsx`
+- `PlayerIdentityCell` (Minecraft avatar + IGN, optional badge) and `DiscordIdentityCell` (Discord avatar + name, optional id/actions, em-dash placeholder when unlinked) — the two identity-cell shapes repeated in every member/leaderboard table. Used by `GuildMembers.tsx` and `GuildLeaderboard.tsx`.
+- `Modal` — the overlay+card+title+actions shell shared by every "form in a modal" flow (closes on backdrop click). Used by `GuildMembers.tsx`'s link/unlink modal and `Users.tsx`'s create/edit modal.
+
+### `frontend/src/hooks/usePolling.ts` + `frontend/src/lib/`
+- `usePolling(callback, intervalMs, deps)` — runs `callback` immediately then every `intervalMs` until unmount or a `deps` change restarts it. Used by `AppShell.tsx` (bot status, 15s), `GuildOverview.tsx` (overview, 15s), and `Admin.tsx`'s `ApiUsagePanel` (API usage, 30s). `GuildMembers.tsx`'s stats-refresh progress poll is a different shape (polls until a "done" flag rather than forever) and stays a local `setInterval` in that file.
+- `lib/time.ts::formatRelativeTime(diffMs, opts)` — the "Xm/Xh/Xd ago" formatter shared by `GuildMembers.tsx` (`formatLastLogin`/`formatFetchedAt`) and `Dyes.tsx` (`timeAgo`); each caller passes options (`justNowUnderMins`, `maxTier`) to reproduce its own exact tier cutoffs rather than the three near-duplicate implementations there used to be.
+- `lib/validators.ts::isValidDiscordId()` — the `/^\d{17,20}$/` check duplicated between `GuildMembers.tsx`'s link modal and `Users.tsx`'s create-user form.
 
 ### `frontend/src/pages/*.tsx`
 - `Login.tsx` — Discord OAuth2 login screen.
@@ -397,8 +415,9 @@ cogs/tasks/member_refresh.py, every 5s
 Mineflayer "end" event
   → GuildConnections sends disconnect embed (unless state.manual_stop)
   → run_coroutine_threadsafe(reconnect(), client.loop): sleep 5s, then
-    client.start_mineflayer(restart=True, account=config.key)
-  → Reloads connections/bridge/message_handler cogs against the new bot instance
+    client.start_mineflayer(account=config.key)
+  → cogs.bridge.connections.reload_bridge_cogs(client, config) reloads
+    connections/bridge/message_handler cogs against the new bot instance
 ```
 
 ---
@@ -518,7 +537,7 @@ Panel permissions are per-flag (`can_control_bots`, `can_fetch_api`, `can_manage
 All Mineflayer event handlers (`@On`, `@Once`) run in their own thread. Accessing `client` attributes from inside them is safe for reads, but any mutation of shared state (like `state.guild_list`) must be treated carefully. Currently the only writes are appends to lists and simple flag assignments, which is safe enough in CPython due to the GIL.
 
 ### Reconnect reloads bridge extensions
-`start_mineflayer(restart=True)` removes and re-adds the `connections`, `bridge`, and `message_handler` cogs for that guild key. This re-runs their `__init__`, which creates fresh Mineflayer event bindings against the new bot instance. Old bindings on the dead bot instance are abandoned. If you add new bridge modules, add their reload to `start_mineflayer()`'s suffix list in `main.py`.
+`cogs/bridge/connections.py::reload_bridge_cogs(client, config)` removes and re-adds the `connections`, `bridge`, and `message_handler` cogs for that guild key, always immediately after `client.start_mineflayer(account=config.key)` creates a fresh bot object. This re-runs their `__init__`, which creates fresh Mineflayer event bindings against the new bot instance. Old bindings on the dead bot instance are abandoned. If you add new bridge modules, add their reload to `reload_bridge_cogs()`'s suffix list.
 
 ### The bot and web processes are independent
 `web/routes/bots.py` never touches a live `Client` object — it only reaches the bot process via HTTP IPC (`BOT_IPC_URL`/`BOT_IPC_SECRET`) or reads shared PostgreSQL state. If the bot process is down, IPC calls fail and routes fall back to DB-cached/offline data (or a 503) rather than crashing. Don't reintroduce a shared in-process `Client` reference between the two — they are meant to be deployable and restartable independently.

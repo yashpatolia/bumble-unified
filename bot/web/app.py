@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -6,17 +5,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from db import manager
 from web.auth import (
-    create_token,
+    complete_login,
     discord_oauth_url,
     exchange_code,
     require_auth,
 )
-from web.routes import bots, dyes, users
+from web.routes import api_usage, bot_control, dyes, guild_data, links, stats_refresh, users
 
 FRONTEND_DIST = Path(__file__).parent.parent.parent / "frontend" / "dist"
-_ADMIN_ID = int(os.getenv("PANEL_ADMIN_DISCORD_ID", "0"))
 
 
 def create_app() -> FastAPI:
@@ -30,7 +27,11 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.include_router(bots.router)
+    app.include_router(bot_control.router)
+    app.include_router(guild_data.router)
+    app.include_router(links.router)
+    app.include_router(stats_refresh.router)
+    app.include_router(api_usage.router)
     app.include_router(users.router)
     app.include_router(dyes.router)
 
@@ -49,29 +50,7 @@ def create_app() -> FastAPI:
         except HTTPException:
             return RedirectResponse("/?error=oauth_failed")
 
-        discord_id = int(user["id"])
-        discord_name = user.get("username", "Unknown")
-        avatar_hash = user.get("avatar")
-        if avatar_hash:
-            avatar_url = f"https://cdn.discordapp.com/avatars/{discord_id}/{avatar_hash}.png?size=64"
-        else:
-            avatar_url = f"https://cdn.discordapp.com/embed/avatars/{(discord_id >> 22) % 6}.png"
-
-        if discord_id == _ADMIN_ID and not manager.get_panel_user(discord_id):
-            manager.create_panel_user(discord_id, discord_name, is_admin=True)
-
-        panel_user = manager.get_panel_user(discord_id)
-        if panel_user:
-            manager.upsert_panel_user_name(discord_id, discord_name)
-            manager.update_user_avatar(discord_id, avatar_url)
-
-        is_admin = bool(panel_user[2]) if panel_user else False
-        can_control_bots = bool(panel_user[3]) if panel_user else False
-        can_fetch_api = bool(panel_user[4]) if panel_user and len(panel_user) > 4 else False
-        can_manage_links = bool(panel_user[5]) if panel_user and len(panel_user) > 5 else False
-        token = create_token(discord_id, discord_name, is_admin, can_control_bots, avatar_url,
-                             is_owner=(discord_id == _ADMIN_ID), can_fetch_api=can_fetch_api,
-                             can_manage_links=can_manage_links)
+        token = complete_login(user)
         return RedirectResponse(f"/?token={token}")
 
     # --- Current user ---

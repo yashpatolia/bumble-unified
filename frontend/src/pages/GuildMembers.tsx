@@ -2,6 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../App'
+import { DiscordIdentityCell, PlayerIdentityCell } from '../components/IdentityCell'
+import { Modal } from '../components/Modal'
+import { formatRelativeTime } from '../lib/time'
+import { isValidDiscordId } from '../lib/validators'
 import type { GuildMember } from '../types'
 
 const CACHE_TTL = 5 * 60 * 1000
@@ -32,29 +36,13 @@ type SortDir = 'asc' | 'desc'
 
 function formatLastLogin(ts: number | null): string {
   if (!ts) return 'N/A'
-  const diff = Date.now() - ts
-  const mins = Math.floor(diff / 60000)
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(diff / 3600000)
-  if (hrs < 24) return `${hrs}h ago`
-  const days = Math.floor(diff / 86400000)
-  if (days < 30) return `${days}d ago`
-  const months = Math.floor(days / 30)
-  if (months < 12) return `${months}mo ago`
-  return `${Math.floor(months / 12)}y ago`
+  return formatRelativeTime(Date.now() - ts, { maxTier: 'years' })
 }
 
 function formatFetchedAt(ts: number | null): string {
   if (!ts) return '—'
   // stats_fetched_at is a Unix seconds timestamp
-  const diff = Date.now() - ts * 1000
-  const mins = Math.floor(diff / 60000)
-  if (mins < 2) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(diff / 3600000)
-  if (hrs < 24) return `${hrs}h ago`
-  const days = Math.floor(diff / 86400000)
-  return `${days}d ago`
+  return formatRelativeTime(Date.now() - ts * 1000, { justNowUnderMins: 2 })
 }
 
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
@@ -185,7 +173,7 @@ export default function GuildMembers() {
 
   const saveLink = async () => {
     if (!key || !linkTarget) return
-    if (!/^\d{17,20}$/.test(linkForm.discord_id.trim())) {
+    if (!isValidDiscordId(linkForm.discord_id.trim())) {
       setLinkError('Invalid Discord ID (must be 17–20 digits)')
       return
     }
@@ -307,57 +295,38 @@ export default function GuildMembers() {
                 {sorted.map((m, i) => (
                   <tr key={i}>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: -4 }}>
-                        {m.uuid
-                          ? <img className="hex-avatar" src={`https://mc-heads.net/avatar/${m.uuid}/32`} alt="" style={{ width: 32, height: 32 }} />
-                          : <div className="hex-avatar" style={{ width: 32, height: 32 }} />
-                        }
-                        <div>
-                          <div style={{ fontWeight: 500 }}>
-                            {m.ign}
-                            {(() => {
-                              const w = getWarnLevel(m, bottomIgns)
-                              if (!w) return null
-                              const s = WARN_STYLES[w]
-                              return (
-                                <span className="badge" style={{ marginLeft: 6, background: s.background, color: s.color, border: s.border }}>
-                                  {s.label}
-                                </span>
-                              )
-                            })()}
-                          </div>
-                          {m.uuid && <div className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{m.uuid}</div>}
-                        </div>
-                      </div>
+                      <PlayerIdentityCell
+                        uuid={m.uuid}
+                        ign={m.ign}
+                        badge={(() => {
+                          const w = getWarnLevel(m, bottomIgns)
+                          if (!w) return null
+                          const s = WARN_STYLES[w]
+                          return (
+                            <span className="badge" style={{ marginLeft: 6, background: s.background, color: s.color, border: s.border }}>
+                              {s.label}
+                            </span>
+                          )
+                        })()}
+                      />
                     </td>
                     <td>
-                      {m.discord_name ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: -4 }}>
-                          {m.discord_avatar
-                            ? <img src={m.discord_avatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0 }} />
-                            : <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--surface3)', flexShrink: 0 }} />
-                          }
-                          <div>
-                          <div style={{ fontWeight: 500 }}>{m.discord_name}</div>
-                          {m.discord_id && <div className="mono" style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{m.discord_id}</div>}
-                          {canManageLinks && (
-                            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-                              <button className="btn btn-ghost" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => openLink(m)}>Edit</button>
-                              <button className="btn btn-danger" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => doUnlink(m)}>Unlink</button>
-                            </div>
-                          )}
+                      <DiscordIdentityCell
+                        name={m.discord_name}
+                        avatar={m.discord_avatar}
+                        id={m.discord_id}
+                        actions={canManageLinks && (
+                          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                            <button className="btn btn-ghost" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => openLink(m)}>Edit</button>
+                            <button className="btn btn-danger" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => doUnlink(m)}>Unlink</button>
                           </div>
-                        </div>
-                      ) : (
-                        <div>
-                          <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>—</span>
-                          {canManageLinks && (
-                            <div style={{ marginTop: 4 }}>
-                              <button className="btn btn-ghost" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => openLink(m)}>Link</button>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                        )}
+                        emptyActions={canManageLinks && (
+                          <div style={{ marginTop: 4 }}>
+                            <button className="btn btn-ghost" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => openLink(m)}>Link</button>
+                          </div>
+                        )}
+                      />
                     </td>
                     <td className="text-muted">{m.rank}</td>
                     <td className="text-muted">{m.skyblock_level != null ? m.skyblock_level.toFixed(1) : 'N/A'}</td>
@@ -378,38 +347,36 @@ export default function GuildMembers() {
       </div>
 
       {linkTarget && (
-        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setLinkTarget(null) }}>
-          <div className="modal">
-            <div className="modal-title">
-              {linkTarget.discord_name ? `Edit Link — ${linkTarget.ign}` : `Link Discord — ${linkTarget.ign}`}
-            </div>
-            {linkError && <p style={{ color: 'var(--red)', marginBottom: 12, fontSize: 13 }}>{linkError}</p>}
-            <div className="form-group">
-              <label className="form-label">Discord User ID</label>
-              <input
-                className="form-input"
-                placeholder="123456789012345678"
-                value={linkForm.discord_id}
-                onChange={e => setLinkForm(f => ({ ...f, discord_id: e.target.value }))}
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Discord Username</label>
-              <input
-                className="form-input"
-                placeholder="their_username"
-                value={linkForm.discord_name}
-                onChange={e => setLinkForm(f => ({ ...f, discord_name: e.target.value }))}
-              />
-            </div>
-            <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={() => setLinkTarget(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={saveLink} disabled={linkSaving}>
-                {linkSaving ? 'Saving...' : 'Save'}
-              </button>
-            </div>
+        <Modal
+          title={linkTarget.discord_name ? `Edit Link — ${linkTarget.ign}` : `Link Discord — ${linkTarget.ign}`}
+          onClose={() => setLinkTarget(null)}
+          error={linkError}
+          actions={<>
+            <button className="btn btn-ghost" onClick={() => setLinkTarget(null)}>Cancel</button>
+            <button className="btn btn-primary" onClick={saveLink} disabled={linkSaving}>
+              {linkSaving ? 'Saving...' : 'Save'}
+            </button>
+          </>}
+        >
+          <div className="form-group">
+            <label className="form-label">Discord User ID</label>
+            <input
+              className="form-input"
+              placeholder="123456789012345678"
+              value={linkForm.discord_id}
+              onChange={e => setLinkForm(f => ({ ...f, discord_id: e.target.value }))}
+            />
           </div>
-        </div>
+          <div className="form-group">
+            <label className="form-label">Discord Username</label>
+            <input
+              className="form-input"
+              placeholder="their_username"
+              value={linkForm.discord_name}
+              onChange={e => setLinkForm(f => ({ ...f, discord_name: e.target.value }))}
+            />
+          </div>
+        </Modal>
       )}
     </div>
   )

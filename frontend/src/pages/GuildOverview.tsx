@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../App'
+import { usePolling } from '../hooks/usePolling'
 import type { GuildOverview } from '../types'
 
 type BotAction = 'restart' | 'stop' | 'start' | null
@@ -18,17 +19,10 @@ export default function GuildOverviewPage() {
 
   const fetchOverview = () => {
     if (!key) return
-    api.guildOverview(key).then(setData)
+    api.guildOverview(key).then(setData).finally(() => setLoading(false))
   }
 
-  useEffect(() => {
-    if (!key) return
-    api.guildOverview(key)
-      .then(setData)
-      .finally(() => setLoading(false))
-    const id = setInterval(fetchOverview, 15_000)
-    return () => clearInterval(id)
-  }, [key])
+  usePolling(fetchOverview, 15_000, [key])
 
   const act = async (action: 'restart' | 'stop' | 'start') => {
     if (!key) return

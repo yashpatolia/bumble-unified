@@ -5,6 +5,7 @@ from .get_username import get_username
 from .get_uuid import get_uuid
 from .guild_list import parse_guild_list, parse_online_igns
 from .rankup import guild_rank_change
+from .relay import relay_to_other_guilds
 
 __all__ = [
     "condense",
@@ -16,4 +17,5 @@ __all__ = [
     "guild_rank_change",
     "parse_guild_list",
     "parse_online_igns",
+    "relay_to_other_guilds",
 ]

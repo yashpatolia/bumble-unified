@@ -9,6 +9,7 @@ from discord.ext import commands
 from javascript import On
 from config import GuildConfig
 from db import manager
+from lib import relay_to_other_guilds
 from utils.command_handler import bridge_commands
 from utils.roll_dye import roll_dye
 
@@ -93,9 +94,7 @@ class GuildBridge(commands.Cog):
 
                 # Relay to all other guild bots
                 relay_state = "/oc" if chat_type == "Officer" else "/gc"
-                for key, other_state in self.client.guilds_state.items():
-                    if key != config.key and other_state.bot:
-                        other_state.bot.chat(f"{relay_state} [{config.short_name}] {sender}: {msg_text}")
+                relay_to_other_guilds(self.client, config, f"{relay_state} [{config.short_name}] {sender}: {msg_text}")
 
                 if msg_text.startswith("."):
                     run_coroutine_threadsafe(
