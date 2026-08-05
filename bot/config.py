@@ -8,10 +8,6 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 API_KEY = os.getenv("HYPIXEL_API_KEY")
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-
-# In-game .q command — the only IGN allowed to run it
-WIKI_QA_ALLOWED_IGN = "seazyns"
 
 # Web panel
 PANEL_PORT = int(os.getenv("PANEL_PORT", "8080"))

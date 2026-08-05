@@ -16,22 +16,6 @@ class HypixelAPIError(Exception):
     """Raised when the Hypixel API rejects or fails a request (e.g. bad key, API down)."""
 
 
-def _prune_large_blobs(value):
-    """Strip base64-encoded gzip NBT item data (inventory/backpack/wardrobe/vault contents,
-    always stored under a "data" key) from a profile member object -- keeps every other
-    field so callers can dig for a stat with no dedicated Player property yet.
-    """
-    if isinstance(value, dict):
-        return {
-            k: _prune_large_blobs(v)
-            for k, v in value.items()
-            if not (k == "data" and isinstance(v, str) and len(v) > 200)
-        }
-    if isinstance(value, list):
-        return [_prune_large_blobs(v) for v in value[:50]]
-    return value
-
-
 class Player:
     def __init__(self, uuid: str = None, username: str = None):
         self.__uuid = uuid or get_uuid(username=username)
@@ -132,33 +116,4 @@ class Player:
     @property
     def magical_power(self) -> MagicalPower:
         return self._magical_power
-
-    @property
-    def raw_skill_experience(self) -> dict:
-        """Best-effort dump of every skill-XP-looking field on the profile.
-
-        This codebase doesn't maintain a skill level table (mining/foraging/farming/etc.),
-        so unlike level/catacombs/slayers this returns raw XP rather than a computed level.
-        Callers that need an actual level should pair this with the skill's wiki page, which
-        documents the XP-per-level breakpoints.
-        """
-        skills = {
-            k: v for k, v in self.__member_data.items()
-            if "skill" in k.lower() and isinstance(v, (int, float))
-        }
-        experience = deep_get(self.__member_data, ["player_data", "experience"], default={})
-        if isinstance(experience, dict):
-            skills.update({k: v for k, v in experience.items() if isinstance(v, (int, float))})
-        return skills
-
-    @property
-    def raw_member_data(self) -> dict:
-        """Full profile member object for the selected profile, minus large binary item blobs.
-
-        Fallback for stats that don't have a dedicated Player property (Magic Find, pet luck,
-        individual accessory bonuses, etc.) -- used by lib/wiki_qa.py's get_player_raw_data
-        tool so Claude can search the real Hypixel response instead of being limited to
-        whatever this class happens to expose already.
-        """
-        return _prune_large_blobs(self.__member_data)
 
