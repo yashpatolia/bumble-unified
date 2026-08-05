@@ -10,6 +10,7 @@ from db import manager
 from lib.get_uuid import get_uuid
 from lib.hypixel import fetch_member_stats
 from lib.rankup import guild_rank_change
+from lib.relay import relay_to_other_guilds
 from player import skyblock
 
 
@@ -132,9 +133,7 @@ class GuildMessageHandler(commands.Cog):
                 self.client.officer.send(embed=embed)
                 self.client.bridge.send(embed=embed)
                 logs.send(embed=embed)
-                for key, other_state in self.client.guilds_state.items():
-                    if key != config.key and other_state.bot:
-                        other_state.bot.chat(f"/gc [{config.short_name}] {message}")
+                relay_to_other_guilds(self.client, config, f"/gc [{config.short_name}] {message}")
                 m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+joined the guild", message, re.IGNORECASE)
                 if m:
                     ign = m.group(1)
