@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { api } from '../api'
+import { DiscordIdentityCell, PlayerIdentityCell } from '../components/IdentityCell'
 
 type Period = 'lifetime' | 'month' | 'week'
 
@@ -72,40 +73,10 @@ export default function GuildLeaderboard() {
                       {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
                     </td>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: -4 }}>
-                        {entry.uuid
-                          ? <img className="hex-avatar" src={`https://mc-heads.net/avatar/${entry.uuid}/32`} alt="" style={{ width: 32, height: 32 }} />
-                          : <div className="hex-avatar" style={{ width: 32, height: 32 }} />
-                        }
-                        <div>
-                          <span style={{ fontWeight: 500 }}>{entry.ign}</span>
-                          {entry.uuid && (
-                            <div className="mono" style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: 1 }}>
-                              {entry.uuid}
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                      <PlayerIdentityCell uuid={entry.uuid} ign={entry.ign} />
                     </td>
                     <td>
-                      {entry.discord_name ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: -4 }}>
-                          {entry.discord_avatar
-                            ? <img src={entry.discord_avatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0 }} />
-                            : <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--surface3)', flexShrink: 0 }} />
-                          }
-                          <div>
-                            <span style={{ fontWeight: 500 }}>{entry.discord_name}</span>
-                            {entry.discord_id && (
-                              <div className="mono" style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: 1 }}>
-                                {entry.discord_id}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>—</span>
-                      )}
+                      <DiscordIdentityCell name={entry.discord_name} avatar={entry.discord_avatar} id={entry.discord_id} />
                     </td>
                     <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--text-secondary)' }}>
                       {entry.count.toLocaleString()}

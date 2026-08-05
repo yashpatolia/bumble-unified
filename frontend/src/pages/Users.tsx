@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
 import { useAuth } from '../App'
+import { Modal } from '../components/Modal'
+import { isValidDiscordId } from '../lib/validators'
 import type { PanelUser } from '../types'
 
 interface FormState {
@@ -52,7 +54,7 @@ export default function Users() {
       if (editTarget) {
         await api.updateUser(editTarget.discord_id, { can_control_bots: form.can_control_bots, can_fetch_api: form.can_fetch_api, can_manage_links: form.can_manage_links })
       } else {
-        if (!/^\d{17,20}$/.test(form.discord_id.trim())) { setError('Invalid Discord ID'); return }
+        if (!isValidDiscordId(form.discord_id.trim())) { setError('Invalid Discord ID'); return }
         await api.createUser({ discord_id: form.discord_id.trim(), discord_name: form.discord_name.trim() || 'Unknown', is_admin: false, can_control_bots: form.can_control_bots, can_fetch_api: form.can_fetch_api, can_manage_links: form.can_manage_links })
       }
       setShowModal(false)
@@ -130,73 +132,71 @@ export default function Users() {
       </div>
 
       {showModal && (
-        <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setShowModal(false) }}>
-          <div className="modal">
-            <div className="modal-title">{editTarget ? 'Edit User' : 'Add User'}</div>
-            {error && <p style={{ color: 'var(--red)', marginBottom: 12, fontSize: 13 }}>{error}</p>}
+        <Modal
+          title={editTarget ? 'Edit User' : 'Add User'}
+          onClose={() => setShowModal(false)}
+          error={error}
+          actions={<>
+            <button className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancel</button>
+            <button className="btn btn-primary" onClick={save} disabled={saving}>
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          </>}
+        >
+          {!editTarget && (
+            <>
+              <div className="form-group">
+                <label className="form-label">Discord User ID</label>
+                <input
+                  className="form-input"
+                  placeholder="123456789012345678"
+                  value={form.discord_id}
+                  onChange={e => setForm(f => ({ ...f, discord_id: e.target.value }))}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Display Name</label>
+                <input
+                  className="form-input"
+                  placeholder="Their Discord username"
+                  value={form.discord_name}
+                  onChange={e => setForm(f => ({ ...f, discord_name: e.target.value }))}
+                />
+              </div>
+            </>
+          )}
 
-            {!editTarget && (
-              <>
-                <div className="form-group">
-                  <label className="form-label">Discord User ID</label>
-                  <input
-                    className="form-input"
-                    placeholder="123456789012345678"
-                    value={form.discord_id}
-                    onChange={e => setForm(f => ({ ...f, discord_id: e.target.value }))}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Display Name</label>
-                  <input
-                    className="form-input"
-                    placeholder="Their Discord username"
-                    value={form.discord_name}
-                    onChange={e => setForm(f => ({ ...f, discord_name: e.target.value }))}
-                  />
-                </div>
-              </>
-            )}
-
-            <div className="form-group">
-              <label className="form-label">Permissions</label>
-              <div className="toggle-row">
-                <label htmlFor="perm-bots">Control Bots (start/stop/restart)</label>
-                <input
-                  id="perm-bots"
-                  type="checkbox"
-                  checked={form.can_control_bots}
-                  onChange={e => setForm(f => ({ ...f, can_control_bots: e.target.checked }))}
-                />
-              </div>
-              <div className="toggle-row">
-                <label htmlFor="perm-fetch">API Fetching (Skyblock stats)</label>
-                <input
-                  id="perm-fetch"
-                  type="checkbox"
-                  checked={form.can_fetch_api}
-                  onChange={e => setForm(f => ({ ...f, can_fetch_api: e.target.checked }))}
-                />
-              </div>
-              <div className="toggle-row">
-                <label htmlFor="perm-links">Manage Links (link/unlink members)</label>
-                <input
-                  id="perm-links"
-                  type="checkbox"
-                  checked={form.can_manage_links}
-                  onChange={e => setForm(f => ({ ...f, can_manage_links: e.target.checked }))}
-                />
-              </div>
+          <div className="form-group">
+            <label className="form-label">Permissions</label>
+            <div className="toggle-row">
+              <label htmlFor="perm-bots">Control Bots (start/stop/restart)</label>
+              <input
+                id="perm-bots"
+                type="checkbox"
+                checked={form.can_control_bots}
+                onChange={e => setForm(f => ({ ...f, can_control_bots: e.target.checked }))}
+              />
             </div>
-
-            <div className="modal-actions">
-              <button className="btn btn-ghost" onClick={() => setShowModal(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={save} disabled={saving}>
-                {saving ? 'Saving...' : 'Save'}
-              </button>
+            <div className="toggle-row">
+              <label htmlFor="perm-fetch">API Fetching (Skyblock stats)</label>
+              <input
+                id="perm-fetch"
+                type="checkbox"
+                checked={form.can_fetch_api}
+                onChange={e => setForm(f => ({ ...f, can_fetch_api: e.target.checked }))}
+              />
+            </div>
+            <div className="toggle-row">
+              <label htmlFor="perm-links">Manage Links (link/unlink members)</label>
+              <input
+                id="perm-links"
+                type="checkbox"
+                checked={form.can_manage_links}
+                onChange={e => setForm(f => ({ ...f, can_manage_links: e.target.checked }))}
+              />
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   )

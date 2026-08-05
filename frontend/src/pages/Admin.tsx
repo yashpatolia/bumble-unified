@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../App'
+import { usePolling } from '../hooks/usePolling'
 import type { ApiUsageStats } from '../types'
 
 function UsageBar({ value, max, color }: { value: number; max: number; color: string }) {
@@ -23,14 +24,9 @@ function ApiUsagePanel() {
   const [usage, setUsage] = useState<ApiUsageStats | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
 
-  const load = () =>
+  usePolling(() => {
     api.apiUsage().then(u => { setUsage(u); setLastRefreshed(new Date()) }).catch(() => {})
-
-  useEffect(() => {
-    load()
-    const id = setInterval(load, 30_000)
-    return () => clearInterval(id)
-  }, [])
+  }, 30_000)
 
   if (!usage) return <p className="text-muted" style={{ fontSize: 13 }}>Loading...</p>
 

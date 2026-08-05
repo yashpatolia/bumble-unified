@@ -261,6 +261,15 @@ bumble-unified/
 ### `frontend/src/components/AppShell.tsx`
 - The persistent app chrome for every authenticated page: a fixed left sidebar (wordmark, Home link, both guilds' Overview/Members/Leaderboard sub-nav with a live connected/offline dot per guild polled from `api.bots()`, Dyes, and Admin/Users gated by `is_owner`/`is_admin`) plus a user chip with logout, and a `<main>` that renders the active page via `<Outlet/>`. Individual pages no longer render their own header — this replaced four separate hand-rolled headers (`Home.tsx`, the old `GuildLayout.tsx`, `Admin.tsx`, `Users.tsx`) that had drifted out of sync with each other.
 
+### `frontend/src/components/IdentityCell.tsx` + `Modal.tsx`
+- `PlayerIdentityCell` (Minecraft avatar + IGN, optional badge) and `DiscordIdentityCell` (Discord avatar + name, optional id/actions, em-dash placeholder when unlinked) — the two identity-cell shapes repeated in every member/leaderboard table. Used by `GuildMembers.tsx` and `GuildLeaderboard.tsx`.
+- `Modal` — the overlay+card+title+actions shell shared by every "form in a modal" flow (closes on backdrop click). Used by `GuildMembers.tsx`'s link/unlink modal and `Users.tsx`'s create/edit modal.
+
+### `frontend/src/hooks/usePolling.ts` + `frontend/src/lib/`
+- `usePolling(callback, intervalMs, deps)` — runs `callback` immediately then every `intervalMs` until unmount or a `deps` change restarts it. Used by `AppShell.tsx` (bot status, 15s), `GuildOverview.tsx` (overview, 15s), and `Admin.tsx`'s `ApiUsagePanel` (API usage, 30s). `GuildMembers.tsx`'s stats-refresh progress poll is a different shape (polls until a "done" flag rather than forever) and stays a local `setInterval` in that file.
+- `lib/time.ts::formatRelativeTime(diffMs, opts)` — the "Xm/Xh/Xd ago" formatter shared by `GuildMembers.tsx` (`formatLastLogin`/`formatFetchedAt`) and `Dyes.tsx` (`timeAgo`); each caller passes options (`justNowUnderMins`, `maxTier`) to reproduce its own exact tier cutoffs rather than the three near-duplicate implementations there used to be.
+- `lib/validators.ts::isValidDiscordId()` — the `/^\d{17,20}$/` check duplicated between `GuildMembers.tsx`'s link modal and `Users.tsx`'s create-user form.
+
 ### `frontend/src/pages/*.tsx`
 - `Login.tsx` — Discord OAuth2 login screen.
 - `Home.tsx` — landing content after login (guild picker), chrome-free — just the page body, rendered inside `AppShell`.

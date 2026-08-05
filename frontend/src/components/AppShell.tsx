@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../App'
+import { usePolling } from '../hooks/usePolling'
 import type { GuildStatus } from '../types'
 
 const GUILDS: { key: string; name: string }[] = [
@@ -17,12 +18,7 @@ export default function AppShell() {
   const navigate = useNavigate()
   const [bots, setBots] = useState<Record<string, GuildStatus>>({})
 
-  useEffect(() => {
-    const load = () => api.bots().then(setBots).catch(() => {})
-    load()
-    const id = setInterval(load, 15_000)
-    return () => clearInterval(id)
-  }, [])
+  usePolling(() => { api.bots().then(setBots).catch(() => {}) }, 15_000)
 
   const handleLogout = () => { logout(); navigate('/login') }
 
