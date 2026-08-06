@@ -2,7 +2,6 @@ import asyncio
 import logging
 
 import aiohttp
-import discord
 from discord.ext import commands, tasks
 
 from db import manager
@@ -81,11 +80,10 @@ class MemberRefreshTask(commands.Cog):
                     reverse_rank_map = {v: k for k, v in config.discord_rank_map.items()}
                     new_hypixel_rank = reverse_rank_map.get(required_bot_ranks[-1], current_rank)
                     manager.upsert_guild_member(guild_key, ign, new_hypixel_rank)
-                embed = discord.Embed(
-                    colour=discord.Colour.teal(),
-                    description=f"[{config.short_name}] **{ign}** (Level {level:.1f}): {result}",
-                )
-                state.logs.send(embed=embed)
+                # Note: no separate logs embed here — the /g promote|demote command
+                # triggers a real Hypixel guild-chat system message ("X was promoted
+                # from Y to Z"), which message_handler.py already forwards to logs.
+                # Sending our own embed too would just duplicate that line.
 
         except Exception as e:
             logging.warning(f"[refresh] Failed for {guild_key}/{ign}: {e}")

@@ -42,11 +42,10 @@ async def _auto_fetch_and_rank(client, config: GuildConfig, ign: str) -> None:
         )
         if result:
             logging.info(f"[{config.short_name}] Auto-rank {ign}: {result}")
-            embed = discord.Embed(
-                colour=discord.Colour.teal(),
-                description=f"[{config.short_name}] Auto-ranked **{ign}** (Level {level:.1f}): {result}",
-            )
-            state.logs.send(embed=embed)
+            # No separate logs embed here — if a promote/demote actually happened,
+            # the /g promote|demote command triggers a real Hypixel guild-chat system
+            # message ("X was promoted from Y to Z") which this same listener already
+            # forwards to logs above; posting our own embed too would duplicate it.
     except Exception as e:
         logging.error(f"[{config.short_name}] Auto-fetch failed for {ign}: {e}")
 
