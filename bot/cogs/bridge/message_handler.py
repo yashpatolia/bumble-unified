@@ -68,12 +68,14 @@ class GuildMessageHandler(commands.Cog):
 
             logging.debug(f"[MC/{config.short_name}] {message}")
 
-            # Accumulate /guild list output
-            if "Online Members:" in message and state.save_guild_list:
-                state.guild_list.append(message)
-                state.save_guild_list = False
+            # Accumulate /guild list output. The response ends with a plain
+            # dash-only footer line (after "Total/Online/Offline Members:");
+            # stop right after capturing it so unrelated chat/join messages
+            # that happen to arrive next don't get swept into the buffer.
             if state.save_guild_list:
                 state.guild_list.append(message)
+                if re.fullmatch(r"-{5,}", message.strip()):
+                    state.save_guild_list = False
             if f"Guild Name: {config.guild_name}" in message:
                 state.save_guild_list = True
 

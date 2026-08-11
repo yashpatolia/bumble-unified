@@ -39,6 +39,10 @@ class GuildState:
     save_guild_list: bool = False
     guild_online: list = field(default_factory=list)
     save_guild_online: bool = False
+    # Serializes access to the guild_list/guild_online buffers above so a
+    # Discord /guild list|online command and the web panel's IPC member sync
+    # can't interleave and bleed unrelated chat into each other's response.
+    list_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     guild_invite: Optional[str] = None
     logs: Optional[SyncWebhook] = None
     manual_stop: bool = False
