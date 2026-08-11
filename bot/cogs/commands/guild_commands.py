@@ -49,7 +49,9 @@ def _guild_list_embed(display_name: str, lines: list[str]) -> discord.Embed:
     members = parse_guild_list(lines)
     ranks: dict[str, list[str]] = {}
     for m in members:
-        ranks.setdefault(m["rank"] or "Member", []).append(m["ign"])
+        # IGNs commonly contain "_", which Discord markdown reads as italics
+        # (e.g. "walter_qt" renders as "walter" + italic "qt") — escape it.
+        ranks.setdefault(m["rank"] or "Member", []).append(discord.utils.escape_markdown(m["ign"]))
 
     embed = discord.Embed(title=f"{display_name} — Guild List", colour=discord.Colour.teal())
     if not ranks:
@@ -72,7 +74,7 @@ def _guild_online_embed(display_name: str, lines: list[str]) -> discord.Embed:
     if not igns:
         embed.description = "No members online."
         return embed
-    _add_chunked_field(embed, "Members", igns)
+    _add_chunked_field(embed, "Members", [discord.utils.escape_markdown(ign) for ign in igns])
     return embed
 
 
