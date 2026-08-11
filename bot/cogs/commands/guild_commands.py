@@ -16,17 +16,64 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from config import BK_STAFF_ROLE, BU_STAFF_ROLE
+from lib.guild_list import parse_guild_list, parse_online_igns
 
-_FOOTER_RE = re.compile(r"-{5,}")
+_TOTAL_RE = re.compile(r"Total Members:\s*(\d+)")
+_ONLINE_COUNT_RE = re.compile(r"Online Members:\s*(\d+)")
 
 
-def _guild_list_embed(display_name: str, mc_command: str, lines: list[str]) -> discord.Embed:
-    # Drop blank lines and the raw dash-only footer the game appends —
-    # Discord's code block already visually separates the content.
-    cleaned = [line.strip() for line in lines if line.strip() and not _FOOTER_RE.fullmatch(line.strip())]
-    text = "\n".join(cleaned) or "No response received."
-    title = f"{display_name} — {'Online Members' if mc_command == '/guild online' else 'Guild List'}"
-    return discord.Embed(title=title, colour=discord.Colour.teal(), description=f"```{text}```")
+def _chunk_names(names: list[str], limit: int = 1000) -> list[str]:
+    """Join names with ', ', splitting into multiple chunks under Discord's 1024-char field limit."""
+    chunks, current, current_len = [], [], 0
+    for name in names:
+        added = len(name) + (2 if current else 0)
+        if current and current_len + added > limit:
+            chunks.append(", ".join(current))
+            current, current_len = [], 0
+            added = len(name)
+        current.append(name)
+        current_len += added
+    if current:
+        chunks.append(", ".join(current))
+    return chunks or ["—"]
+
+
+def _add_chunked_field(embed: discord.Embed, label: str, names: list[str]) -> None:
+    chunks = _chunk_names(names)
+    for i, chunk in enumerate(chunks):
+        name = f"{label} ({len(names)})" if i == 0 else f"{label} (cont.)"
+        embed.add_field(name=name, value=chunk, inline=False)
+
+
+def _guild_list_embed(display_name: str, lines: list[str]) -> discord.Embed:
+    members = parse_guild_list(lines)
+    ranks: dict[str, list[str]] = {}
+    for m in members:
+        ranks.setdefault(m["rank"] or "Member", []).append(m["ign"])
+
+    embed = discord.Embed(title=f"{display_name} — Guild List", colour=discord.Colour.teal())
+    if not ranks:
+        embed.description = "No response received."
+        return embed
+
+    for rank, igns in ranks.items():
+        _add_chunked_field(embed, rank, igns)
+
+    total = next((m.group(1) for l in lines if (m := _TOTAL_RE.search(l))), str(len(members)))
+    online = next((m.group(1) for l in lines if (m := _ONLINE_COUNT_RE.search(l))), None)
+    footer = f"Total: {total}" + (f" • Online: {online}" if online else "")
+    embed.set_footer(text=footer)
+    return embed
+
+
+def _guild_online_embed(display_name: str, lines: list[str]) -> discord.Embed:
+    igns = sorted(parse_online_igns(lines), key=str.lower)
+    embed = discord.Embed(title=f"{display_name} — Online Members ({len(igns)})", colour=discord.Colour.green())
+    if not igns:
+        embed.description = "No members online."
+        return embed
+    _add_chunked_field(embed, "Members", igns)
+    return embed
 
 
 async def _do_list_or_online(interaction: discord.Interaction, display_name: str, state, mc_command: str) -> None:
@@ -53,7 +100,8 @@ async def _do_list_or_online(interaction: discord.Interaction, display_name: str
             lines = list(state.guild_list)
             state.guild_list.clear()
 
-    await interaction.edit_original_response(embed=_guild_list_embed(display_name, mc_command, lines))
+    embed = _guild_online_embed(display_name, lines) if is_online else _guild_list_embed(display_name, lines)
+    await interaction.edit_original_response(embed=embed)
 
 
 async def _do_mute(interaction: discord.Interaction, state, ign: str, time: str) -> None:
