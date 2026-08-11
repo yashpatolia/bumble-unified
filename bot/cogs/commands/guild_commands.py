@@ -24,10 +24,27 @@ def _guild_list_embed(lines: list[str]) -> discord.Embed:
 
 async def _do_list_or_online(interaction: discord.Interaction, state, mc_command: str) -> None:
     await interaction.response.defer()
+    is_online = mc_command == "/guild online"
+
+    if is_online:
+        state.guild_online.clear()
+        state.save_guild_online = True
+    else:
+        state.guild_list.clear()
+        state.save_guild_list = True
+
     state.bot.chat(mc_command)
-    await asyncio.sleep(0.75)
-    await interaction.edit_original_response(embed=_guild_list_embed(state.guild_list))
-    state.guild_list.clear()
+    await asyncio.sleep(1.5)
+
+    if is_online:
+        state.save_guild_online = False
+        lines = list(state.guild_online)
+        state.guild_online.clear()
+    else:
+        lines = list(state.guild_list)
+        state.guild_list.clear()
+
+    await interaction.edit_original_response(embed=_guild_list_embed(lines))
 
 
 async def _do_mute(interaction: discord.Interaction, state, ign: str, time: str) -> None:
