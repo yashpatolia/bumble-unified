@@ -17,6 +17,7 @@ Players can type commands in guild chat to query Hypixel Skyblock stats:
 |---------|-------------|
 | `.lvl <player>` | Skyblock level |
 | `.cata <player>` | Catacombs level, secrets, S/S+/R clears |
+| `.rtca <player> [floor]` | Dungeon runs left to reach class average 50 (default M7) |
 | `.nw <player>` | Net worth (via skyhelper-networth) |
 | `.slayer <player>` | Claimed slayer levels for all boss types |
 | `.mp <player>` | Magical power (decodes talisman bag NBT) |

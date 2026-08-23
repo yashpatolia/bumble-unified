@@ -4,6 +4,7 @@ from lib import get_uuid, get_username, deep_get, request
 from player.level import SkyblockLevel
 from player.networth import Networth
 from player.catacombs import Catacombs
+from player.class_average import ClassAverage
 from player.slayers import Slayers
 from player.magical_power import MagicalPower
 
@@ -39,6 +40,7 @@ class Player:
         # Cache subclasses — constructing on every property access re-runs all computation
         self._level = SkyblockLevel(self.__member_data, self.__all_member_data)
         self._catacombs = Catacombs(self.__member_data, self.__all_member_data)
+        self._class_average = ClassAverage(self.__member_data)
         self._slayers = Slayers(self.__member_data)
         self._magical_power = MagicalPower(self.__member_data)
 
@@ -98,6 +100,10 @@ class Player:
     @property
     def catacombs(self) -> Catacombs:
         return self._catacombs
+
+    @property
+    def class_average(self) -> ClassAverage:
+        return self._class_average
 
     @property
     def slayers(self) -> Slayers:

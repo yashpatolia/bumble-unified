@@ -69,7 +69,7 @@ bumble-unified/
     ├── web_main.py           # Web panel process entry point — runs migrations, serves FastAPI panel
     ├── bot_ipc.py            # create_ipc_app(client) — internal FastAPI app exposed only on localhost
     ├── config.py             # All configuration + GuildConfig dataclass + BK/BU instances
-    ├── constants.py          # Static lookup tables: dungeon XP, MP values, dye IDs/roles/emojis
+    ├── constants.py          # Static lookup tables: dungeon XP, dungeon floor XP + class boosts, MP values, dye IDs/roles/emojis
     ├── requirements.txt      # Python dependencies
     ├── package.json          # Node.js dependencies (Mineflayer, skyhelper-networth)
     │
@@ -95,7 +95,7 @@ bumble-unified/
     │   ├── get_username.py   # UUID → IGN, with DB cache
     │   ├── get_uuid.py       # IGN → UUID, with DB cache
     │   ├── guild_list.py     # parse_guild_list() / parse_online_igns() — parses raw /guild list & /guild online text
-    │   ├── hypixel.py        # fetch_member_stats() / fetch_key_info() — Hypixel player+key lookups, records api_calls
+    │   ├── hypixel.py        # fetch_member_stats() / fetch_mayor_multiplier() / fetch_key_info() — Hypixel player+key lookups, records api_calls
     │   └── rankup.py         # guild_rank_change() — promotes/demotes a player in-game
     │
     ├── player/               # Hypixel Skyblock player data classes
@@ -103,6 +103,7 @@ bumble-unified/
     │   ├── skyblock.py       # Player — top-level class, fetches all profiles
     │   ├── level.py          # SkyblockLevel — current and highest level across profiles
     │   ├── catacombs.py      # Catacombs — level, secrets, S/R, PB times
+    │   ├── class_average.py  # ClassAverage — class XP, XP boosts, runs remaining to a class average
     │   ├── slayers.py        # Slayers — claimed levels for all 6 boss types
     │   ├── magical_power.py  # MagicalPower — decodes talisman bag NBT, calculates MP
     │   └── networth.py       # Networth — delegates to skyhelper-networth JS library
@@ -213,9 +214,15 @@ bumble-unified/
 - Waits 60s after `wait_until_ready()` before starting, so it doesn't compete with startup traffic.
 
 ### `utils/command_handler.py`
-- `bridge_commands(client, message, username, guild_rank, chat_state, config)` dispatches `.help`, `.lvl`, `.hlvl`, `.nw`, `.slayer`/`.slayers`, `.slayerxp <type>`, `.cata`, `.pb`, `.mp`, `.bank`, `.chim <looting> <mf>`, `.petscore`.
+- `bridge_commands(client, message, username, guild_rank, chat_state, config)` dispatches `.help`, `.lvl`, `.hlvl`, `.nw`, `.slayer`/`.slayers`, `.slayerxp <type>`, `.cata`, `.rtca`, `.pb`, `.mp`, `.bank`, `.chim <looting> <mf>`, `.petscore`.
 - Each handler is a private `async` function that returns `(display_name, response_text, raw_username)`. The dispatcher sends the response to all guild bots and the appropriate webhook.
 - There is no in-game `.ranks` command anymore — rank auto-updates happen continuously via `cogs/tasks/member_refresh.py` and immediately on join via `message_handler.py`'s `_auto_fetch_and_rank()`.
+
+### `player/class_average.py`
+- `ClassAverage` backs the `.rtca [username] [floor]` command (floor defaults to `m7`; the target is always class average 50). It reads `dungeons.player_classes.<class>.experience` — the only place in the codebase that touches class XP.
+- `runs_to_target()` reproduces the reference calculator (`adjectiven0un/adjectils` `dungeon.html`): each run, the class with the most XP remaining is the one being played and earns full XP while the other four earn a quarter each. Below `_SIMULATION_LIMIT` projected runs it replays that loop exactly; above it (low floors, where the answer runs to millions of runs) it switches to an equivalent analytic solve so the event loop isn't stalled. Both agree on the total.
+- XP boosts are read off the profile: Hecatomb from the NBT of every container in `_HECATOMB_CONTAINERS` (worn armor, equipment, wardrobe, inventory, ender chest — a player's dungeon boots are usually *not* what they have equipped when the profile is read, so scanning `inv_armor` alone reports 0 for people who own it), the Scarf accessory line from the talisman bag NBT, the per-class essence perks from `player_data.perks`, and Catacombs Graduate from `attributes.stacks.catacombs_graduate` (a shard count converted to a level via `ATTRIBUTE_LEVEL_THRESHOLDS`). The mayor multiplier comes from `lib/hypixel.py::fetch_mayor_multiplier()` (keyless `/v2/resources/skyblock/election`, cached 10 min). The reference's "global boost" dropdown has no API equivalent and is always 0.
+- **Missing container means maxed, not zero.** If a whole container is absent — usually because the player has their inventory API off — that boost is assumed to be at its cap. This is deliberate: the run count comes out optimistic rather than silently doubled. A container that is present but lacks the key means the player genuinely has 0.
 
 ### `cogs/commands/guild_commands.py`
 - Contains `BKGuild` and `BUGuild` as two `GroupCog` classes in one file. Shared helper `_guild_list_embed()` avoids duplication.
@@ -558,6 +565,11 @@ The JWT encodes `admin`/`bots`/`fetch_api`/`manage_links`/`owner` at the moment 
 
 ### Hypixel API budget is shared and tight
 The key is limited to 300 requests/5min. `cogs/tasks/member_refresh.py` reserves ~24 req/min for its continuous background cycle; the panel's manual "refresh stats" button (`web/routes/bots.py::_do_refresh_stats`) deliberately paces itself at 1 request/second to avoid starving both the background loop and live dot-commands. Any new bulk Hypixel-calling feature must budget against this same 300/5min ceiling — check `GET /api/bots/api-usage` before adding one.
+
+### `.rtca` shard rarity is inferred
+The boost paths in `player/class_average.py` are confirmed against a live profile: class perks are `player_data.perks.<perk>` (a plain level 0-5), and Catacombs Graduate is `attributes.stacks.catacombs_graduate`. That last one is a **shard count, not a level** — the level comes from `ATTRIBUTE_LEVEL_THRESHOLDS`, which differs per shard rarity, and `CATA_GRADUATE_SHARD_RARITY` is set to `epic` on the evidence of one maxed account sitting at exactly 32 shards. If the Scarf shard is actually another rarity, that constant is the only thing to change.
+
+Also note the top-level `shards` object is the shard *inventory* (`owned`, `fused`, sort settings) and carries no attribute progress — don't reach for it.
 
 ### NBT parsing monkey-patch
 `player/magical_power.py` monkey-patches `nbt.nbt.TAG_String._parse_buffer` to handle non-UTF-8 strings in talisman NBT data. This runs at import time. It is a workaround for malformed Minecraft item names and must not be removed.
