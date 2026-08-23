@@ -17,7 +17,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "mineflayer": "^4.33.0",
+    "mineflayer": "^4.37.1",
     "skyhelper-networth": "^2.8.0"
   },
   "type": "commonjs",
