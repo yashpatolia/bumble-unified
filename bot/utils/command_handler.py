@@ -32,6 +32,7 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
             ".sxp":         _slayer_xp,
             ".cata":        _catacombs,
             ".catacombs":   _catacombs,
+            ".rtc":         _runs_to_cata_level,
             ".rtca":        _runs_to_class_average,
             ".rtcaf":       _runs_to_class_average_skip,
             ".pb":          _catacombs_pb,
@@ -77,7 +78,7 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
 
 async def _help(username: str, parts: list, client):
     commands = " | ".join([
-        ".lvl", ".hlvl", ".nw", ".cata", ".rtca [floor]", ".rtcaf <1-4 letters>", ".slayer", ".slayerxp <type>", ".pb (f/m)(1-7)", ".mp", ".bank", ".chim <looting> <mf>", ".petscore"
+        ".lvl", ".hlvl", ".nw", ".cata", ".rtc [level]", ".rtca [floor]", ".rtcaf <1-4 letters>", ".slayer", ".slayerxp <type>", ".pb (f/m)(1-7)", ".mp", ".bank", ".chim <looting> <mf>", ".petscore"
     ])
     return username, commands, username
 
@@ -134,6 +135,38 @@ async def _catacombs(username: str, parts: list, client):
         f"Cata Level - {cata.level} | Secrets - {cata.secrets:,} | S/R - {cata.spr}",
         username,
     )
+
+
+_RTC_USAGE = "Usage: .rtc [username] [level 1-50] [floor], e.g. .rtc steve 40 m6"
+
+
+async def _runs_to_cata_level(username: str, parts: list, client):
+    args = [a for a in parts[1:] if a]
+    floor = "m7"
+    level = 50
+    for arg in args:
+        if arg in DUNGEON_FLOOR_XP:
+            floor = arg
+        elif arg.isdigit() and 1 <= int(arg) <= 50:
+            level = int(arg)
+        elif arg.isdigit():
+            return username, _RTC_USAGE, username
+        else:
+            username = arg
+
+    player = skyblock.Player(username=username)
+    mayor_multiplier = await fetch_mayor_multiplier()
+    total = player.catacombs.runs_to_level(
+        DUNGEON_FLOOR_XP[floor], target_level=level,
+        mayor_multiplier=mayor_multiplier, boost=player.class_average.shared_boost,
+    )
+
+    name = f"{player.username}{player.gamemode}"
+    if total == 0:
+        return name, f"Already Cata {level}", username
+
+    floor_name = floor.title() if floor == "entrance" else floor.upper()
+    return name, f"{total:,} {floor_name} runs to Cata {level}", username
 
 
 _RTCA_USAGE = "Usage: .rtca [username] [floor f1-f7/m1-m7], e.g. .rtca steve m6"

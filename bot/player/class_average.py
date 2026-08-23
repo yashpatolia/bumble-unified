@@ -81,9 +81,16 @@ class ClassAverage:
 
     def __get_boosts(self) -> dict[str, float]:
         """Additive XP boost per class, e.g. 0.4 meaning +40% class XP per run."""
-        shared = self.__hecatomb() * 2 + self.__scarf_accessory() + self.__cata_graduate()
+        self.__shared_boost = self.__hecatomb() * 2 + self.__scarf_accessory() + self.__cata_graduate()
         perks = self.__class_perks()
-        return {c: shared + perks[c] for c in DUNGEON_CLASSES}
+        return {c: self.__shared_boost + perks[c] for c in DUNGEON_CLASSES}
+
+    @property
+    def shared_boost(self) -> float:
+        """The non-class-specific portion of the boost stack (Hecatomb, Scarf, Catacombs
+        Graduate) - no per-class essence perk, since Catacombs level isn't one of the 5 classes.
+        Used by .rtc to project Catacombs-level XP per run with the same boost machinery."""
+        return self.__shared_boost
 
     def __decode_items(self, path: list) -> list | None:
         raw = deep_get(self.__member_data, path, default=None)
