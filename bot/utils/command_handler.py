@@ -1,5 +1,5 @@
 import logging
-from constants import DUNGEON_CLASS_DISPLAY, DUNGEON_CLASSES, DUNGEON_FLOOR_XP
+from constants import DUNGEON_CLASS_DISPLAY, DUNGEON_CLASS_LETTERS, DUNGEON_CLASSES, DUNGEON_FLOOR_XP
 from lib import condense
 from lib.hypixel import fetch_mayor_multiplier
 from player import skyblock
@@ -33,6 +33,7 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
             ".cata":        _catacombs,
             ".catacombs":   _catacombs,
             ".rtca":        _runs_to_class_average,
+            ".rtcaf":       _runs_to_class_average_skip,
             ".pb":          _catacombs_pb,
             ".pbs":         _catacombs_pb,
             ".mp":          _magical_power,
@@ -76,7 +77,7 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
 
 async def _help(username: str, parts: list, client):
     commands = " | ".join([
-        ".lvl", ".hlvl", ".nw", ".cata", ".rtca [floor]", ".slayer", ".slayerxp <type>", ".pb (f/m)(1-7)", ".mp", ".bank", ".chim <looting> <mf>", ".petscore"
+        ".lvl", ".hlvl", ".nw", ".cata", ".rtca [floor]", ".rtcaf <1-4 letters>", ".slayer", ".slayerxp <type>", ".pb (f/m)(1-7)", ".mp", ".bank", ".chim <looting> <mf>", ".petscore"
     ])
     return username, commands, username
 
@@ -166,6 +167,64 @@ async def _runs_to_class_average(username: str, parts: list, client):
         f"{DUNGEON_CLASS_DISPLAY[c]} {per_class[c]:,}" for c in DUNGEON_CLASSES if per_class[c]
     )
     return name, f"{total:,} {floor_name} runs to CA50 | {breakdown}", username
+
+
+_RTCAF_USAGE = ("Usage: .rtcaf [username] <letters> [floor] - skip 1-4 classes, "
+                "a=archer b=berserk h=healer m=mage t=tank, e.g. .rtcaf a h m6")
+
+
+async def _runs_to_class_average_skip(username: str, parts: list, client):
+    args = [a for a in parts[1:] if a]
+    floor = "m7"
+    skip_letters = []
+    for arg in args:
+        if arg in DUNGEON_FLOOR_XP:
+            floor = arg
+        elif arg in DUNGEON_CLASS_LETTERS:
+            skip_letters.append(arg)
+        else:
+            username = arg
+
+    skip_letters = set(skip_letters)
+    if not 1 <= len(skip_letters) <= 4:
+        return username, _RTCAF_USAGE, username
+
+    skip_classes = {DUNGEON_CLASS_LETTERS[letter] for letter in skip_letters}
+    active_classes = tuple(c for c in DUNGEON_CLASSES if c not in skip_classes)
+
+    player = skyblock.Player(username=username)
+    mayor_multiplier = await fetch_mayor_multiplier()
+    class_average = player.class_average
+    total, _ = class_average.runs_to_target(
+        DUNGEON_FLOOR_XP[floor], mayor_multiplier=mayor_multiplier, playable=active_classes
+    )
+
+    name = f"{player.username}{player.gamemode}"
+    if total == 0:
+        return name, "Already CA50", username
+
+    # The minimum dedicated plays each active class needs - once met, further runs can go to
+    # any active class (passive share depends only on total runs, not who else was played).
+    needed = class_average.minimum_runs_needed(
+        DUNGEON_FLOOR_XP[floor], total, mayor_multiplier=mayor_multiplier, playable=active_classes
+    )
+    slack = total - sum(needed.values())
+
+    floor_name = floor.title() if floor == "entrance" else floor.upper()
+    skipped = "+".join(DUNGEON_CLASS_DISPLAY[c] for c in DUNGEON_CLASSES if c in skip_classes)
+    dedicated = " | ".join(
+        f"{DUNGEON_CLASS_DISPLAY[c]} {needed[c]:,}" for c in active_classes if needed[c]
+    )
+    any_active = "/".join(DUNGEON_CLASS_DISPLAY[c] for c in active_classes)
+    any_phrase = f"play {any_active}" if len(active_classes) == 1 else f"any of {any_active}"
+    if dedicated and slack > 0:
+        breakdown = f"{dedicated} | then {slack:,} runs, any class"
+    elif dedicated:
+        breakdown = dedicated
+    else:
+        breakdown = f"{any_phrase} the whole way"
+
+    return name, f"{total:,} {floor_name} runs to CA50 (skip {skipped}) | {breakdown}", username
 
 
 async def _catacombs_pb(username: str, parts: list, client):

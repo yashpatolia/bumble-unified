@@ -176,72 +176,110 @@ class ClassAverage:
         multiplier = min(1.5, mayor_multiplier)
         return {c: floor_xp * ((1 + boost) * multiplier) for c, boost in self.__boosts.items()}
 
-    def runs_to_target(self, floor_xp: int, target_level: int = 50,
-                       mayor_multiplier: float = 1.0) -> tuple[int, dict[str, int]]:
-        """Runs needed for every class to reach target_level, and how many are played on each."""
+    def runs_to_target(self, floor_xp: int, target_level: int = 50, mayor_multiplier: float = 1.0,
+                       playable: tuple[str, ...] = DUNGEON_CLASSES) -> tuple[int, dict[str, int]]:
+        """Runs needed for every class to reach target_level, restricted to playing `playable`.
+
+        `playable` defaults to all 5 (.rtca). `.rtcaf` passes a subset to permanently exclude
+        classes from ever being the "played" pick - excluded classes still take their normal
+        passive quarter share every run, so they keep climbing toward target_level, just slower,
+        which means excluding classes can only raise the total run count, never lower it.
+        """
         target = self.target_xp(target_level)
         remaining = {c: max(target - self.__xp[c], 0.0) for c in DUNGEON_CLASSES}
         if not any(remaining.values()):
-            return 0, {c: 0 for c in DUNGEON_CLASSES}
+            return 0, {c: 0 for c in playable}
 
         per_run = self.xp_per_run(floor_xp, mayor_multiplier)
         if min(per_run.values()) <= 0:
             raise ValueError("projected class XP per run is zero")
 
-        estimate = self.__solve_total_runs(remaining, per_run)
+        estimate = self.__solve_total_runs(remaining, per_run, playable)
         if estimate > _SIMULATION_LIMIT:
-            return estimate, self.__split_runs(remaining, per_run, estimate)
-        return self.__simulate(remaining, per_run)
+            return estimate, self.__split_runs(remaining, per_run, estimate, playable)
+        return self.__simulate(remaining, per_run, playable)
+
+    def minimum_runs_needed(self, floor_xp: int, total: int, target_level: int = 50,
+                            mayor_multiplier: float = 1.0,
+                            playable: tuple[str, ...] = DUNGEON_CLASSES) -> dict[str, int]:
+        """Fewest dedicated plays each playable class needs to reach target_level, given a
+        `total` run count already established by runs_to_target().
+
+        Once a class's minimum is met it doesn't matter which playable class the remaining runs
+        go to - the passive share every non-played class earns depends only on the total run
+        count, not on which other class was actually played. A class needing 0 means the total
+        is already large enough that passive share alone (from whatever else gets played) covers
+        it - there's nothing to dedicate to it specifically.
+        """
+        target = self.target_xp(target_level)
+        remaining = {c: max(target - self.__xp[c], 0.0) for c in DUNGEON_CLASSES}
+        per_run = self.xp_per_run(floor_xp, mayor_multiplier)
+        return self.__runs_needed(remaining, per_run, total, playable)
 
     @staticmethod
-    def __simulate(remaining: dict[str, float], per_run: dict[str, float]) -> tuple[int, dict[str, int]]:
-        """Replay the reference calculator's run-by-run greedy loop."""
+    def __simulate(remaining: dict[str, float], per_run: dict[str, float],
+                   playable: tuple[str, ...]) -> tuple[int, dict[str, int]]:
+        """Replay the reference calculator's run-by-run greedy loop, restricted to `playable`."""
         left = dict(remaining)
-        runs = {c: 0 for c in DUNGEON_CLASSES}
+        runs = {c: 0 for c in playable}
         while any(v > 0 for v in left.values()):
             # max() keeps the first of any tie, matching the reference's strict comparison.
-            played = max(DUNGEON_CLASSES, key=lambda c: left[c])
+            played = max(playable, key=lambda c: left[c])
             for c in DUNGEON_CLASSES:
                 left[c] -= per_run[c] if c == played else per_run[c] * PASSIVE_SHARE
             runs[played] += 1
         return sum(runs.values()), runs
 
     @staticmethod
-    def __runs_needed(remaining: dict[str, float], per_run: dict[str, float], total: int) -> dict[str, int]:
-        """Runs that must be played on each class given `total` runs overall.
+    def __runs_needed(remaining: dict[str, float], per_run: dict[str, float], total: int,
+                      playable: tuple[str, ...]) -> dict[str, int]:
+        """Runs that must be played on each playable class given `total` runs overall.
 
         Over `total` runs a class gains `played * per_run + (total - played) * per_run/4`,
         so the played runs it needs are (remaining/per_run - total/4) / (1 - 1/4).
         """
         needed = {}
-        for c in DUNGEON_CLASSES:
+        for c in playable:
             deficit = remaining[c] / per_run[c] - total * PASSIVE_SHARE
             needed[c] = max(0, math.ceil(deficit / (1 - PASSIVE_SHARE)))
         return needed
 
+    @staticmethod
+    def __skip_threshold(remaining: dict[str, float], per_run: dict[str, float],
+                         skipped: tuple[str, ...]) -> int:
+        """Smallest total run count by which every permanently-skipped class's passive-only
+        XP (it is never played, so it only ever earns the quarter share) clears target."""
+        if not skipped:
+            return 0
+        return max(math.ceil(remaining[c] / (per_run[c] * PASSIVE_SHARE)) for c in skipped)
+
     @classmethod
-    def __solve_total_runs(cls, remaining: dict[str, float], per_run: dict[str, float]) -> int:
-        """Smallest total run count whose per-class requirements fit inside it."""
+    def __solve_total_runs(cls, remaining: dict[str, float], per_run: dict[str, float],
+                           playable: tuple[str, ...]) -> int:
+        """Smallest total run count whose per-playable-class requirements fit inside it,
+        raised to cover whatever any permanently-skipped class needs on passive share alone."""
         high = 1
-        while sum(cls.__runs_needed(remaining, per_run, high).values()) > high:
+        while sum(cls.__runs_needed(remaining, per_run, high, playable).values()) > high:
             high *= 2
         low = high // 2
         while low < high:
             mid = (low + high) // 2
-            if sum(cls.__runs_needed(remaining, per_run, mid).values()) <= mid:
+            if sum(cls.__runs_needed(remaining, per_run, mid, playable).values()) <= mid:
                 high = mid
             else:
                 low = mid + 1
-        return low
+
+        skipped = tuple(c for c in DUNGEON_CLASSES if c not in playable)
+        return max(low, cls.__skip_threshold(remaining, per_run, skipped))
 
     @classmethod
     def __split_runs(cls, remaining: dict[str, float], per_run: dict[str, float],
-                     total: int) -> dict[str, int]:
-        runs = cls.__runs_needed(remaining, per_run, total)
+                     total: int, playable: tuple[str, ...]) -> dict[str, int]:
+        runs = cls.__runs_needed(remaining, per_run, total, playable)
         # Any run the requirements don't account for still has to be played on some class;
-        # the greedy loop would spend it on whichever class finishes last.
+        # the greedy loop would spend it on whichever playable class finishes last.
         slack = total - sum(runs.values())
         if slack > 0:
-            slowest = max(DUNGEON_CLASSES, key=lambda c: remaining[c] / per_run[c])
+            slowest = max(playable, key=lambda c: remaining[c] / per_run[c])
             runs[slowest] += slack
         return runs
