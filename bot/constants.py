@@ -120,6 +120,9 @@ DUNGEON_CLASS_DISPLAY = {
     "archer": "Arch", "berserk": "Bers", "healer": "Heal", "mage": "Mage", "tank": "Tank",
 }
 
+# Single-letter shorthand for .rtcaf's skip-class arguments.
+DUNGEON_CLASS_LETTERS = {"a": "archer", "b": "berserk", "h": "healer", "m": "mage", "t": "tank"}
+
 # Essence shop perks that boost a single dungeon class's XP gain, 2% per level up to V.
 CLASS_PERK_KEYS = {
     "archer": "toxophilite",
