@@ -158,10 +158,13 @@ async def _runs_to_class_average(username: str, parts: list, client):
 
     name = f"{player.username}{player.gamemode}"
     if total == 0:
-        return name, f"Already CA50 ({player.class_average.class_average})", username
+        return name, "Already CA50", username
 
     floor_name = floor.title() if floor == "entrance" else floor.upper()
-    breakdown = " | ".join(f"{DUNGEON_CLASS_DISPLAY[c]} {per_class[c]:,}" for c in DUNGEON_CLASSES)
+    # Classes needing no dedicated runs reach 50 on passive XP alone - listing them as 0 is noise.
+    breakdown = " | ".join(
+        f"{DUNGEON_CLASS_DISPLAY[c]} {per_class[c]:,}" for c in DUNGEON_CLASSES if per_class[c]
+    )
     return name, f"{total:,} {floor_name} runs to CA50 | {breakdown}", username
 
 
