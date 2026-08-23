@@ -1,5 +1,7 @@
 import logging
+from constants import DUNGEON_CLASS_DISPLAY, DUNGEON_CLASSES, DUNGEON_FLOOR_XP
 from lib import condense
+from lib.hypixel import fetch_mayor_multiplier
 from player import skyblock
 from player import PlayerNotFoundError, HypixelAPIError
 from player.chimera import chim_drop_rates
@@ -30,6 +32,7 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
             ".sxp":         _slayer_xp,
             ".cata":        _catacombs,
             ".catacombs":   _catacombs,
+            ".rtca":        _runs_to_class_average,
             ".pb":          _catacombs_pb,
             ".pbs":         _catacombs_pb,
             ".mp":          _magical_power,
@@ -73,7 +76,7 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
 
 async def _help(username: str, parts: list, client):
     commands = " | ".join([
-        ".lvl", ".hlvl", ".nw", ".cata", ".slayer", ".slayerxp <type>", ".pb (f/m)(1-7)", ".mp", ".bank", ".chim <looting> <mf>", ".petscore"
+        ".lvl", ".hlvl", ".nw", ".cata", ".rtca [floor]", ".slayer", ".slayerxp <type>", ".pb (f/m)(1-7)", ".mp", ".bank", ".chim <looting> <mf>", ".petscore"
     ])
     return username, commands, username
 
@@ -130,6 +133,36 @@ async def _catacombs(username: str, parts: list, client):
         f"Cata Level - {cata.level} | Secrets - {cata.secrets:,} | S/R - {cata.spr}",
         username,
     )
+
+
+_RTCA_USAGE = "Usage: .rtca [username] [floor f1-f7/m1-m7], e.g. .rtca steve m6"
+
+
+async def _runs_to_class_average(username: str, parts: list, client):
+    args = [a for a in parts[1:] if a]
+    # A leading argument that is a floor belongs to the sender, so .rtca m6 still means "me".
+    if args and args[0] not in DUNGEON_FLOOR_XP:
+        username = args.pop(0)
+
+    floor = "m7"
+    for arg in args:
+        if arg not in DUNGEON_FLOOR_XP:
+            return username, _RTCA_USAGE, username
+        floor = arg
+
+    player = skyblock.Player(username=username)
+    mayor_multiplier = await fetch_mayor_multiplier()
+    total, per_class = player.class_average.runs_to_target(
+        DUNGEON_FLOOR_XP[floor], mayor_multiplier=mayor_multiplier
+    )
+
+    name = f"{player.username}{player.gamemode}"
+    if total == 0:
+        return name, f"Already CA50 ({player.class_average.class_average})", username
+
+    floor_name = floor.title() if floor == "entrance" else floor.upper()
+    breakdown = " | ".join(f"{DUNGEON_CLASS_DISPLAY[c]} {per_class[c]:,}" for c in DUNGEON_CLASSES)
+    return name, f"{total:,} {floor_name} runs to CA50 | {breakdown}", username
 
 
 async def _catacombs_pb(username: str, parts: list, client):

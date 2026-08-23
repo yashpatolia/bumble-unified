@@ -1,8 +1,14 @@
 import os
+import time
 
 import aiohttp
 
+from constants import MAYOR_XP_MULTIPLIERS
+
 _BASE = "https://api.hypixel.net/v2"
+
+_MAYOR_TTL = 600
+_mayor_cache: tuple[float, float] | None = None
 
 
 def _key() -> str:
@@ -58,6 +64,37 @@ async def fetch_member_stats(session: aiohttp.ClientSession, uuid: str) -> dict:
         pass
 
     return result
+
+
+async def fetch_mayor_multiplier() -> float:
+    """Dungeon XP multiplier granted by the current SkyBlock mayor, 1.0 if none applies.
+
+    /v2/resources/* needs no API key and doesn't count against the 300/5min budget, but the
+    election only changes every few days, so the result is cached for 10 minutes anyway.
+    A failed lookup isn't cached — it just falls back to 1.0 for this call.
+    """
+    global _mayor_cache
+
+    now = time.time()
+    if _mayor_cache and now - _mayor_cache[1] < _MAYOR_TTL:
+        return _mayor_cache[0]
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{_BASE}/resources/skyblock/election",
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as r:
+                d = await r.json()
+        if not d.get("success"):
+            return 1.0
+        name = str((d.get("mayor") or {}).get("name", "")).lower()
+    except Exception:
+        return 1.0
+
+    multiplier = MAYOR_XP_MULTIPLIERS.get(name, 1.0)
+    _mayor_cache = (multiplier, now)
+    return multiplier
 
 
 async def fetch_key_info() -> dict:

@@ -104,3 +104,64 @@ DYE_EMOJIS = {
     "aquamarine_dye": 1303264474761908265,
     "archfiend_dye": 1303804446467424347
 }
+
+
+# Base XP value of each dungeon floor, used to project XP earned per run.
+DUNGEON_FLOOR_XP = {
+    "entrance": 55, "f1": 110, "f2": 220, "f3": 560, "f4": 1420, "f5": 2400, "f6": 4880, "f7": 28000,
+    "m1": 15000, "m2": 20000, "m3": 35000, "m4": 55000, "m5": 70000, "m6": 100000, "m7": 300000,
+}
+
+# Order matters: class average maths iterates these in the same order as the reference calculator,
+# which resolves "highest remaining XP" ties in favour of the first class listed.
+DUNGEON_CLASSES = ("archer", "berserk", "healer", "mage", "tank")
+
+DUNGEON_CLASS_DISPLAY = {
+    "archer": "Arch", "berserk": "Bers", "healer": "Heal", "mage": "Mage", "tank": "Tank",
+}
+
+# Essence shop perks that boost a single dungeon class's XP gain, 2% per level up to V.
+CLASS_PERK_KEYS = {
+    "archer": "toxophilite",
+    "berserk": "unbridled_rage",
+    "healer": "heart_of_gold",
+    "mage": "cold_efficiency",
+    "tank": "diamond_in_the_rough",
+}
+CLASS_PERK_PER_LEVEL = 0.02
+CLASS_PERK_MAX = 0.10
+
+# Hecatomb (boots enchantment) starts at 0.56% and gains 0.16% per level, capping at 2% for level X.
+HECATOMB_BASE = 0.0056
+HECATOMB_PER_LEVEL = 0.0016
+HECATOMB_MAX = 0.02
+
+# Scarf accessory line — only the highest tier owned applies.
+SCARF_ACCESSORY_BOOSTS = {
+    "SCARF_STUDIES": 0.02,
+    "SCARF_THESIS": 0.04,
+    "SCARF_GRIMOIRE": 0.06,
+}
+SCARF_ACCESSORY_MAX = 0.06
+
+# Catacombs Graduate attribute shard, 2% per level up to X.
+CATA_GRADUATE_PER_LEVEL = 0.02
+CATA_GRADUATE_MAX = 0.20
+
+# Hypixel stores attribute progress as a raw shard count, not a level. Cumulative shards
+# needed for levels I..X, which differ by the shard's rarity.
+ATTRIBUTE_LEVEL_THRESHOLDS = {
+    "common":    (1, 4, 9, 15, 22, 30, 40, 54, 72, 96),
+    "uncommon":  (1, 3, 6, 10, 15, 21, 28, 36, 48, 64),
+    "rare":      (1, 3, 6, 9, 13, 17, 22, 28, 36, 48),
+    "epic":      (1, 2, 4, 6, 9, 12, 16, 20, 25, 32),
+    "legendary": (1, 2, 3, 5, 7, 9, 12, 15, 19, 24),
+}
+
+# Rarity of the Scarf shard that syphons into Catacombs Graduate. Inferred, not confirmed:
+# a maxed test account showed exactly 32 shards, which is the Epic level X threshold and no
+# other rarity's. If that turns out wrong, correcting this one value fixes the boost.
+CATA_GRADUATE_SHARD_RARITY = "epic"
+
+# Mayors that boost dungeon XP. Anything else is a 1.0 multiplier.
+MAYOR_XP_MULTIPLIERS = {"derpy": 1.5, "aura": 1.59}
