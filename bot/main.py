@@ -18,10 +18,25 @@ from config import (
     DYES_CHANNEL, MESSAGE_LOGS_CHANNEL,
     GUILD_CONFIGS,
     BOT_IPC_PORT,
+    VERSION,
 )
 
 mineflayer = require("mineflayer")
 skyhelper = require("skyhelper-networth")
+
+# Hypixel's `window_items` packet (inventory sync) desyncs mineflayer's NBT/Data Components
+# parser on Minecraft 1.20.5+, crashing the bot a few seconds after spawn with "Invalid tag:
+# N > 20" in play.toClient - an open upstream bug (PrismarineJS/mineflayer #3669/#3787/#3583/
+# #3750, no fix as of this writing). mineflayer's own handler for this packet
+# (node_modules/mineflayer/lib/plugins/inventory.js) already guards against an empty/unparsed
+# body, so making it an opaque buffer degrades to a silent no-op instead of crashing - confirmed
+# harmless on 1.8.9 too (that packet's own inventory tracking just goes unused, which this bot
+# never reads anyway), so it's applied unconditionally rather than gated on MINECRAFT_VERSION.
+# Set MINECRAFT_VERSION back to 1.8.9 in .env to fall back to the legacy, always-stable path.
+try:
+    require("minecraft-data")(VERSION).protocol.play.toClient.types["packet_window_items"] = "restBuffer"
+except Exception as e:
+    logging.warning(f"Could not apply window_items compatibility patch for version {VERSION}: {e}")
 
 logging.basicConfig(
     level=logging.INFO,
