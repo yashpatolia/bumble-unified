@@ -41,16 +41,19 @@ _ATTRIBUTE_STACKS_PATH = ["attributes", "stacks"]
 _GRADUATE_KEY = "catacombs_graduate"
 
 # Hecatomb sits on the gear a player wears *for dungeons*, which is rarely what they happen
-# to have equipped when the profile is read - it is just as often in the wardrobe or ender
-# chest. Scan the containers that realistically hold it and take the best level found.
-# Backpacks and the personal vault are deliberately skipped to bound the NBT decoding cost.
+# to have equipped when the profile is read - observed in the wild sitting in the ender chest
+# and inside a backpack. Scan everywhere it can hide and take the best level found; missing
+# one container silently undercounts the boost by 4%.
 _HECATOMB_CONTAINERS = (
     ["inventory", "inv_armor", "data"],
     ["inventory", "equipment_contents", "data"],
     ["inventory", "wardrobe_contents", "data"],
     ["inventory", "inv_contents", "data"],
     ["inventory", "ender_chest_contents", "data"],
+    ["inventory", "personal_vault_contents", "data"],
 )
+# Backpacks are a dict of {slot: {"data": ...}} rather than a fixed path.
+_BACKPACKS_PATH = ["inventory", "backpack_contents"]
 
 
 class ClassAverage:
@@ -92,8 +95,13 @@ class ClassAverage:
             return None
 
     def __hecatomb(self) -> float:
+        backpacks = deep_get(self.__member_data, _BACKPACKS_PATH, default={})
+        paths = list(_HECATOMB_CONTAINERS)
+        if isinstance(backpacks, dict):
+            paths += [_BACKPACKS_PATH + [slot, "data"] for slot in backpacks]
+
         level, readable = 0, False
-        for path in _HECATOMB_CONTAINERS:
+        for path in paths:
             items = self.__decode_items(path)
             if items is None:
                 continue
