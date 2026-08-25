@@ -24,19 +24,21 @@ from config import (
 mineflayer = require("mineflayer")
 skyhelper = require("skyhelper-networth")
 
-# Hypixel's `window_items` packet (inventory sync) desyncs mineflayer's NBT/Data Components
-# parser on Minecraft 1.20.5+, crashing the bot a few seconds after spawn with "Invalid tag:
-# N > 20" in play.toClient - an open upstream bug (PrismarineJS/mineflayer #3669/#3787/#3583/
-# #3750, no fix as of this writing). mineflayer's own handler for this packet
-# (node_modules/mineflayer/lib/plugins/inventory.js) already guards against an empty/unparsed
-# body, so making it an opaque buffer degrades to a silent no-op instead of crashing - confirmed
-# harmless on 1.8.9 too (that packet's own inventory tracking just goes unused, which this bot
-# never reads anyway), so it's applied unconditionally rather than gated on MINECRAFT_VERSION.
+# Minecraft 1.20.5+'s Data Components item encoding desyncs mineflayer's NBT parser on a few
+# specific packets - an open upstream bug (PrismarineJS/mineflayer #3669/#3787/#3583/#3750, no
+# fix as of this writing). `window_items` (inventory sync) crashed the bot a few seconds after
+# spawn with "Invalid tag: N > 20"; `world_particles` throws a PartialReadError on every packet,
+# flooding the logs. Both packets' mineflayer handlers (inventory.js / particle.js) already
+# degrade to a harmless no-op on an unparsed body, and nothing in this codebase reads inventory
+# or particle data, so making both packets opaque buffers is safe - confirmed harmless on 1.8.9
+# too, so it's applied unconditionally rather than gated on MINECRAFT_VERSION.
 # Set MINECRAFT_VERSION back to 1.8.9 in .env to fall back to the legacy, always-stable path.
 try:
-    require("minecraft-data")(VERSION).protocol.play.toClient.types["packet_window_items"] = "restBuffer"
+    _mc_data = require("minecraft-data")(VERSION).protocol.play.toClient.types
+    _mc_data["packet_window_items"] = "restBuffer"
+    _mc_data["packet_world_particles"] = "restBuffer"
 except Exception as e:
-    logging.warning(f"Could not apply window_items compatibility patch for version {VERSION}: {e}")
+    logging.warning(f"Could not apply packet compatibility patches for version {VERSION}: {e}")
 
 logging.basicConfig(
     level=logging.INFO,
