@@ -63,13 +63,17 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
 
         if result is None:
             return
-        name, response, raw_username = result
+        if len(result) == 4:
+            name, mc_response, discord_response, raw_username = result
+        else:
+            name, mc_response, raw_username = result
+            discord_response = mc_response
 
         try:
             for state_obj in client.guilds_state.values():
                 if state_obj.bot:
-                    state_obj.bot.chat(f"{state} {name}: {response}")
-            webhook.send(response, username=name, avatar_url=f"https://mc-heads.net/avatar/{raw_username}")
+                    state_obj.bot.chat(f"{state} {name}: {mc_response}")
+            webhook.send(discord_response, username=name, avatar_url=f"https://mc-heads.net/avatar/{raw_username}")
         except Exception as e:
             logging.exception(e)
     except Exception as e:
@@ -77,10 +81,13 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
 
 
 async def _help(username: str, parts: list, client):
-    commands = " | ".join([
-        ".lvl", ".hlvl", ".nw", ".cata", ".rtc [level]", ".rtca [floor]", ".rtcaf <1-4 letters>", ".slayer", ".slayerxp <type>", ".pb (f/m)(1-7)", ".mp", ".bank", ".chim <looting> <mf>", ".petscore"
+    mc_commands = " ".join([
+        ".lvl", ".hlvl", ".nw", ".cata", ".rtc", ".rtca", ".slayer", ".slayerxp", ".pb", ".mp", ".bank", ".chim", ".petscore"
     ])
-    return username, commands, username
+    discord_commands = " | ".join([
+        ".lvl", ".hlvl", ".nw", ".cata", ".rtc [level]", ".rtca [floor]", ".slayer", ".slayerxp <type>", ".pb (f/m)(1-7)", ".mp", ".bank", ".chim <looting> <mf>", ".petscore"
+    ])
+    return username, mc_commands, discord_commands, username
 
 
 async def _skyblock_level(username: str, parts: list, client):
