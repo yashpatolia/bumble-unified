@@ -1,3 +1,5 @@
+import math
+
 from lib import deep_get
 from constants import DUNGEON_XP_TABLE, DUNGEON_INDIVIDUAL_XP_TABLE
 
@@ -7,16 +9,15 @@ class Catacombs:
         self.__member_data = member_data
         self.__all_member_data = all_member_data
 
+        self.__cata_xp = deep_get(
+            member_data, ["dungeons", "dungeon_types", "catacombs", "experience"], default=0
+        )
         self.__cata_level = self.__get_cata_level()
         self.__secrets = deep_get(member_data, ["dungeons", "secrets"], default=0)
         self.__total_runs = self.__get_total_runs()
 
     def __get_cata_level(self) -> float:
-        cata_xp = deep_get(
-            self.__member_data,
-            ["dungeons", "dungeon_types", "catacombs", "experience"],
-            default=0,
-        )
+        cata_xp = self.__cata_xp
         level = [k for k, v in DUNGEON_XP_TABLE.items() if cata_xp >= v][-1]
 
         if level >= 50:
@@ -26,6 +27,19 @@ class Catacombs:
             level += round((cata_xp - DUNGEON_XP_TABLE[level]) / DUNGEON_INDIVIDUAL_XP_TABLE[level + 1], 2)
 
         return level
+
+    def runs_to_level(self, floor_xp: int, target_level: int = 50, mayor_multiplier: float = 1.0,
+                      boost: float = 0.0) -> int:
+        """Runs needed to reach target_level Catacombs from the currently-earned raw Catacombs XP."""
+        target = DUNGEON_XP_TABLE[min(target_level, 50)]
+        remaining = max(target - self.__cata_xp, 0.0)
+        if remaining == 0:
+            return 0
+
+        per_run = floor_xp * (1 + boost) * min(1.5, mayor_multiplier)
+        if per_run <= 0:
+            raise ValueError("projected Catacombs XP per run is zero")
+        return math.ceil(remaining / per_run)
 
     def __get_total_runs(self) -> int:
         def count_runs(path):

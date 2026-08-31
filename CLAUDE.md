@@ -102,7 +102,7 @@ bumble-unified/
     │   ├── __init__.py       # Exports Player
     │   ├── skyblock.py       # Player — top-level class, fetches all profiles
     │   ├── level.py          # SkyblockLevel — current and highest level across profiles
-    │   ├── catacombs.py      # Catacombs — level, secrets, S/R, PB times
+    │   ├── catacombs.py      # Catacombs — level, secrets, S/R, PB times, .rtc's runs_to_level()
     │   ├── class_average.py  # ClassAverage — class XP, XP boosts, runs remaining to a class average
     │   ├── slayers.py        # Slayers — claimed levels for all 6 boss types
     │   ├── magical_power.py  # MagicalPower — decodes talisman bag NBT, calculates MP
@@ -215,7 +215,7 @@ bumble-unified/
 - Waits 60s after `wait_until_ready()` before starting, so it doesn't compete with startup traffic.
 
 ### `utils/command_handler.py`
-- `bridge_commands(client, message, username, guild_rank, chat_state, config)` dispatches `.help`, `.lvl`, `.hlvl`, `.nw`, `.slayer`/`.slayers`, `.slayerxp <type>`, `.cata`, `.rtca`, `.rtcaf`, `.pb`, `.mp`, `.bank`, `.chim <looting> <mf>`, `.petscore`.
+- `bridge_commands(client, message, username, guild_rank, chat_state, config)` dispatches `.help`, `.lvl`, `.hlvl`, `.nw`, `.slayer`/`.slayers`, `.slayerxp <type>`, `.cata`, `.rtc`, `.rtca`, `.rtcaf`, `.pb`, `.mp`, `.bank`, `.chim <looting> <mf>`, `.petscore`.
 - Each handler is a private `async` function that returns `(display_name, response_text, raw_username)`. The dispatcher sends the response to all guild bots and the appropriate webhook.
 - There is no in-game `.ranks` command anymore — rank auto-updates happen continuously via `cogs/tasks/member_refresh.py` and immediately on join via `message_handler.py`'s `_auto_fetch_and_rank()`.
 
@@ -225,6 +225,7 @@ bumble-unified/
 - `runs_to_target()` takes an optional `playable` subset (defaults to all 5, `DUNGEON_CLASSES`). `.rtcaf` passes a subset with 1-4 classes permanently excluded from ever being the "played" pick — all 5 classes still must reach `target_level`, but excluded classes can only ever earn the passive quarter share, never a full played run's XP. This makes excluding classes strictly *raise* the total run count (never lower it): the binary search in `__solve_total_runs` takes `max()` of the normal playable-class requirement and a `__skip_threshold` floor — the run count by which each excluded class's passive-only climb clears target on its own.
 - `minimum_runs_needed()` reports, for a known total from `runs_to_target()`, the fewest dedicated plays each *playable* class needs — used only by `.rtcaf`. Once a playable class's minimum is met, further runs can go to any playable class interchangeably (passive share depends only on total runs elapsed, not on which other class got played), so `.rtcaf`'s reply shows per-class minimums only where nonzero and folds the rest into a single "then N runs, any class" tail. A class needing 0 means the total (usually inflated by the skip threshold) already covers it on passive share alone.
 - XP boosts are read off the profile: Hecatomb from the NBT of every container in `_HECATOMB_CONTAINERS` plus every backpack (`_BACKPACKS_PATH`) — a player's dungeon gear is usually *not* what they have equipped when the profile is read, and has been observed in the wild sitting in the ender chest and inside a backpack, so anything narrower than a full sweep silently undercounts the boost by 4%, the Scarf accessory line from the talisman bag NBT, the per-class essence perks from `player_data.perks`, and Catacombs Graduate from `attributes.stacks.catacombs_graduate` (a shard count converted to a level via `ATTRIBUTE_LEVEL_THRESHOLDS`). The mayor multiplier comes from `lib/hypixel.py::fetch_mayor_multiplier()` (keyless `/v2/resources/skyblock/election`, cached 10 min). The reference's "global boost" dropdown has no API equivalent and is always 0.
+- `shared_boost` exposes the non-class-specific portion of that stack (Hecatomb×2 + Scarf + Catacombs Graduate, no per-class essence perk) for `player/catacombs.py::runs_to_level()` (`.rtc`) to reuse. Applying any of this boost stack to Catacombs-level XP is a deliberate consistency choice with `.rtca`'s math, not confirmed real-game behavior — in actual Skyblock, Hecatomb/Scarf/perks/Graduate only affect per-class XP, not the overall Catacombs level.
 - **Missing container means maxed, not zero.** If a whole container is absent — usually because the player has their inventory API off — that boost is assumed to be at its cap. This is deliberate: the run count comes out optimistic rather than silently doubled. A container that is present but lacks the key means the player genuinely has 0.
 
 ### `cogs/commands/guild_commands.py`
