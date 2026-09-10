@@ -79,15 +79,21 @@ class GuildMembersQueries(BaseQueries):
                     (guild_key, ign_lower),
                 )
 
-            # Batch upsert, preserving stats columns
+            # Batch upsert, preserving stats columns. De-dupe by lowercased IGN first —
+            # `ign` is CITEXT, so `ON CONFLICT (guild_key, ign)` matches case-insensitively,
+            # and a single INSERT..ON CONFLICT statement can't touch the same conflict-target
+            # row twice (raises CardinalityViolation). Last occurrence wins.
             if members:
+                deduped = {}
+                for m in members:
+                    deduped[m['ign'].lower()] = m
                 execute_values(
                     cur,
                     "INSERT INTO guild_members (guild_key, ign, uuid, rank) VALUES %s "
                     "ON CONFLICT (guild_key, ign) DO UPDATE SET "
                     "uuid = COALESCE(EXCLUDED.uuid, guild_members.uuid), "
                     "rank = EXCLUDED.rank",
-                    [(guild_key, m['ign'], m.get('uuid') or None, m.get('rank', '')) for m in members],
+                    [(guild_key, m['ign'], m.get('uuid') or None, m.get('rank', '')) for m in deduped.values()],
                 )
 
     def update_guild_member_stats(self, guild_key: str, ign: str, skyblock_level, last_login) -> None:
