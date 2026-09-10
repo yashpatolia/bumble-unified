@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../App'
+import { BotIcon } from '../components/icons'
 import type { GuildStatus } from '../types'
 
 const FALLBACK: GuildStatus[] = [
@@ -35,10 +36,11 @@ export default function Home() {
           <Link key={bot.key} className="guild-card" to={`/guilds/${bot.key}`}>
             <div className="guild-card-header">
               <div>
+                <div className="guild-card-icon"><BotIcon /></div>
                 <div className="guild-card-name">{bot.name}</div>
                 <div className="guild-card-tag">{bot.username}</div>
               </div>
-              <div className="guild-card-status">
+              <div className={`guild-card-status ${bot.connected ? 'on' : 'off'}`}>
                 <span className={`status-dot ${bot.connected ? 'online' : 'offline'}`} />
                 {bot.connected ? 'Online' : 'Offline'}
               </div>

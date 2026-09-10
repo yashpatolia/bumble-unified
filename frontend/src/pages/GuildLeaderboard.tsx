@@ -35,11 +35,11 @@ export default function GuildLeaderboard() {
     <div>
       <div className="header-row">
         <div className="page-title" style={{ marginBottom: 0 }}>Message Leaderboard</div>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div className="segmented">
           {(['lifetime', 'month', 'week'] as Period[]).map(p => (
             <button
               key={p}
-              className={`btn ${period === p ? 'btn-primary' : 'btn-ghost'}`}
+              className={`segmented-btn ${period === p ? 'active' : ''}`}
               onClick={() => setPeriod(p)}
             >
               {p === 'lifetime' ? 'All Time' : p === 'month' ? 'This Month' : 'This Week'}

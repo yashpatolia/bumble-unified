@@ -1,23 +1,25 @@
 import { useEffect, useState } from 'react'
+import { BotIcon, DropletIcon, GearIcon, UsersIcon } from '../components/icons'
+import beeLogo from '../assets/bumble-bee.png'
 
 const FEATURES = [
   {
-    icon: '⬡',
+    icon: BotIcon,
     title: 'Guild Overview',
     desc: 'Monitor member count, recent chat, and activity across both BK and BU in real time.',
   },
   {
-    icon: '◈',
+    icon: UsersIcon,
     title: 'Member Management',
     desc: 'Browse all guild members with Skyblock level, last login, and online status at a glance.',
   },
   {
-    icon: '▸',
+    icon: GearIcon,
     title: 'Bot Control',
     desc: 'Start, stop, and restart Mineflayer bots from the panel without touching the server.',
   },
   {
-    icon: '⬢',
+    icon: DropletIcon,
     title: 'Dye Collecting',
     desc: 'Track dye drops for every member, browse the full catalog, and see odds for what you haven\'t unlocked yet.',
   },
@@ -36,7 +38,7 @@ export default function Login() {
   return (
     <div className="landing">
       <div className="landing-hero">
-        <div className="landing-logo">✦</div>
+        <div className="landing-logo"><img src={beeLogo} alt="" /></div>
         <h1 className="landing-title">Bumble</h1>
         <p className="landing-sub">Guild management and monitoring panel for Bumble Kindergarten &amp; Bumble University.</p>
         {error && <p className="login-error" style={{ marginBottom: 8 }}>{error}</p>}
@@ -47,12 +49,21 @@ export default function Login() {
           Continue with Discord
         </a>
         <p className="landing-hint">Access is restricted to authorized users only.</p>
+        {import.meta.env.DEV && (
+          <button
+            className="btn btn-ghost btn-sm"
+            style={{ marginTop: 20 }}
+            onClick={() => { localStorage.setItem('dev_bypass', '1'); window.location.href = '/' }}
+          >
+            Skip login (dev only)
+          </button>
+        )}
       </div>
 
       <div className="landing-features">
         {FEATURES.map(f => (
           <div key={f.title} className="landing-feature-card">
-            <div className="landing-feature-icon">{f.icon}</div>
+            <div className="landing-feature-icon"><f.icon /></div>
             <div className="landing-feature-title">{f.title}</div>
             <div className="landing-feature-desc">{f.desc}</div>
           </div>

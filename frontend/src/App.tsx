@@ -21,11 +21,25 @@ interface AuthCtx {
 const Auth = createContext<AuthCtx>({ me: null, loading: true, logout: () => {} })
 export const useAuth = () => useContext(Auth)
 
+// Dev-only escape hatch so the UI can be worked on without a running backend/OAuth
+// setup. `import.meta.env.DEV` is compiled to `false` in `npm run build`, so this
+// branch (and the bypass button in Login.tsx) is dead-code-eliminated from prod.
+const DEV_BYPASS_KEY = 'dev_bypass'
+const DEV_ME: Me = {
+  discord_id: '0', discord_name: 'Dev User', is_admin: true, can_control_bots: true,
+  can_fetch_api: true, can_manage_links: true, avatar_url: '', is_owner: true,
+}
+
 function AuthProvider({ children }: { children: React.ReactNode }) {
   const [me, setMe] = useState<Me | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (import.meta.env.DEV && localStorage.getItem(DEV_BYPASS_KEY)) {
+      setMe(DEV_ME)
+      setLoading(false)
+      return
+    }
     const params = new URLSearchParams(window.location.search)
     const t = params.get('token')
     if (t) {
@@ -44,6 +58,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     localStorage.removeItem('token')
+    localStorage.removeItem(DEV_BYPASS_KEY)
     setMe(null)
   }
 
