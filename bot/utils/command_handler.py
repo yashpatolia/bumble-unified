@@ -70,9 +70,10 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
             discord_response = mc_response
 
         try:
+            mc_line = f"{state} {mc_response}" if handler is _help else f"{state} {name}: {mc_response}"
             for state_obj in client.guilds_state.values():
                 if state_obj.bot:
-                    state_obj.bot.chat(f"{state} {name}: {mc_response}")
+                    state_obj.bot.chat(mc_line)
             webhook.send(discord_response, username=name, avatar_url=f"https://mc-heads.net/avatar/{raw_username}")
         except Exception as e:
             logging.exception(e)
