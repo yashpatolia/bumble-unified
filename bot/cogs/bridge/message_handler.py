@@ -8,6 +8,7 @@ from javascript import On
 from config import GuildConfig
 from db import manager
 from lib.get_uuid import get_uuid
+from lib.guild_settings import get_rank_requirements
 from lib.hypixel import fetch_member_stats
 from lib.rankup import guild_rank_change
 from lib.relay import relay_to_other_guilds
@@ -34,11 +35,12 @@ async def _auto_fetch_and_rank(client, config: GuildConfig, ign: str) -> None:
         if level is None:
             return
 
-        starting_rank = list(config.ranks.keys())[0]
+        ranks = get_rank_requirements(config)
+        starting_rank = list(ranks.keys())[0]
         state = client.guilds_state[config.key]
         result = await guild_rank_change(
             starting_rank, state.bot, username=ign, uuid=uuid,
-            ranks=config.ranks, send_msg=False, known_level=level,
+            ranks=ranks, send_msg=False, known_level=level,
         )
         if result:
             logging.info(f"[{config.short_name}] Auto-rank {ign}: {result}")

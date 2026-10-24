@@ -20,6 +20,45 @@ Bumble is a Discord bot that acts as a bridge between two Hypixel Skyblock Minec
 
 ---
 
+## Writing Rules
+
+- **Never use em dashes** in code, comments, docs, UI copy, commit messages, or replies. Use a comma, colon, parentheses, or a hyphen instead.
+
+---
+
+## Frontend Design (read before touching `frontend/`)
+
+This section is the single source of truth for frontend design direction. No design skill or plugin (such as `frontend-design` or `impeccable`) is used for this project; follow this section instead. The old panel designs (the dark/champagne "Atoms" theme, and before it the honeycomb/bee theme) were thrown away. Do not reuse their palette, fonts, layout, or component styling, and do not carry over hex shapes or bee motifs.
+
+Why this exists: left alone, models converge on generic, "on distribution" output (the "AI slop" aesthetic). The fix is to state aesthetic intent explicitly and push toward distinctive, context-specific choices.
+
+```
+<frontend_aesthetics>
+You tend to converge toward generic, "on distribution" outputs. In frontend design, this creates what users call the "AI slop" aesthetic. Avoid this: make creative, distinctive frontends that surprise and delight. Focus on:
+Typography: Choose fonts that are beautiful, unique, and interesting. Avoid generic fonts like Arial and Inter; opt instead for distinctive choices that elevate the frontend's aesthetics.
+Color & Theme: Commit to a cohesive aesthetic. Use CSS variables for consistency. Dominant colors with sharp accents outperform timid, evenly-distributed palettes. Draw from IDE themes and cultural aesthetics for inspiration.
+Motion: Use animations for effects and micro-interactions. Prioritize CSS-only solutions for HTML. Use Motion library for React when available. Focus on high-impact moments: one well-orchestrated page load with staggered reveals (animation-delay) creates more delight than scattered micro-interactions.
+Backgrounds: Create atmosphere and depth rather than defaulting to solid colors. Layer CSS gradients, use geometric patterns, or add contextual effects that match the overall aesthetic.
+Avoid generic AI-generated aesthetics:
+
+* Overused font families (Inter, Roboto, Arial, system fonts)
+* Clichéd color schemes (particularly purple gradients on white backgrounds)
+* Predictable layouts and component patterns
+* Cookie-cutter design that lacks context-specific character
+Interpret creatively and make unexpected choices that feel genuinely designed for the context. Vary between light and dark themes, different fonts, different aesthetics. You still tend to converge on common choices (Space Grotesk, for example) across generations. Avoid this: it is critical that you think outside the box!
+</frontend_aesthetics>
+```
+
+Project-specific rules on top of that prompt:
+- Owner taste: soft neutral or pastel palettes, modern sans mixed with serif character. Amber/gold accents, blueprint, newspaper/broadsheet, terminal-green, and purple-gradient looks are all considered default AI picks, so avoid them.
+- Define the whole look as CSS variables (colors, fonts, spacing, radii) in one place so a theme change is a token change.
+- Icons come from inline SVG or a real icon library, never Unicode emoji or dingbat glyphs.
+- The chosen direction is **Pearl**: a calm, neutral admin theme (warm grey canvas, white cards, one periwinkle accent) with Spectral serif for headings/numbers and Manrope for UI text. It ships in light and dark mode. All colours are tokens at the top of `frontend/src/index.css` (`:root[data-theme='light'|'dark']`); components only use tokens, never raw hex. New exploration of other looks should happen as throwaway static pages, not inside `frontend/`.
+- Admin clarity comes first: status before decoration, a "Needs attention" list, scannable tables. Decoration (motion, backgrounds) must never compete with the data.
+- This is an ops panel: keep status signals (online/offline, danger) legible even in a highly stylized theme.
+
+---
+
 ## Process Architecture
 
 The bot and the web panel are **two separate OS processes**, each with their own `asyncio` event loop, that never share Python objects. They coordinate only through:
@@ -83,11 +122,15 @@ bumble-unified/
     │   │   ├── guild_members.py# GuildMembersQueries — roster + stats (`guild_members`)
     │   │   ├── panel_users.py  # PanelUsersQueries — web panel access control (`panel_users`)
     │   │   ├── api_usage.py    # ApiUsageQueries — Hypixel call logging (`api_calls`)
-    │   │   └── message_counts.py # MessageCountsQueries — per-player message counts/leaderboard (`message_counts`)
+    │   │   ├── message_counts.py # MessageCountsQueries — per-player message counts/leaderboard (`message_counts`)
+    │   │   ├── excused.py      # ExcusedQueries - officer-excused members skipped by inactivity warnings (`excused_members`)
+    │   │   ├── guild_config.py # GuildConfigQueries - panel-editable rank requirements and attention thresholds (`guild_config`)
+    │   │   └── activity.py     # ActivityQueries - online-member snapshots for the panel's activity graph (`online_snapshots`)
     │   ├── migrate.py        # run_migrations(dsn) — applies db/migrations/*.sql in order, tracked in schema_migrations
     │   └── migrations/       # Numbered SQL migration files (001_initial_schema.sql, 002_panel_users.sql, ...)
     │
     ├── lib/                  # Low-level utility functions (no Discord, no cog state)
+    │   ├── guild_settings.py # defaults + DB overrides + validation for rank requirements and attention thresholds; 20s cache for the bot
     │   ├── __init__.py       # Re-exports all lib symbols
     │   ├── condense.py       # Number formatter: 1_500_000 → "1.5M"
     │   ├── deep_get.py       # Safe nested dict access
@@ -140,6 +183,7 @@ bumble-unified/
         │   └── message_handler.py# GuildMessageHandler — system messages (join/leave/kick/mute/invite), auto-rank on join
         │
         └── tasks/
+            ├── online_snapshot.py # OnlineSnapshotTask - every 10 min records how many members are online per guild
             └── member_refresh.py # MemberRefreshTask — background loop that continuously refreshes one member's
                                    # stats at a time and auto-ranks them (see "Background member refresh" below)
 ```
@@ -163,7 +207,7 @@ bumble-unified/
 ### `bot/bot_ipc.py`
 - `create_ipc_app(client)` builds a FastAPI app that runs only inside the bot process, bound to `127.0.0.1:BOT_IPC_PORT`.
 - Every route requires the `X-IPC-Secret` header (via `_verify`) to match `BOT_IPC_SECRET` when that env var is set.
-- Routes: `GET /status` (per-guild connection status), `GET /guild/{key}/overview` (live member count + recent chat), `GET /guild/{key}/members` (triggers `/guild list` + `/guild online` in-game, parses the output, syncs it to `guild_members`, and returns the merged online/offline member list — falls back to the DB cache if the bot isn't connected), `POST /restart/{key}`, `POST /stop/{key}`, `GET /api-usage`.
+- Routes: `GET /status` (per-guild connection status), `POST /guild/{key}/kick` and `POST /guild/{key}/invite` (validate the IGN, send `/guild kick|invite` in game, and post an audit line with the panel user's name to the guild logs webhook; kick requires the target to be on the roster and never the bot itself), `GET /guild/{key}/overview` (live member count + recent chat), `GET /guild/{key}/members` (triggers `/guild list` + `/guild online` in-game, parses the output, syncs it to `guild_members`, and returns the merged online/offline member list — falls back to the DB cache if the bot isn't connected), `POST /restart/{key}`, `POST /stop/{key}`, `GET /api-usage`.
 
 ### `config.py`
 - Loads all env vars and defines every scalar config constant the rest of the code imports.
@@ -242,14 +286,30 @@ bumble-unified/
 ### `web/auth.py`
 - `discord_oauth_url()` builds the Discord OAuth2 authorization URL.
 - `exchange_code(code)` exchanges the authorization code for the user's Discord profile dict via aiohttp.
-- `create_token()` / `verify_token()` — HS256 JWT, **30-day** expiry. Payload keys: `sub` (discord_id str), `name`, `admin`, `bots` (can_control_bots), `fetch_api`, `manage_links`, `avatar`, `owner` (is `PANEL_ADMIN_DISCORD_ID`).
-- FastAPI dependencies: `require_auth`, `require_admin`, `require_bot_control`, `require_api_fetch`, `require_manage_links`, `require_owner` — all read `Authorization: Bearer <token>` and raise `HTTPException` on failure. Each permission (except `admin`/`owner`) is satisfied by either its own flag or `admin`.
+- `create_token()` / `verify_token()` — HS256 JWT, **30-day** expiry. Payload keys: `sub` (discord_id str), `name`, `admin`, `bots` (can_control_bots), `fetch_api`, `manage_links`, `manage_members` (kick/invite), `avatar`, `owner` (is `PANEL_ADMIN_DISCORD_ID`).
+- **Permissions and visibility:** every page is visible to every signed-in viewer (and guests); permissions only gate changing things. Flags: `admin` (everything except owner-only actions), `bots` (start/stop/restart), `fetch_api` (stats refresh), `manage_links`, `manage_members` (kick/invite), `manage_config` (Config tab edits). Owner is `PANEL_ADMIN_DISCORD_ID`.
+- **Guest mode:** `POST /auth/guest` (in `web/app.py`) issues a 24h JWT via `create_guest_token()` with `sub: "guest"`, `guest: true`, and every permission flag false, so all `require_*` dependencies reject mutating routes. `/api/me` returns `is_guest`. Read-only routes that accept `require_auth` also accept guests, with three safeguards: guests get Discord IDs stripped from members/leaderboard/dye-search responses, `GET /api/bots/{key}/members` serves guests a shared 120s cache (so anonymous visitors cannot trigger repeated in-game `/guild list`), and `GET /api/dyes/me` returns `linked: false` for them. `GET /api/bots` (connection status) is `require_auth` so every viewer's sidebar can show it. Frontend: `GuestButton` on the landing and login pages; the sidebar shows a "Guest, read only" badge and a Sign in button.
+- FastAPI dependencies: `require_auth`, `require_admin`, `require_bot_control`, `require_api_fetch`, `require_manage_links`, `require_manage_members`, `require_owner` — all read `Authorization: Bearer <token>` and raise `HTTPException` on failure. Each permission (except `admin`/`owner`) is satisfied by either its own flag or `admin`.
 
 ### `web/routes/dyes.py`
 - All routes are `require_auth`-gated, read-only. `GET /api/dyes/me` — resolves the caller's uuid via `manager.get_user_by_discord`, returns `{"linked": false}` if unlinked. `GET /api/dyes/search?q=` — IGN search via `manager.search_users_with_dye_counts`. `GET /api/dyes/user/{uuid}` — another player's profile, 404 if unknown. `GET /api/dyes/recent` — the last 20 unlocks across all players via `manager.get_recent_drops`, newest first.
 - `_build_profile()` merges `manager.get_all_dyes()` (the full catalog) with `manager.get_unlocked_dyes(uuid)` and computes each dye's `"1 in N"` odds the same way `roll_dye.py` does, so the number shown in the panel always matches the in-game announcement.
 
-### `web/routes/bots.py`
+### `web/routes/guild_config.py` + `lib/guild_settings.py`
+- `GET /api/bots/{key}/config` (`require_auth`) returns the guild's rank ladder (lowest first, with Hypixel labels, current and default levels, and `editable: false` for the lowest/default rank) plus the attention thresholds and who last changed them. `PUT` (`require_manage_config`) validates and saves them to `guild_config` (migration 022). The same endpoint carries `activity` (message colour tiers, stored in `guild_config.activity_tiers`, migration 023, shape `{d90: {...}, total: {...}}`). Rank levels must be whole numbers strictly increasing up the ladder; attention days must increase low activity < inactive < kick risk.
+- Rank requirements are used by `cogs/tasks/member_refresh.py` and `cogs/bridge/message_handler.py` through `get_rank_requirements(config)`: built-in env values from `config.py` (`GuildConfig.ranks`) with DB overrides on top, cached 20s so a panel change reaches the bot without a restart. The lowest rank always keeps its built-in value. The attention thresholds are read by the frontend (`lib/attention.ts`), not the bot.
+
+### `web/routes/member_actions.py`
+- `POST /api/bots/{key}/members/{ign}/excuse` (body `{reason, until}`) and `DELETE` the same path mark/unmark a member as excused (`excused_members`, migration 024; `until` is an optional date up to a year out, expired excuses stop counting automatically). Only members on the roster can be excused. Excuses are DB-only, nothing is sent in game. The members payload carries `excused: {reason, until, by} | null`; guests get it with the reason and author stripped.
+- `POST /api/bots/{key}/members/{ign}/kick` (body `{reason}`; the reason is passed straight into `/guild kick <ign> <reason>`, defaulting to "Removed via panel") and `POST /api/bots/{key}/invite` (body `{ign}`), both `require_manage_members`. They forward to the bot process's IPC (`ipc_post_json` in `web/ipc_client.py`, which keeps the bot's error text), so the in-game command runs in the bot process. The `can_manage_members` column came from migration 021; the Users page exposes it as "Kick and Invite".
+
+### `web/routes/guild_data.py` (activity graph route)
+- `GET /api/bots/{key}/overview` censors `recent_chat` messages with `lib/censor.py::censor()` (whole-word match with leetspeak/stretched-letter tolerance; the bot's `recent_chat` deque and the Discord bridge stay uncensored). Extend the list via `CHAT_CENSOR_WORDS` (comma separated) or `_BASE_WORDS`.
+- `GET /api/bots/{key}/level-leaderboard?days=7|30|90` returns the top 50 by level and the top 50 climbers (levels gained over the window, using `get_level_gains`; `days_covered` says how much history actually backs a gain while under the window).
+- `GET /api/bots/{key}/level-trend?days=30` (7 to 90) returns one point per UTC day: the average of each current member's latest `guild_member_level_history` snapshot as of that day, plus how many members contributed (`GuildMembersQueries.get_average_level_trend`). The graph is sparse until a few days of snapshots exist.
+- `GET /api/bots/{key}/activity?hours=24` (`require_auth`) returns hourly peak members-online points from `online_snapshots` (DB only, no IPC). Gaps (bot offline) are simply absent hours.
+
+### `web/routes/bots.py` (historical notes; the routes are now split across `web/routes/{bot_control,guild_data,links,stats_refresh,api_usage}.py`)
 - All routes are prefixed `/api/bots` and proxy to the bot process's IPC API (`BOT_IPC_URL`, default `http://localhost:8081`) using `aiohttp`, falling back to an "offline" shape (or a 503) if the bot process is unreachable.
 - `GET /api/bots` (`require_bot_control`) — per-guild connection status.
 - `GET /api/bots/{key}/overview` (`require_auth`) — live member count + recent chat, or an offline placeholder.
@@ -269,12 +329,22 @@ bumble-unified/
 - `AppRouter` — unauthenticated users see `Login`; authenticated users see everything else nested inside a single `<Protected><AppShell/></Protected>` layout route: `Home` at `/`, `/guilds/:key`, `/guilds/:key/members`, `/guilds/:key/leaderboard`, `/dyes`, `/admin`, and `/users` (admin-only). There is no per-guild layout route anymore — each guild sub-page reads `:key` via `useParams` independently.
 - `frontend/src/api.ts` centralizes all `fetch()` calls to the backend; `frontend/src/types.ts` holds shared TS types (`Me`, etc.).
 
+### `frontend/src/theme.tsx` + `components/ThemeToggle.tsx`
+- `ThemeProvider`/`useTheme()` hold `light | dark`, set `data-theme` on `<html>`, and persist to `localStorage.theme`. An inline script in `frontend/index.html` sets the attribute before first paint (initial value: saved choice, else `prefers-color-scheme`), so there is no flash. `ThemeToggle` is the sun/moon icon button used in the sidebar, mobile bar and login page.
+
 ### `frontend/src/components/AppShell.tsx`
-- The persistent app chrome for every authenticated page: a fixed left sidebar (wordmark, Home link, both guilds' Overview/Members/Leaderboard sub-nav with a live connected/offline dot per guild polled from `api.bots()`, Dyes, and Admin/Users gated by `is_owner`/`is_admin`) plus a user chip with logout, and a `<main>` that renders the active page via `<Outlet/>`. Individual pages no longer render their own header — this replaced four separate hand-rolled headers (`Home.tsx`, the old `GuildLayout.tsx`, `Admin.tsx`, `Users.tsx`) that had drifted out of sync with each other.
+- Pearl layout: fixed left sidebar (wordmark, BK/BU guild switcher with live connected dots, per-guild Overview/Members/Leaderboard, Tools: Dyes and owner/admin-only Admin/Users, a Bot health card, user chip with theme toggle and logout) plus `<main>` rendering the page via `<Outlet/>`. The switcher remembers the last guild in `localStorage.last_guild` so tool pages keep your place. Below 860px the sidebar becomes a slide-in drawer opened from a top bar.
+
+### `frontend/src/components/AreaChart.tsx` (+ `ActivityChart.tsx`, `LevelTrendChart.tsx`)
+- `AreaChart` is the shared SVG area chart (smooth line, gridlines, hover tooltip, draw-in animation). Null slots are gaps, not zeros. `yMode` is `'zero'` for counts or `'fit'` to zoom to the data range. `ActivityChart` (members online per hour, last 24h, `api.guildActivity()`) and `LevelTrendChart` (guild average Skyblock level per day, 30d/90d, `api.levelTrend()`) just build slots and pick a mode.
+
+### `frontend/src/lib/attention.ts` + `lib/membersCache.ts`
+- `getAttention(members)` derives the "Needs attention" list client-side from the member list: Kick risk (60+ days offline), Inactive (30+), Low activity (14+) (those three only apply to the 20 lowest-level members), Level dropped in 90 days, Discord not linked, Stats older than 2 hours. Each item id doubles as the Members page `?filter=` value, so clicking an item on the Overview filters the table.
+- `membersCache.ts` caches the member list for 5 minutes and is shared by Overview and Members, because loading it makes the bot run `/guild list` in-game.
 
 ### `frontend/src/components/IdentityCell.tsx` + `Modal.tsx`
-- `PlayerIdentityCell` (Minecraft avatar + IGN, optional badge) and `DiscordIdentityCell` (Discord avatar + name, optional id/actions, em-dash placeholder when unlinked) — the two identity-cell shapes repeated in every member/leaderboard table. Used by `GuildMembers.tsx` and `GuildLeaderboard.tsx`.
-- `Modal` — the overlay+card+title+actions shell shared by every "form in a modal" flow (closes on backdrop click). Used by `GuildMembers.tsx`'s link/unlink modal and `Users.tsx`'s create/edit modal.
+- `PlayerIdentityCell` (Minecraft avatar + IGN, optional badge/sub text) and `DiscordIdentityCell` (Discord avatar + name, or a "Not linked" badge) are the two identity-cell shapes used by the member/leaderboard tables.
+- `Modal` is the overlay+card+title+actions shell used by the link/unlink flow and the Users create/edit form.
 
 ### `frontend/src/hooks/usePolling.ts` + `frontend/src/lib/`
 - `usePolling(callback, intervalMs, deps)` — runs `callback` immediately then every `intervalMs` until unmount or a `deps` change restarts it. Used by `AppShell.tsx` (bot status, 15s), `GuildOverview.tsx` (overview, 15s), and `Admin.tsx`'s `ApiUsagePanel` (API usage, 30s). `GuildMembers.tsx`'s stats-refresh progress poll is a different shape (polls until a "done" flag rather than forever) and stays a local `setInterval` in that file.
@@ -282,14 +352,16 @@ bumble-unified/
 - `lib/validators.ts::isValidDiscordId()` — the `/^\d{17,20}$/` check duplicated between `GuildMembers.tsx`'s link modal and `Users.tsx`'s create-user form.
 
 ### `frontend/src/pages/*.tsx`
-- `Login.tsx` — Discord OAuth2 login screen.
-- `Home.tsx` — landing content after login (guild picker), chrome-free — just the page body, rendered inside `AppShell`.
-- `GuildOverview.tsx` — connection status, member count, recent chat for one guild.
-- `GuildMembers.tsx` — member list/table (rank, Skyblock level, last login, linked Discord account), backed by `GET /api/bots/{key}/members`.
-- `GuildLeaderboard.tsx` — message-count leaderboard (lifetime/month/week), backed by `GET /api/bots/{key}/leaderboard`.
-- `Admin.tsx` — bot control (start/stop/restart), manual stats refresh, API usage.
-- `Users.tsx` — table of all panel users with add/edit/delete (admin only).
-- `Dyes.tsx` — a player's own dye profile by default (`GET /api/dyes/me`), IGN search to view another player's (`GET /api/dyes/search` → `GET /api/dyes/user/{uuid}`), a "Recently Dropped" feed (`GET /api/dyes/recent`), and the full catalog with locked dyes shown desaturated (no lock icon) alongside their odds. Dye artwork is hotlinked directly from the Hypixel Skyblock wiki (`https://hypixelskyblock.minecraft.wiki/images/{Dye_Name}.png`, spaces replaced with underscores) rather than bundled — verified working for all 34 dyes but is an external dependency worth knowing about if it ever needs to move to a bundled asset.
+- `Landing.tsx` - public landing page shown at `/` to signed-out visitors (signed-in users get `Home` at the same path; see the conditional route in `App.tsx`). Hero plus a live-rendered product preview (sample data only), feature blurbs, and a Discord sign-in CTA.
+- `Login.tsx` - Discord OAuth2 login card, reached at `/login` (OAuth errors redirect here) (plus a dev-only bypass button).
+- `Home.tsx` - guild picker with live connection badges.
+- `GuildOverview.tsx` - KPI row (members, online, average level, Discord linked), the activity graph, the average-level trend graph, Needs attention, guild chat, top climbers, and bot start/stop/restart for permitted users.
+- `GuildMembers.tsx` - shows two Messages columns, last 90 days and all time (`messages_total` comes from the `lifetime` rows in `message_counts`, so it counts since tracking began); rank sits under the player name and the 90-day level change under the level, an Updated column shows when stats were last refreshed, Discord avatars hide below 1400px wide (with a narrower sidebar) so the table still fits, Discord Edit/Unlink/Link and the Excuse/Kick actions are icon buttons, and the table is built to fit without horizontal scrolling at 1280px wide; for users with `can_manage_members`: an Invite player modal and a per-row Kick button (confirm modal with a reason box, quick-reason chips and a preview of the exact `/guild kick` command) and an Excuse button (reason plus optional end date; excused members get an Excused badge and are skipped by `getAttention`'s inactivity groups, with an Excused filter chip). Sortable member table with filter chips (All/Online/Offline plus any active attention groups), search, link/unlink modal, and manual stats refresh with progress.
+- `GuildLeaderboard.tsx` - a Levels view (fastest climbers over 7/30/90 days, highest level) and a Messages view (all time / month / week).
+- `GuildConfig.tsx` - per-guild Config tab: rank requirement inputs (with live validation and a members-per-level-band count) and the Needs attention thresholds, with a preview of how many members the draft would flag. Everyone can view it; inputs are disabled without Manage Config. Each attention field shows its default in its description. Two more cards set the message-count colour tiers for the Members page, one for the last 90 days and one for all time (red/yellow/green/blue/white start at N messages, anything below red is dark red; defaults 10/100/250/500/1000 for 90 days and 50/500/1250/2500/5000 for all time), each with a members-per-tier count.
+- `Admin.tsx` - Hypixel API usage meters (visible to everyone, read-only) and a link to Users.
+- `Users.tsx` - panel users table; visible to everyone, with add/edit/remove only for admins. Hierarchy: owner > admin > everyone else; only the owner can grant or revoke Admin or change an admin/owner (enforced in `web/routes/users.py`). Guests see Discord IDs hidden.
+- `Dyes.tsx` - a player's own dye profile (`GET /api/dyes/me`), IGN search for others, a "Recently dropped" feed, and the full catalog with locked dyes desaturated alongside their odds. Dye artwork is hotlinked from the Hypixel Skyblock wiki (`https://hypixelskyblock.minecraft.wiki/images/{Dye_Name}.png`), an external dependency worth knowing about.
 
 There is no log-streaming page — `Logs.tsx`, its `/ws/logs` backend endpoint, and `web/logs.py` (`LogBroadcaster`/`WebLogHandler`) were removed as unused.
 
@@ -497,6 +569,13 @@ api_calls (
     endpoint   TEXT,
     success    BOOLEAN
 );
+
+online_snapshots (
+    guild_key     TEXT,
+    taken_at      TIMESTAMPTZ,
+    online_count  INTEGER,             -- written every 10 min by cogs/tasks/online_snapshot.py; pruned after 30 days
+    PRIMARY KEY (guild_key, taken_at)
+);
 ```
 
 Notes:
@@ -609,6 +688,7 @@ See `example.env` for the full list. Critical ones:
 | `BOT_IPC_PORT` | Port the bot process's internal IPC API listens on (default 8081), bound to `127.0.0.1` only |
 | `BOT_IPC_URL` | Base URL the web process uses to reach the bot's IPC API (default `http://localhost:8081`) |
 | `BOT_IPC_SECRET` | Shared secret sent as `X-IPC-Secret`; required by `bot_ipc.py` if set |
+| `CHAT_CENSOR_WORDS` | Extra comma-separated words masked in the panel's chat feed (`lib/censor.py`) |
 | `PANEL_PORT` | Port uvicorn listens on for the web panel (default 8080) |
 | `PANEL_DISCORD_CLIENT_ID` | Discord OAuth2 app client ID (`web/auth.py`) |
 | `PANEL_DISCORD_CLIENT_SECRET` | Discord OAuth2 app client secret (`web/auth.py`) |

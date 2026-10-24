@@ -1,3 +1,4 @@
+from .censor import censor
 from .condense import condense
 from .deep_get import deep_get
 from .fetch import fetch, request
@@ -8,6 +9,7 @@ from .rankup import guild_rank_change
 from .relay import relay_to_other_guilds
 
 __all__ = [
+    "censor",
     "condense",
     "deep_get",
     "fetch",

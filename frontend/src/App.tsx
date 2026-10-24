@@ -1,15 +1,18 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { api } from './api'
+import { ThemeProvider } from './theme'
 import type { Me } from './types'
 import AppShell from './components/AppShell'
 import Login from './pages/Login'
+import Landing from './pages/Landing'
 import Home from './pages/Home'
 import GuildOverview from './pages/GuildOverview'
 import GuildMembers from './pages/GuildMembers'
 import GuildLeaderboard from './pages/GuildLeaderboard'
 import Admin from './pages/Admin'
 import Users from './pages/Users'
+import GuildConfig from './pages/GuildConfig'
 import Dyes from './pages/Dyes'
 
 interface AuthCtx {
@@ -27,7 +30,7 @@ export const useAuth = () => useContext(Auth)
 const DEV_BYPASS_KEY = 'dev_bypass'
 const DEV_ME: Me = {
   discord_id: '0', discord_name: 'Dev User', is_admin: true, can_control_bots: true,
-  can_fetch_api: true, can_manage_links: true, avatar_url: '', is_owner: true,
+  can_fetch_api: true, can_manage_links: true, can_manage_members: true, can_manage_config: true, avatar_url: '', is_owner: true,
 }
 
 function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -68,18 +71,20 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 function Protected({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
   const { me, loading } = useAuth()
   if (loading) return null
-  if (!me) return <Navigate to="/login" replace />
+  if (!me) return <Navigate to="/" replace />
   if (adminOnly && !me.is_admin) return <Navigate to="/" replace />
   return <>{children}</>
 }
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppRouter />
-      </AuthProvider>
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <AppRouter />
+        </AuthProvider>
+      </BrowserRouter>
+    </ThemeProvider>
   )
 }
 
@@ -89,6 +94,8 @@ function AppRouter() {
   return (
     <Routes>
       <Route path="/login" element={me ? <Navigate to="/" replace /> : <Login />} />
+      {/* Signed-out visitors get the landing page at "/"; signed-in users fall through to Home below. */}
+      {!me && <Route path="/" element={<Landing />} />}
       <Route element={<Protected><AppShell /></Protected>}>
         <Route path="/" element={<Home />} />
         <Route path="/guilds/:key" element={<GuildOverview />} />
@@ -96,7 +103,8 @@ function AppRouter() {
         <Route path="/guilds/:key/leaderboard" element={<GuildLeaderboard />} />
         <Route path="/dyes" element={<Dyes />} />
         <Route path="/admin" element={<Admin />} />
-        <Route path="/users" element={<Protected adminOnly><Users /></Protected>} />
+        <Route path="/guilds/:key/config" element={<GuildConfig />} />
+        <Route path="/users" element={<Users />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

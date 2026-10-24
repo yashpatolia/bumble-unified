@@ -5,8 +5,11 @@ export interface Me {
   can_control_bots: boolean
   can_fetch_api: boolean
   can_manage_links: boolean
+  can_manage_members?: boolean
+  can_manage_config?: boolean
   avatar_url: string
   is_owner: boolean
+  is_guest?: boolean
 }
 
 export interface GuildStatus {
@@ -45,6 +48,8 @@ export interface GuildMember {
   last_login: number | null
   stats_fetched_at: number | null
   messages_90d: number
+  messages_total: number
+  excused?: { reason: string | null; until: string | null; by: string | null } | null
   level_gain_90d: number | null
   level_gain_days: number | null
 }
@@ -74,6 +79,8 @@ export interface PanelUser {
   can_control_bots: boolean
   can_fetch_api: boolean
   can_manage_links: boolean
+  can_manage_members?: boolean
+  can_manage_config?: boolean
   is_owner: boolean
 }
 
@@ -113,4 +120,66 @@ export interface DyeDrop {
   ign: string
   discord_name: string | null
   discord_avatar: string | null
+}
+
+export interface LevelTrendPoint {
+  t: string
+  avg: number
+  members: number
+}
+
+export interface ActivityPoint {
+  t: string
+  online: number
+}
+
+export interface AttentionSettings {
+  kick_risk_days: number
+  inactive_days: number
+  low_activity_days: number
+  bottom_n: number
+  stale_hours: number
+  level_drop: number
+}
+
+export interface RankRequirement {
+  key: string
+  label: string
+  level: number
+  default_level: number
+  editable: boolean
+}
+
+export type ActivityTiers = Record<'red' | 'yellow' | 'green' | 'blue' | 'white', number>
+
+export interface ActivityConfig {
+  d90: ActivityTiers
+  total: ActivityTiers
+}
+
+export interface GuildConfigData {
+  ranks: RankRequirement[]
+  attention: AttentionSettings
+  attention_defaults: AttentionSettings
+  activity: ActivityConfig
+  activity_defaults: ActivityConfig
+  updated_by: string | null
+  updated_at: string | null
+}
+
+export interface LevelPerson {
+  ign: string
+  rank: string
+  level: number
+  uuid: string | null
+  discord_name: string | null
+  discord_avatar: string | null
+  gain: number | null
+  days_covered: number | null
+}
+
+export interface LevelLeaderboardData {
+  days: number
+  top: LevelPerson[]
+  climbers: LevelPerson[]
 }

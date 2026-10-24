@@ -1,13 +1,35 @@
 import asyncio
 import datetime
+import logging
 import os
+import re
 import time as _time
 
+import discord
 from fastapi import Depends, FastAPI, HTTPException, Request
+from pydantic import BaseModel
 from db import manager
 from lib.guild_list import parse_guild_list as _parse_guild_list, parse_online_igns as _parse_online_igns
 
 _IPC_SECRET = os.getenv("BOT_IPC_SECRET", "")
+_IGN_RE = re.compile(r"^[A-Za-z0-9_]{3,16}$")
+
+
+class _KickBody(BaseModel):
+    ign: str
+    reason: str = ""
+    actor: str = "panel"
+
+
+class _InviteBody(BaseModel):
+    ign: str
+    actor: str = "panel"
+
+
+def _clean_reason(reason: str) -> str:
+    """Single line, no control characters, capped, so it can never smuggle a second command."""
+    cleaned = re.sub(r"[\x00-\x1f\x7f]", " ", reason).strip()[:100]
+    return cleaned or "Removed via panel"
 
 
 def _verify(request: Request):
@@ -25,7 +47,7 @@ def _last_3_month_keys() -> list:
     return keys
 
 
-def _member_dict(r, online, msg_counts, old_levels) -> dict:
+def _member_dict(r, online, msg_counts, old_levels, lifetime_counts, excused) -> dict:
     ign, level = r[0], r[2]
     old = old_levels.get(ign)
     level_gain_90d = None
@@ -37,7 +59,7 @@ def _member_dict(r, online, msg_counts, old_levels) -> dict:
     return {
         "ign": ign, "rank": r[1], "skyblock_level": level, "last_login": r[3], "uuid": r[4] or None,
         "discord_name": r[5] or None, "discord_id": str(r[6]) if r[6] else None, "discord_avatar": r[7] or None,
-        "stats_fetched_at": r[8], "online": online, "messages_90d": msg_counts.get(r[4], 0),
+        "stats_fetched_at": r[8], "online": online, "messages_90d": msg_counts.get(r[4], 0), "messages_total": lifetime_counts.get(r[4], 0), "excused": excused.get(ign.lower()),
         "level_gain_90d": level_gain_90d, "level_gain_days": level_gain_days,
     }
 
@@ -84,8 +106,10 @@ def create_ipc_app(client):
             # Return DB cache with everyone offline
             rows = manager.get_guild_members(key)
             msg_counts = manager.get_message_counts_90d(key, _last_3_month_keys())
+            lifetime = manager.get_message_counts_lifetime(key)
             old_levels = manager.get_level_gain_90d(key)
-            members = [_member_dict(r, False, msg_counts, old_levels) for r in rows]
+            excused = manager.get_excused(key)
+            members = [_member_dict(r, False, msg_counts, old_levels, lifetime, excused) for r in rows]
             return {"members": sorted(members, key=lambda m: m["ign"].lower())}
 
         # Refresh DB from /guild list. Serialized with the Discord
@@ -115,10 +139,58 @@ def create_ipc_app(client):
 
         rows = manager.get_guild_members(key)
         msg_counts = manager.get_message_counts_90d(key, _last_3_month_keys())
+        lifetime = manager.get_message_counts_lifetime(key)
         old_levels = manager.get_level_gain_90d(key)
-        members = [_member_dict(r, r[0] in online_igns, msg_counts, old_levels) for r in rows]
+        excused = manager.get_excused(key)
+        members = [_member_dict(r, r[0] in online_igns, msg_counts, old_levels, lifetime, excused) for r in rows]
         members.sort(key=lambda m: (not m["online"], m["ign"].lower()))
         return {"members": members}
+
+    async def _audit(state, text: str) -> None:
+        """Mirror panel actions into the guild's Discord logs channel so they are never silent."""
+        logging.info(f"[panel] {text}")
+        if state.logs:
+            try:
+                await asyncio.to_thread(state.logs.send, embed=discord.Embed(colour=discord.Colour.blurple(), description=f"Panel: {text}"))
+            except Exception as e:
+                logging.warning(f"[panel] could not post audit log: {e}")
+
+    def _ready_state(key: str):
+        if key not in client.guild_configs:
+            raise HTTPException(status_code=404, detail="Unknown guild key")
+        state = client.guilds_state[key]
+        if not state.connected or not state.bot:
+            raise HTTPException(status_code=503, detail="The bot is not connected to Minecraft right now")
+        return state
+
+    @app.post("/guild/{key}/kick", dependencies=[Depends(_verify)])
+    async def kick_member(key: str, body: _KickBody):
+        state = _ready_state(key)
+        ign = body.ign.strip()
+        if not _IGN_RE.match(ign):
+            raise HTTPException(status_code=400, detail="That is not a valid Minecraft username")
+        if ign.lower() == client.guild_configs[key].mc_username.lower():
+            raise HTTPException(status_code=400, detail="The bot cannot kick itself")
+        if not any(r[0].lower() == ign.lower() for r in manager.get_guild_members(key)):
+            raise HTTPException(status_code=404, detail=f"{ign} is not in this guild's roster")
+        reason = _clean_reason(body.reason)
+        state.bot.chat(f"/guild kick {ign} {reason}")
+        await _audit(state, f"**{body.actor}** kicked `{ign}` ({reason})")
+        return {"status": "sent", "ign": ign}
+
+    @app.post("/guild/{key}/invite", dependencies=[Depends(_verify)])
+    async def invite_player(key: str, body: _InviteBody):
+        state = _ready_state(key)
+        ign = body.ign.strip()
+        if not _IGN_RE.match(ign):
+            raise HTTPException(status_code=400, detail="That is not a valid Minecraft username")
+        state.guild_invite = None
+        state.bot.chat(f"/guild invite {ign}")
+        await asyncio.sleep(1.5)
+        reply = state.guild_invite
+        state.guild_invite = None
+        await _audit(state, f"**{body.actor}** invited `{ign}`")
+        return {"status": "sent", "ign": ign, "message": reply or "Invite sent. Hypixel has not replied yet."}
 
     @app.post("/restart/{key}", dependencies=[Depends(_verify)])
     async def restart_bot(key: str):

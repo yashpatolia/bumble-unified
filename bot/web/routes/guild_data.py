@@ -1,12 +1,15 @@
 """Read-only guild data: live overview/members (proxied to the bot process's
-IPC API) and the message-count leaderboard (DB-only, no IPC involved)."""
+IPC API), plus the message-count leaderboard and online-activity graph
+(DB-only, no IPC involved)."""
 import datetime
+import time
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from config import GUILD_CONFIGS
+from lib.censor import censor
 from db import manager
-from web.auth import require_auth
+from web.auth import is_guest, require_auth
 from web.ipc_client import ipc_get, ipc_get_or_raise, LONG_TIMEOUT
 
 router = APIRouter(prefix="/api/bots", tags=["bots"])
@@ -18,6 +21,8 @@ async def get_guild_overview(key: str, _=Depends(require_auth)):
         raise HTTPException(status_code=404, detail="Unknown guild key")
     overview = await ipc_get(f"/guild/{key}/overview")
     if overview is not None:
+        # Chat is censored here, in the panel process, so no viewer ever receives the raw text.
+        overview["recent_chat"] = [{**m, "message": censor(m.get("message", ""))} for m in overview.get("recent_chat", [])]
         return overview
     config = GUILD_CONFIGS[key]
     return {
@@ -32,15 +37,80 @@ async def get_guild_overview(key: str, _=Depends(require_auth)):
     }
 
 
+# Loading members makes the bot run /guild list in-game. Guests are anonymous, so
+# they share one short-lived cached copy instead of each triggering an in-game refresh.
+_GUEST_MEMBERS_TTL = 120
+_guest_members_cache: dict = {}
+
+
+def _strip_discord_ids(members: list) -> list:
+    """Guests get no Discord IDs and no private excuse notes (only that someone is excused)."""
+    return [
+        {**m, "discord_id": None, "excused": {**m["excused"], "reason": None, "by": None} if m.get("excused") else None}
+        for m in members
+    ]
+
+
 @router.get("/{key}/members")
-async def get_guild_members(key: str, _=Depends(require_auth)):
+async def get_guild_members(key: str, claims=Depends(require_auth)):
     if key not in GUILD_CONFIGS:
         raise HTTPException(status_code=404, detail="Unknown guild key")
-    return await ipc_get_or_raise(f"/guild/{key}/members", timeout=LONG_TIMEOUT)
+    if not is_guest(claims):
+        return await ipc_get_or_raise(f"/guild/{key}/members", timeout=LONG_TIMEOUT)
+    hit = _guest_members_cache.get(key)
+    if not hit or time.time() - hit[0] > _GUEST_MEMBERS_TTL:
+        data = await ipc_get_or_raise(f"/guild/{key}/members", timeout=LONG_TIMEOUT)
+        hit = (time.time(), {"members": _strip_discord_ids(data.get("members", []))})
+        _guest_members_cache[key] = hit
+    return hit[1]
+
+
+@router.get("/{key}/activity")
+async def get_activity(key: str, hours: int = 24, _=Depends(require_auth)):
+    if key not in GUILD_CONFIGS:
+        raise HTTPException(status_code=404, detail="Unknown guild key")
+    hours = max(1, min(hours, 168))
+    rows = manager.get_online_activity(key, hours)
+    return {"points": [{"t": r[0].isoformat(), "online": r[1]} for r in rows]}
+
+
+@router.get("/{key}/level-trend")
+async def get_level_trend(key: str, days: int = 30, _=Depends(require_auth)):
+    if key not in GUILD_CONFIGS:
+        raise HTTPException(status_code=404, detail="Unknown guild key")
+    days = max(7, min(days, 90))
+    rows = manager.get_average_level_trend(key, days)
+    return {"points": [{"t": datetime.datetime.utcfromtimestamp(r[0]).strftime("%Y-%m-%d"), "avg": round(r[1], 2), "members": r[2]} for r in rows]}
+
+
+@router.get("/{key}/level-leaderboard")
+async def get_level_leaderboard(key: str, days: int = 30, claims=Depends(require_auth)):
+    """Top levels right now, plus who gained the most levels over the last `days` days."""
+    if key not in GUILD_CONFIGS:
+        raise HTTPException(status_code=404, detail="Unknown guild key")
+    days = days if days in (7, 30, 90) else 30
+    now = int(time.time())
+    anchors = {ign.lower(): v for ign, v in manager.get_level_gains(key, days).items()}
+    guest = is_guest(claims)
+    people = []
+    for r in manager.get_guild_members(key):
+        ign, rank, level, uuid = r[0], r[1], r[2], r[4] or None
+        if level is None:
+            continue
+        anchor = anchors.get(ign.lower())
+        gain = days_covered = None
+        if anchor is not None:
+            gain = round(level - anchor[0], 2)
+            days_covered = max(0, (now - anchor[1]) // 86400)
+        people.append({"ign": ign, "rank": rank, "level": level, "uuid": uuid, "discord_name": r[5] or None,
+                       "discord_avatar": r[7] or None, "gain": gain, "days_covered": days_covered})
+    top = sorted(people, key=lambda p: p["level"], reverse=True)[:50]
+    climbers = sorted((p for p in people if p["gain"] is not None and p["gain"] > 0), key=lambda p: p["gain"], reverse=True)[:50]
+    return {"days": days, "top": top, "climbers": climbers}
 
 
 @router.get("/{key}/leaderboard")
-async def get_leaderboard(key: str, period: str = "lifetime", _=Depends(require_auth)):
+async def get_leaderboard(key: str, period: str = "lifetime", claims=Depends(require_auth)):
     if key not in GUILD_CONFIGS:
         raise HTTPException(status_code=404, detail="Unknown guild key")
     now = datetime.datetime.utcnow()
@@ -53,6 +123,6 @@ async def get_leaderboard(key: str, period: str = "lifetime", _=Depends(require_
         period_key = ""
     rows = manager.get_message_leaderboard(key, period, period_key)
     return {"leaderboard": [
-        {"ign": r[0], "count": r[1], "uuid": r[2] or None, "discord_name": r[3] or None, "discord_id": str(r[4]) if r[4] else None, "discord_avatar": r[5] or None}
+        {"ign": r[0], "count": r[1], "uuid": r[2] or None, "discord_name": r[3] or None, "discord_id": None if is_guest(claims) else (str(r[4]) if r[4] else None), "discord_avatar": r[5] or None}
         for r in rows
     ]}

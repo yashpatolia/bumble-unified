@@ -1,5 +1,8 @@
+from db.queries.activity import ActivityQueries
 from db.queries.api_usage import ApiUsageQueries
 from db.queries.dyes import DyesQueries
+from db.queries.excused import ExcusedQueries
+from db.queries.guild_config import GuildConfigQueries
 from db.queries.guild_members import GuildMembersQueries
 from db.queries.message_counts import MessageCountsQueries
 from db.queries.panel_users import PanelUsersQueries
@@ -13,6 +16,9 @@ class DatabaseManager(
     PanelUsersQueries,
     ApiUsageQueries,
     MessageCountsQueries,
+    ActivityQueries,
+    GuildConfigQueries,
+    ExcusedQueries,
 ):
     """Centralized PostgreSQL access via a threaded connection pool.
 

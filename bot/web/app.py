@@ -7,11 +7,12 @@ from fastapi.staticfiles import StaticFiles
 
 from web.auth import (
     complete_login,
+    create_guest_token,
     discord_oauth_url,
     exchange_code,
     require_auth,
 )
-from web.routes import api_usage, bot_control, dyes, guild_data, links, stats_refresh, users
+from web.routes import api_usage, bot_control, dyes, guild_config, guild_data, links, member_actions, stats_refresh, users
 
 FRONTEND_DIST = Path(__file__).parent.parent.parent / "frontend" / "dist"
 
@@ -30,6 +31,8 @@ def create_app() -> FastAPI:
     app.include_router(bot_control.router)
     app.include_router(guild_data.router)
     app.include_router(links.router)
+    app.include_router(member_actions.router)
+    app.include_router(guild_config.router)
     app.include_router(stats_refresh.router)
     app.include_router(api_usage.router)
     app.include_router(users.router)
@@ -53,6 +56,10 @@ def create_app() -> FastAPI:
         token = complete_login(user)
         return RedirectResponse(f"/?token={token}")
 
+    @app.post("/auth/guest")
+    def guest_login():
+        return {"token": create_guest_token()}
+
     # --- Current user ---
 
     @app.get("/api/me")
@@ -65,8 +72,11 @@ def create_app() -> FastAPI:
             "can_control_bots": claims.get("bots", False),
             "can_fetch_api": claims.get("fetch_api", False),
             "can_manage_links": claims.get("manage_links", False),
+            "can_manage_members": claims.get("manage_members", False),
+            "can_manage_config": claims.get("manage_config", False),
             "avatar_url": claims.get("avatar", ""),
             "is_owner": claims.get("owner", False),
+            "is_guest": bool(claims.get("guest", False)),
         }
 
     # --- Serve built frontend (SPA fallback) ---

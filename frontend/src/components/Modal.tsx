@@ -13,7 +13,7 @@ export function Modal({ title, onClose, error, children, actions }: {
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="modal">
         <div className="modal-title">{title}</div>
-        {error && <p style={{ color: 'var(--red)', marginBottom: 12, fontSize: 13 }}>{error}</p>}
+        {error && <p className="error-text">{error}</p>}
         {children}
         <div className="modal-actions">{actions}</div>
       </div>

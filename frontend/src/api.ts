@@ -1,4 +1,4 @@
-import type { ApiUsageStats, DyeDrop, DyeProfile, DyeSearchResult, GuildMember, GuildOverview, GuildStatus, Me, PanelUser } from './types'
+import type { LevelLeaderboardData, ActivityConfig, ActivityPoint, AttentionSettings, GuildConfigData, LevelTrendPoint, ApiUsageStats, DyeDrop, DyeProfile, DyeSearchResult, GuildMember, GuildOverview, GuildStatus, Me, PanelUser } from './types'
 
 function token(): string | null {
   return localStorage.getItem('token')
@@ -27,6 +27,14 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>
 }
 
+/** Starts a read-only guest session (no Discord account). Stores the token; caller reloads. */
+export async function startGuestSession(): Promise<void> {
+  const res = await fetch('/auth/guest', { method: 'POST' })
+  if (!res.ok) throw new Error('Could not start a guest session')
+  const { token } = await res.json()
+  localStorage.setItem('token', token)
+}
+
 export const api = {
   me: () => req<Me>('/api/me'),
 
@@ -37,10 +45,14 @@ export const api = {
   guildOverview: (key: string) => req<GuildOverview>(`/api/bots/${key}/overview`),
   guildMembers: (key: string) => req<{ members: GuildMember[] }>(`/api/bots/${key}/members`),
 
+  guildActivity: (key: string, hours = 24) => req<{ points: ActivityPoint[] }>(`/api/bots/${key}/activity?hours=${hours}`),
+
+  levelTrend: (key: string, days = 30) => req<{ points: LevelTrendPoint[] }>(`/api/bots/${key}/level-trend?days=${days}`),
+
   users: () => req<PanelUser[]>('/api/users'),
-  createUser: (data: { discord_id: string; discord_name: string; is_admin: boolean; can_control_bots: boolean; can_fetch_api: boolean; can_manage_links: boolean }) =>
+  createUser: (data: { discord_id: string; discord_name: string; is_admin: boolean; can_control_bots: boolean; can_fetch_api: boolean; can_manage_links: boolean; can_manage_members: boolean; can_manage_config: boolean }) =>
     req<{ status: string }>('/api/users', { method: 'POST', body: JSON.stringify(data) }),
-  updateUser: (discord_id: string, data: { can_control_bots: boolean; can_fetch_api: boolean; can_manage_links: boolean }) =>
+  updateUser: (discord_id: string, data: { is_admin?: boolean; can_control_bots: boolean; can_fetch_api: boolean; can_manage_links: boolean; can_manage_members: boolean; can_manage_config: boolean }) =>
     req<{ status: string }>(`/api/users/${discord_id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteUser: (discord_id: string) =>
     req<{ status: string }>(`/api/users/${discord_id}`, { method: 'DELETE' }),
@@ -56,6 +68,21 @@ export const api = {
     req<{ status: string }>(`/api/bots/${key}/members/${encodeURIComponent(ign)}/link`, { method: 'POST', body: JSON.stringify(data) }),
   unlinkMember: (key: string, ign: string) =>
     req<{ status: string }>(`/api/bots/${key}/members/${encodeURIComponent(ign)}/link`, { method: 'DELETE' }),
+
+  kickMember: (key: string, ign: string, reason: string) =>
+    req<{ status: string; ign: string }>(`/api/bots/${key}/members/${encodeURIComponent(ign)}/kick`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  invitePlayer: (key: string, ign: string) =>
+    req<{ status: string; ign: string; message: string }>(`/api/bots/${key}/invite`, { method: 'POST', body: JSON.stringify({ ign }) }),
+
+  excuseMember: (key: string, ign: string, data: { reason: string; until: string | null }) =>
+    req<{ status: string; ign: string; reason: string | null; until: string | null }>(`/api/bots/${key}/members/${encodeURIComponent(ign)}/excuse`, { method: 'POST', body: JSON.stringify(data) }),
+  removeExcuse: (key: string, ign: string) =>
+    req<{ status: string }>(`/api/bots/${key}/members/${encodeURIComponent(ign)}/excuse`, { method: 'DELETE' }),
+  levelLeaderboard: (key: string, days: number) => req<LevelLeaderboardData>(`/api/bots/${key}/level-leaderboard?days=${days}`),
+
+  guildConfig: (key: string) => req<GuildConfigData>(`/api/bots/${key}/config`),
+  saveGuildConfig: (key: string, data: { ranks: Record<string, number>; attention: AttentionSettings; activity: ActivityConfig }) =>
+    req<GuildConfigData>(`/api/bots/${key}/config`, { method: 'PUT', body: JSON.stringify(data) }),
 
   myDyes: () => req<DyeProfile>('/api/dyes/me'),
   searchDyeUsers: (q: string) => req<{ results: DyeSearchResult[] }>(`/api/dyes/search?q=${encodeURIComponent(q)}`),

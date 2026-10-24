@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from db import manager
-from web.auth import require_auth
+from web.auth import is_guest, require_auth
 
 router = APIRouter(prefix="/api/dyes", tags=["dyes"])
 
@@ -31,6 +31,8 @@ def _build_profile(uuid: str, ign: str, discord_name, discord_avatar) -> dict:
 
 @router.get("/me")
 async def get_my_dyes(claims=Depends(require_auth)):
+    if is_guest(claims):
+        return {"linked": False}
     row = manager.get_user_by_discord(int(claims["sub"]))
     if row is None:
         return {"linked": False}
@@ -39,7 +41,7 @@ async def get_my_dyes(claims=Depends(require_auth)):
 
 
 @router.get("/search")
-async def search_dyes(q: str = "", _=Depends(require_auth)):
+async def search_dyes(q: str = "", claims=Depends(require_auth)):
     q = q.strip()
     if not q:
         return {"results": []}
@@ -49,7 +51,7 @@ async def search_dyes(q: str = "", _=Depends(require_auth)):
             {
                 "uuid": r[0],
                 "ign": r[1],
-                "discord_id": str(r[2]) if r[2] else None,
+                "discord_id": None if is_guest(claims) else (str(r[2]) if r[2] else None),
                 "discord_name": r[3],
                 "discord_avatar": r[4],
                 "unlocked_count": r[5],

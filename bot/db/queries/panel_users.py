@@ -7,10 +7,10 @@ class PanelUsersQueries(BaseQueries):
     """Web panel access control (`panel_users`) — separate from Discord<->MC links in `users`."""
 
     def get_panel_user(self, discord_id: int) -> Optional[tuple]:
-        """Returns (discord_id, discord_name, is_admin, can_control_bots, can_fetch_api, can_manage_links) or None."""
+        """Returns (discord_id, discord_name, is_admin, can_control_bots, can_fetch_api, can_manage_links, can_manage_members, can_manage_config) or None."""
         with self._cursor() as cur:
             cur.execute(
-                "SELECT discord_id, discord_name, is_admin, can_control_bots, can_fetch_api, can_manage_links "
+                "SELECT discord_id, discord_name, is_admin, can_control_bots, can_fetch_api, can_manage_links, can_manage_members, can_manage_config "
                 "FROM panel_users WHERE discord_id = %s",
                 (discord_id,),
             )
@@ -19,7 +19,7 @@ class PanelUsersQueries(BaseQueries):
     def get_all_panel_users(self) -> list:
         with self._cursor() as cur:
             cur.execute(
-                "SELECT discord_id, discord_name, is_admin, can_control_bots, can_fetch_api, can_manage_links "
+                "SELECT discord_id, discord_name, is_admin, can_control_bots, can_fetch_api, can_manage_links, can_manage_members, can_manage_config "
                 "FROM panel_users"
             )
             return cur.fetchall()
@@ -32,12 +32,14 @@ class PanelUsersQueries(BaseQueries):
         can_control_bots: bool = False,
         can_fetch_api: bool = False,
         can_manage_links: bool = False,
+        can_manage_members: bool = False,
+        can_manage_config: bool = False,
     ) -> None:
         with self._cursor() as cur:
             cur.execute(
-                "INSERT INTO panel_users (discord_id, discord_name, is_admin, can_control_bots, can_fetch_api, can_manage_links) "
-                "VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING",
-                (discord_id, discord_name, is_admin, can_control_bots, can_fetch_api, can_manage_links),
+                "INSERT INTO panel_users (discord_id, discord_name, is_admin, can_control_bots, can_fetch_api, can_manage_links, can_manage_members, can_manage_config) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING",
+                (discord_id, discord_name, is_admin, can_control_bots, can_fetch_api, can_manage_links, can_manage_members, can_manage_config),
             )
 
     def upsert_panel_user_name(self, discord_id: int, discord_name: str) -> None:
@@ -54,12 +56,14 @@ class PanelUsersQueries(BaseQueries):
         can_control_bots: bool,
         can_fetch_api: bool = False,
         can_manage_links: bool = False,
+        can_manage_members: bool = False,
+        can_manage_config: bool = False,
     ) -> None:
         with self._cursor() as cur:
             cur.execute(
                 "UPDATE panel_users SET is_admin = %s, can_control_bots = %s, "
-                "can_fetch_api = %s, can_manage_links = %s WHERE discord_id = %s",
-                (is_admin, can_control_bots, can_fetch_api, can_manage_links, discord_id),
+                "can_fetch_api = %s, can_manage_links = %s, can_manage_members = %s, can_manage_config = %s WHERE discord_id = %s",
+                (is_admin, can_control_bots, can_fetch_api, can_manage_links, can_manage_members, can_manage_config, discord_id),
             )
 
     def delete_panel_user(self, discord_id: int) -> None:

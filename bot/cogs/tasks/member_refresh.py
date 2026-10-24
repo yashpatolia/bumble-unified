@@ -7,6 +7,7 @@ from discord.ext import commands, tasks
 from db import manager
 from lib.get_uuid import get_uuid
 from lib.hypixel import fetch_member_stats
+from lib.guild_settings import get_rank_requirements
 from lib.rankup import guild_rank_change
 
 # Budget: 300 req / 5 min = 60 req/min total.
@@ -67,9 +68,10 @@ class MemberRefreshTask(commands.Cog):
             if not state.bot or getattr(state.bot, "ended", True):
                 return
 
+            ranks = get_rank_requirements(config)
             result = await guild_rank_change(
                 bot_rank, state.bot, username=ign, uuid=uuid,
-                ranks=config.ranks, send_msg=False, known_level=level,
+                ranks=ranks, send_msg=False, known_level=level,
             )
             if result and "No rank change" not in result:
                 logging.info(f"[{config.short_name}] Rank update {ign}: {result}")
@@ -77,7 +79,7 @@ class MemberRefreshTask(commands.Cog):
                 # Without this, the message_handler regex may store a partial
                 # rank name (e.g. "Sweaty" instead of "Sweaty Bee"), causing
                 # discord_rank_map to miss it and the sync to reset to the old rank.
-                required_bot_ranks = [r for r, req in config.ranks.items() if req < level]
+                required_bot_ranks = [r for r, req in ranks.items() if req < level]
                 if required_bot_ranks:
                     reverse_rank_map = {v: k for k, v in config.discord_rank_map.items()}
                     new_hypixel_rank = reverse_rank_map.get(required_bot_ranks[-1], current_rank)

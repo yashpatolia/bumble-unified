@@ -1,77 +1,36 @@
 import { useEffect, useState } from 'react'
-import { BotIcon, DropletIcon, GearIcon, UsersIcon } from '../components/icons'
-import beeLogo from '../assets/bumble-bee.png'
-
-const FEATURES = [
-  {
-    icon: BotIcon,
-    title: 'Guild Overview',
-    desc: 'Monitor member count, recent chat, and activity across both BK and BU in real time.',
-  },
-  {
-    icon: UsersIcon,
-    title: 'Member Management',
-    desc: 'Browse all guild members with Skyblock level, last login, and online status at a glance.',
-  },
-  {
-    icon: GearIcon,
-    title: 'Bot Control',
-    desc: 'Start, stop, and restart Mineflayer bots from the panel without touching the server.',
-  },
-  {
-    icon: DropletIcon,
-    title: 'Dye Collecting',
-    desc: 'Track dye drops for every member, browse the full catalog, and see odds for what you haven\'t unlocked yet.',
-  },
-]
+import { GuestButton } from '../components/GuestButton'
+import { ThemeToggle } from '../components/ThemeToggle'
 
 export default function Login() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const e = params.get('error')
+    const e = new URLSearchParams(window.location.search).get('error')
     if (e === 'oauth_denied') setError('Login was cancelled.')
     else if (e === 'oauth_failed') setError('Discord login failed. Try again.')
   }, [])
 
   return (
-    <div className="landing">
-      <div className="landing-hero">
-        <div className="landing-logo"><img src={beeLogo} alt="" /></div>
-        <h1 className="landing-title">Bumble</h1>
-        <p className="landing-sub">Guild management and monitoring panel for Bumble Kindergarten &amp; Bumble University.</p>
-        {error && <p className="login-error" style={{ marginBottom: 8 }}>{error}</p>}
-        <a href="/auth/discord" className="btn btn-discord landing-cta">
+    <div className="login">
+      <div className="login-theme"><ThemeToggle /></div>
+      <div className="card login-card reveal">
+        <h1>Bumble</h1>
+        <p>Guild management for Bumble Kindergarten and Bumble University.</p>
+        {error && <p className="error-text">{error}</p>}
+        <a href="/auth/discord" className="btn btn-discord">
           <svg width="20" height="20" viewBox="0 0 127.14 96.36" fill="currentColor" style={{ flexShrink: 0 }}>
-            <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/>
+            <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z" />
           </svg>
           Continue with Discord
         </a>
-        <p className="landing-hint">Access is restricted to authorized users only.</p>
+        <div style={{ marginTop: 12 }}><GuestButton className="btn btn-ghost" /></div>
+        <p style={{ fontSize: 12.5, margin: '14px 0 0' }}>Guests get read-only access.</p>
         {import.meta.env.DEV && (
-          <button
-            className="btn btn-ghost btn-sm"
-            style={{ marginTop: 20 }}
-            onClick={() => { localStorage.setItem('dev_bypass', '1'); window.location.href = '/' }}
-          >
+          <button className="btn btn-ghost btn-sm" style={{ marginTop: 14 }} onClick={() => { localStorage.setItem('dev_bypass', '1'); window.location.href = '/' }}>
             Skip login (dev only)
           </button>
         )}
-      </div>
-
-      <div className="landing-features">
-        {FEATURES.map(f => (
-          <div key={f.title} className="landing-feature-card">
-            <div className="landing-feature-icon"><f.icon /></div>
-            <div className="landing-feature-title">{f.title}</div>
-            <div className="landing-feature-desc">{f.desc}</div>
-          </div>
-        ))}
-      </div>
-
-      <div className="landing-footer">
-        Bumble Bridge Bot · Hypixel Skyblock
       </div>
     </div>
   )

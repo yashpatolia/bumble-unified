@@ -1,5 +1,5 @@
 /** Small inline-SVG line-icon set for the sidebar and page chrome.
- * Stroke-based, 18x18, inherits color via currentColor — no icon library dependency. */
+ * Stroke-based, 18x18, inherits color via currentColor, no icon library dependency. */
 import type { SVGProps } from 'react'
 
 type IconProps = SVGProps<SVGSVGElement>
@@ -24,7 +24,7 @@ export function HomeIcon(p: IconProps) {
   )
 }
 
-/** Rounded bot/guild glyph — used for the guild nav groups. */
+/** Rounded bot/guild glyph, used for the guild nav groups. */
 export function BotIcon(p: IconProps) {
   return (
     <svg {...base} {...p}>
@@ -102,6 +102,114 @@ export function ChevronRightIcon(p: IconProps) {
   return (
     <svg {...base} {...p}>
       <path d="M9 5l7 7-7 7" />
+    </svg>
+  )
+}
+
+export function SunIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4" />
+    </svg>
+  )
+}
+
+export function MoonIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
+    </svg>
+  )
+}
+
+export function MenuIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  )
+}
+
+export function CheckCircleIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m8 12.5 2.8 2.8L16 9.5" />
+    </svg>
+  )
+}
+
+export function SearchIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m16 16 4 4" />
+    </svg>
+  )
+}
+
+export function ArrowRightIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <path d="M5 12h14M13 6l6 6-6 6" />
+    </svg>
+  )
+}
+
+export function SlidersIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <path d="M4 7h9M17 7h3M4 17h3M11 17h9" />
+      <circle cx="15" cy="7" r="2" />
+      <circle cx="9" cy="17" r="2" />
+    </svg>
+  )
+}
+
+export function LinkIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" />
+      <path d="M14 10a4 4 0 0 0-5.7 0l-3 3A4 4 0 0 0 11 18.7l1-1" />
+    </svg>
+  )
+}
+
+export function UnlinkIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" />
+      <path d="M14 10a4 4 0 0 0-5.7 0l-3 3A4 4 0 0 0 11 18.7l1-1" />
+      <path d="M4 4l16 16" />
+    </svg>
+  )
+}
+
+export function PencilIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z" />
+      <path d="m13.5 6.5 4 4" />
+    </svg>
+  )
+}
+
+export function CalendarIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <rect x="4" y="5.5" width="16" height="14.5" rx="2.5" />
+      <path d="M4 10h16M8.5 3.5v4M15.5 3.5v4" />
+    </svg>
+  )
+}
+
+export function UserMinusIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <circle cx="9.5" cy="8" r="3.5" />
+      <path d="M3 20c.5-3.4 3-5.3 6.5-5.3 1.4 0 2.6.3 3.6.9" />
+      <path d="M16 15.5h5" />
     </svg>
   )
 }

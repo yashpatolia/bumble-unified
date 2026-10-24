@@ -16,6 +16,8 @@ _REDIRECT_URI = os.getenv("PANEL_REDIRECT_URI")
 _JWT_SECRET = os.getenv("PANEL_JWT_SECRET")
 _JWT_ALGO = "HS256"
 _JWT_EXPIRE_HOURS = 24 * 30  # 30 days
+_GUEST_EXPIRE_HOURS = 24
+GUEST_SUB = "guest"
 
 
 def discord_oauth_url() -> str:
@@ -30,7 +32,8 @@ def discord_oauth_url() -> str:
 
 def create_token(discord_id: int, discord_name: str, is_admin: bool, can_control_bots: bool,
                  avatar_url: str = "", is_owner: bool = False, can_fetch_api: bool = False,
-                 can_manage_links: bool = False) -> str:
+                 can_manage_links: bool = False, can_manage_members: bool = False,
+                 can_manage_config: bool = False) -> str:
     payload = {
         "sub": str(discord_id),
         "name": discord_name,
@@ -38,11 +41,37 @@ def create_token(discord_id: int, discord_name: str, is_admin: bool, can_control
         "bots": can_control_bots,
         "fetch_api": can_fetch_api,
         "manage_links": can_manage_links,
+        "manage_members": can_manage_members,
+        "manage_config": can_manage_config,
         "avatar": avatar_url,
         "owner": is_owner,
         "exp": datetime.now(timezone.utc) + timedelta(hours=_JWT_EXPIRE_HOURS),
     }
     return jwt.encode(payload, _JWT_SECRET, algorithm=_JWT_ALGO)
+
+
+def create_guest_token() -> str:
+    """Read-only session for visitors who skip Discord login. Every permission
+    flag is false, so each require_* dependency below rejects its mutating routes."""
+    payload = {
+        "sub": GUEST_SUB,
+        "name": "Guest",
+        "admin": False,
+        "bots": False,
+        "fetch_api": False,
+        "manage_links": False,
+        "manage_members": False,
+        "manage_config": False,
+        "avatar": "",
+        "owner": False,
+        "guest": True,
+        "exp": datetime.now(timezone.utc) + timedelta(hours=_GUEST_EXPIRE_HOURS),
+    }
+    return jwt.encode(payload, _JWT_SECRET, algorithm=_JWT_ALGO)
+
+
+def is_guest(claims: dict) -> bool:
+    return bool(claims.get("guest"))
 
 
 def verify_token(token: str) -> dict:
@@ -90,6 +119,20 @@ def require_manage_links(request: Request) -> dict:
     claims = require_auth(request)
     if not claims.get("manage_links") and not claims.get("admin"):
         raise HTTPException(status_code=403, detail="Manage links access not permitted")
+    return claims
+
+
+def require_manage_members(request: Request) -> dict:
+    claims = require_auth(request)
+    if not claims.get("manage_members") and not claims.get("admin"):
+        raise HTTPException(status_code=403, detail="Manage members access not permitted")
+    return claims
+
+
+def require_manage_config(request: Request) -> dict:
+    claims = require_auth(request)
+    if not claims.get("manage_config") and not claims.get("admin"):
+        raise HTTPException(status_code=403, detail="Manage config access not permitted")
     return claims
 
 
@@ -145,6 +188,9 @@ def complete_login(discord_user: dict) -> str:
     can_control_bots = bool(panel_user[3]) if panel_user else False
     can_fetch_api = bool(panel_user[4]) if panel_user and len(panel_user) > 4 else False
     can_manage_links = bool(panel_user[5]) if panel_user and len(panel_user) > 5 else False
+    can_manage_members = bool(panel_user[6]) if panel_user and len(panel_user) > 6 else False
+    can_manage_config = bool(panel_user[7]) if panel_user and len(panel_user) > 7 else False
     return create_token(discord_id, discord_name, is_admin, can_control_bots, avatar_url,
                          is_owner=(discord_id == PANEL_ADMIN_DISCORD_ID), can_fetch_api=can_fetch_api,
-                         can_manage_links=can_manage_links)
+                         can_manage_links=can_manage_links, can_manage_members=can_manage_members,
+                         can_manage_config=can_manage_config)

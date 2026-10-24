@@ -3,7 +3,7 @@ the bot process's internal IPC API via web/ipc_client.py."""
 from fastapi import APIRouter, Depends, HTTPException
 
 from config import GUILD_CONFIGS
-from web.auth import require_bot_control
+from web.auth import require_auth, require_bot_control
 from web.ipc_client import ipc_get, ipc_post_or_raise
 
 router = APIRouter(prefix="/api/bots", tags=["bots"])
@@ -23,7 +23,7 @@ def _offline_status():
 
 
 @router.get("")
-async def get_bots(_=Depends(require_bot_control)):
+async def get_bots(_=Depends(require_auth)):  # read-only status, shown in every viewer's sidebar
     status = await ipc_get("/status")
     return status if status is not None else _offline_status()
 

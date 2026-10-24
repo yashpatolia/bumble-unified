@@ -45,6 +45,17 @@ class MessageCountsQueries(BaseQueries):
             )
             return {row[0]: row[1] for row in cur.fetchall()}
 
+    def get_message_counts_lifetime(self, guild_key: str) -> dict:
+        """Returns {uuid: all-time count}. Counting started when the tracker was added, so this
+        is "since tracking began", not necessarily since the member joined."""
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT uuid, count FROM message_counts "
+                "WHERE guild_key = %s AND period_type = 'lifetime' AND uuid IS NOT NULL AND uuid != ''",
+                (guild_key,)
+            )
+            return {row[0]: row[1] for row in cur.fetchall()}
+
     def get_message_leaderboard(self, guild_key: str, period_type: str, period_key: str) -> list:
         """Returns [(ign, count, uuid, discord_name, discord_id, discord_avatar), ...] sorted by count desc."""
         with self._cursor() as cur:

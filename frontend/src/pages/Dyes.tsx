@@ -70,19 +70,16 @@ export default function Dyes() {
 
   return (
     <div>
-      <div className="header-row">
-        <div className="page-title" style={{ marginBottom: 0 }}>
+      <div className="crumb reveal">Tools / Dyes</div>
+      <div className="page-head reveal" style={{ '--i': 1 } as React.CSSProperties}>
+        <h1 className="page-title">
           Dyes
-          {profile?.linked && (
-            <span className="text-muted" style={{ fontSize: 14, fontWeight: 400, marginLeft: 10 }}>
-              {unlockedCount}/{dyes.length} unlocked
-            </span>
-          )}
-        </div>
-        <button className="btn btn-ghost btn-sm" onClick={() => navigate(-1)}>← Back</button>
+          {profile?.linked && <small>{unlockedCount} of {dyes.length} unlocked</small>}
+        </h1>
+        <button className="btn btn-sm" onClick={() => navigate(-1)}>Back</button>
       </div>
 
-      <div className="card" style={{ marginBottom: 20 }}>
+      <div className="card card-pad reveal" style={{ marginBottom: 16, '--i': 2 } as React.CSSProperties}>
         <div style={{ display: 'flex', gap: 8 }}>
           <input
             className="form-input"
@@ -91,11 +88,11 @@ export default function Dyes() {
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') runSearch() }}
           />
-          <button className="btn btn-ghost" onClick={runSearch} disabled={searching}>
+          <button className="btn" onClick={runSearch} disabled={searching}>
             {searching ? 'Searching...' : 'Search'}
           </button>
           {viewingOther && (
-            <button className="btn btn-ghost" onClick={loadMine}>My Dyes</button>
+            <button className="btn" onClick={loadMine}>My dyes</button>
           )}
         </div>
 
@@ -108,7 +105,7 @@ export default function Dyes() {
                 style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px', borderRadius: 8, cursor: 'pointer' }}
                 className="dye-search-result"
               >
-                <img className="hex-avatar" src={`https://mc-heads.net/avatar/${r.uuid}/28`} alt="" style={{ width: 28, height: 28 }} />
+                <img src={`https://mc-heads.net/avatar/${r.uuid}/28`} alt="" width={28} height={28} style={{ borderRadius: 7 }} />
                 <span style={{ fontWeight: 500 }}>{r.ign}</span>
                 {r.discord_name && <span className="text-muted" style={{ fontSize: 12 }}>{r.discord_name}</span>}
                 <span className="text-muted" style={{ fontSize: 12, marginLeft: 'auto' }}>{r.unlocked_count} unlocked</span>
@@ -119,12 +116,12 @@ export default function Dyes() {
       </div>
 
       {recent.length > 0 && (
-        <div className="card" style={{ marginBottom: 20 }}>
-          <div className="events-section-label" style={{ marginBottom: 10 }}>Recently Dropped</div>
-          <div className="dye-recent-list">
+        <div className="card card-pad reveal" style={{ marginBottom: 16, '--i': 3 } as React.CSSProperties}>
+          <div className="card-title" style={{ marginBottom: 8 }}>Recently dropped</div>
+          <div>
             {recent.map((d, i) => (
               <div key={i} className="dye-recent-row">
-                <img className="hex-avatar" src={`https://mc-heads.net/avatar/${d.uuid}/26`} alt="" style={{ width: 26, height: 26 }} />
+                <img src={`https://mc-heads.net/avatar/${d.uuid}/26`} alt="" width={26} height={26} style={{ borderRadius: 7 }} />
                 <span style={{ fontWeight: 500, fontSize: 13 }}>{d.ign}</span>
                 <span className="text-muted" style={{ fontSize: 12 }}>found</span>
                 <div className="dye-recent-icon-frame" style={{ background: `#${d.hex}33` }}>
@@ -138,19 +135,17 @@ export default function Dyes() {
         </div>
       )}
 
-      {error && <p style={{ color: 'var(--red)', marginBottom: 16 }}>{error}</p>}
+      {error && <p className="error-text">{error}</p>}
 
       {loading ? (
         <p className="empty">Loading...</p>
       ) : !profile?.linked ? (
         <p className="empty">
-          {viewingOther ? 'This player is not linked.' : 'Link your Discord account with /link in Discord to track your dyes.'}
+          {viewingOther ? 'This player is not linked.' : 'Search for a player above to see their dyes. Sign in and link your account with /link in Discord to track your own.'}
         </p>
       ) : (
         <>
-          <div className="events-section-label">
-            {viewingOther ? `${profile.ign}'s Dyes` : 'My Dyes'}
-          </div>
+          <div className="section-label">{viewingOther ? `${profile.ign}'s dyes` : 'My dyes'}</div>
           <div className="dye-grid">
             {sorted.map(d => (
               <div key={d.dye_id} className={`dye-swatch${d.unlocked ? '' : ' locked'}`} title={d.unlocked ? undefined : 'Not unlocked yet'}>

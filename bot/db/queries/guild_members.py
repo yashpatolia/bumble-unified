@@ -137,14 +137,56 @@ class GuildMembersQueries(BaseQueries):
                 (guild_key, ign, uuid, level, int(_time.time())),
             )
 
+    def get_average_level_trend(self, guild_key: str, days: int = 30) -> list:
+        """Returns [(day_start_unix, avg_level, member_count), ...] oldest first, one entry per UTC day
+        for the last `days` days. Each day averages every current member's latest snapshot recorded
+        before that day ended; members with no snapshot yet that day are left out (history only
+        starts once a member has been refreshed), so member_count shows how complete the point is."""
+        now = int(_time.time())
+        today_start = now - (now % 86400)
+        first_day = today_start - (days - 1) * 86400
+        # Look 30 days before the window so members refreshed less often still have a baseline.
+        since = first_day - 30 * 86400
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT h.ign::TEXT, h.level, h.recorded_at FROM guild_member_level_history h "
+                "JOIN guild_members m ON m.guild_key = h.guild_key AND m.ign = h.ign "
+                "WHERE h.guild_key = %s AND h.level IS NOT NULL AND h.recorded_at >= %s "
+                "ORDER BY h.recorded_at",
+                (guild_key, since),
+            )
+            rows = cur.fetchall()
+        by_member: dict = {}
+        for ign, level, recorded_at in rows:
+            by_member.setdefault(ign, []).append((recorded_at, level))
+        points = []
+        for i in range(days):
+            day_start = first_day + i * 86400
+            day_end = day_start + 86400
+            levels = []
+            for snaps in by_member.values():
+                latest = None
+                for recorded_at, level in snaps:
+                    if recorded_at >= day_end:
+                        break
+                    latest = level
+                if latest is not None:
+                    levels.append(latest)
+            if levels:
+                points.append((day_start, sum(levels) / len(levels), len(levels)))
+        return points
+
     def get_level_gain_90d(self, guild_key: str) -> dict:
-        """Returns {ign: (level_as_of_anchor, recorded_at)} — the anchor snapshot closest to 90
+        return self.get_level_gains(guild_key, 90)
+
+    def get_level_gains(self, guild_key: str, days: int) -> dict:
+        """Returns {ign: (level_as_of_anchor, recorded_at)} — the anchor snapshot closest to `days`
         days ago: the most recent snapshot at or before the cutoff if one exists (so the gain keeps
         showing indefinitely once 90 days of history has accumulated, instead of disappearing when
         the oldest row ages out of a strict window), else the oldest snapshot recorded at all
         (cold-start period, under 90 days of history — recorded_at lets callers show how many days
         the gain actually covers while under 90)."""
-        cutoff = int(_time.time()) - 90 * 86400
+        cutoff = int(_time.time()) - days * 86400
         with self._cursor() as cur:
             cur.execute(
                 "SELECT DISTINCT ON (ign) ign::TEXT, level, recorded_at FROM guild_member_level_history "

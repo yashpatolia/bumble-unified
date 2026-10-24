@@ -60,3 +60,20 @@ async def ipc_post_or_raise(path: str, timeout: aiohttp.ClientTimeout = LONG_TIM
         raise
     except Exception:
         raise HTTPException(status_code=503, detail="Bot process is offline")
+
+
+async def ipc_post_json(path: str, payload: dict, timeout: aiohttp.ClientTimeout = LONG_TIMEOUT):
+    """POST a JSON body. Unlike ipc_post_or_raise, a non-200 reply keeps the bot's own
+    error message (e.g. "Bot is not connected") so the panel can show it to the user."""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"{IPC_URL}{path}", json=payload, headers=ipc_headers(), timeout=timeout) as resp:
+                body = await resp.json(content_type=None)
+                if resp.status == 200:
+                    return body
+                detail = body.get("detail") if isinstance(body, dict) else None
+                raise HTTPException(status_code=resp.status, detail=detail or "IPC error")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=503, detail="Bot process is offline")

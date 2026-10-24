@@ -1,99 +1,74 @@
 import { useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { api } from '../api'
-import { useAuth } from '../App'
+import { ArrowRightIcon } from '../components/icons'
 import { usePolling } from '../hooks/usePolling'
 import type { ApiUsageStats } from '../types'
 
-function UsageBar({ value, max, color }: { value: number; max: number; color: string }) {
-  const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0
-  return (
-    <div style={{ marginTop: 6 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-secondary)', marginBottom: 3 }}>
-        <span>{value} calls</span>
-        <span>{pct}%</span>
-      </div>
-      <div style={{ height: 4, background: 'var(--surface3)', borderRadius: 2, overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 2, transition: 'width 0.4s ease' }} />
-      </div>
-    </div>
-  )
-}
-
 function ApiUsagePanel() {
   const [usage, setUsage] = useState<ApiUsageStats | null>(null)
-  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
+  const [updated, setUpdated] = useState<Date | null>(null)
 
   usePolling(() => {
-    api.apiUsage().then(u => { setUsage(u); setLastRefreshed(new Date()) }).catch(() => {})
+    api.apiUsage().then(u => { setUsage(u); setUpdated(new Date()) }).catch(() => {})
   }, 30_000)
 
-  if (!usage) return <p className="text-muted" style={{ fontSize: 13 }}>Loading...</p>
+  if (!usage) return <p className="text-muted">Loading...</p>
 
   const limit = usage.rate_limit.requests
   const windowMin = usage.rate_limit.window_minutes
   const { local, hypixel } = usage
+  const per = (mins: number) => Math.round((limit / windowMin) * mins)
 
   const cards = [
-    { label: 'Last Minute',    value: hypixel.queries_in_past_minute ?? local.last_minute, max: Math.round(limit / windowMin),        color: 'var(--accent)', sub: `of ~${Math.round(limit / windowMin)} / min` },
-    { label: 'Last 5 Minutes', value: local.last_5min,                                     max: Math.round(limit / windowMin * 5),    color: 'var(--blue)',   sub: `of ~${Math.round(limit / windowMin * 5)} / 5 min` },
-    { label: 'Last Hour',      value: local.last_hour,                                     max: Math.round(limit / windowMin * 60),   color: 'var(--green)',  sub: `of ~${Math.round(limit / windowMin * 60)} / hour` },
-    { label: 'Last 24 Hours',  value: local.today,                                         max: Math.round(limit / windowMin * 1440), color: '#c87d4a',       sub: `of ~${Math.round(limit / windowMin * 1440).toLocaleString()} / day` },
+    { label: 'Last minute', value: hypixel.queries_in_past_minute ?? local.last_minute, max: per(1), sub: `of about ${per(1)} per minute` },
+    { label: 'Last 5 minutes', value: local.last_5min, max: per(5), sub: `of about ${per(5)} per 5 min` },
+    { label: 'Last hour', value: local.last_hour, max: per(60), sub: `of about ${per(60)} per hour` },
+    { label: 'Last 24 hours', value: local.today, max: per(1440), sub: `of about ${per(1440).toLocaleString()} per day` },
   ]
 
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
-        <div className="events-section-label" style={{ margin: 0 }}>API Usage</div>
-        <span className="text-muted" style={{ fontSize: 12 }}>
-          Rate limit: {limit} req / {windowMin} min
-          {lastRefreshed && ` · updated ${lastRefreshed.toLocaleTimeString()}`}
-        </span>
+      <div className="card-sub" style={{ marginBottom: 12 }}>
+        Rate limit: {limit} requests per {windowMin} minutes{updated && `, updated ${updated.toLocaleTimeString()}`}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 32 }}>
-        {cards.map(c => (
-          <div key={c.label} className="card" style={{ padding: '20px 24px' }}>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{c.label}</div>
-            <div style={{ fontSize: 36, fontWeight: 700, lineHeight: 1 }}>{c.value.toLocaleString()}</div>
-            <UsageBar value={c.value} max={c.max} color={c.color} />
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 6 }}>{c.sub}</div>
-          </div>
-        ))}
-        {hypixel.total_queries != null && (
-          <div className="card" style={{ padding: '20px 24px' }}>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Queries</div>
-            <div style={{ fontSize: 36, fontWeight: 700, lineHeight: 1 }}>{hypixel.total_queries.toLocaleString()}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 16 }}>Lifetime calls on this API key</div>
-          </div>
-        )}
+      <div className="kpis">
+        {cards.map((c, i) => {
+          const pct = c.max > 0 ? Math.min(100, Math.round((c.value / c.max) * 100)) : 0
+          return (
+            <div key={c.label} className="card kpi reveal" style={{ '--i': i } as React.CSSProperties}>
+              <div className="k-label">{c.label}</div>
+              <div className="k-value num">{c.value.toLocaleString()}</div>
+              <div className="meter"><i style={{ width: `${pct}%` }} /></div>
+              <div className="k-sub" style={{ marginTop: 6 }}>{c.sub}</div>
+            </div>
+          )
+        })}
       </div>
+      {hypixel.total_queries != null && (
+        <div className="card-sub">Lifetime calls on this API key: <b className="num">{hypixel.total_queries.toLocaleString()}</b></div>
+      )}
     </>
   )
 }
 
 export default function Admin() {
-  const { me, loading } = useAuth()
-
-  if (loading) return null
-  if (!me?.is_owner) return <Navigate to="/" replace />
-
   return (
     <div>
-      <div className="page-title">Admin</div>
+      <div className="crumb reveal">Tools / Admin</div>
+      <div className="page-head reveal" style={{ '--i': 1 } as React.CSSProperties}>
+        <h1 className="page-title">Admin</h1>
+      </div>
+
+      <div className="section-label">Hypixel API usage</div>
       <ApiUsagePanel />
 
-      <div className="events-section-label">Management</div>
+      <div className="section-label">Management</div>
       <div className="guild-cards">
-        <Link className="guild-card" to="/users">
-          <div className="guild-card-header">
-            <div>
-              <div className="guild-card-name" style={{ fontSize: 18 }}>User Management</div>
-              <div className="guild-card-tag">Add, edit, or remove panel users and their permissions</div>
-            </div>
-          </div>
-          <div className="guild-card-footer">
-            <span className="guild-enter">Manage Users →</span>
-          </div>
+        <Link className="card guild-card reveal" to="/users">
+          <div className="g-name" style={{ fontSize: 21, marginTop: 0 }}>Panel users</div>
+          <div className="text-muted">Add, edit, or remove panel users and their permissions.</div>
+          <div className="g-foot">Manage users <ArrowRightIcon width={16} height={16} /></div>
         </Link>
       </div>
     </div>
