@@ -137,11 +137,12 @@ class GuildMembersQueries(BaseQueries):
                 (guild_key, ign, uuid, level, int(_time.time())),
             )
 
-    def get_average_level_trend(self, guild_key: str, days: int = 30) -> list:
+    def get_average_level_trend(self, guild_key: str, days: int = 30, exclude_igns: tuple = ()) -> list:
         """Returns [(day_start_unix, avg_level, member_count), ...] oldest first, one entry per UTC day
         for the last `days` days. Each day averages every current member's latest snapshot recorded
         before that day ended; members with no snapshot yet that day are left out (history only
-        starts once a member has been refreshed), so member_count shows how complete the point is."""
+        starts once a member has been refreshed), so member_count shows how complete the point is.
+        `exclude_igns` (any case) drops accounts such as the guild bots from the average."""
         now = int(_time.time())
         today_start = now - (now % 86400)
         first_day = today_start - (days - 1) * 86400
@@ -152,8 +153,9 @@ class GuildMembersQueries(BaseQueries):
                 "SELECT h.ign::TEXT, h.level, h.recorded_at FROM guild_member_level_history h "
                 "JOIN guild_members m ON m.guild_key = h.guild_key AND m.ign = h.ign "
                 "WHERE h.guild_key = %s AND h.level IS NOT NULL AND h.recorded_at >= %s "
+                "  AND LOWER(h.ign::TEXT) <> ALL(%s) "
                 "ORDER BY h.recorded_at",
-                (guild_key, since),
+                (guild_key, since, [n.lower() for n in exclude_igns]),
             )
             rows = cur.fetchall()
         by_member: dict = {}

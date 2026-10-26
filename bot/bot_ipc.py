@@ -47,7 +47,7 @@ def _last_3_month_keys() -> list:
     return keys
 
 
-def _member_dict(r, online, msg_counts, old_levels, lifetime_counts, excused) -> dict:
+def _member_dict(r, online, msg_counts, old_levels, lifetime_counts, excused, bot_names) -> dict:
     ign, level = r[0], r[2]
     old = old_levels.get(ign)
     level_gain_90d = None
@@ -59,13 +59,15 @@ def _member_dict(r, online, msg_counts, old_levels, lifetime_counts, excused) ->
     return {
         "ign": ign, "rank": r[1], "skyblock_level": level, "last_login": r[3], "uuid": r[4] or None,
         "discord_name": r[5] or None, "discord_id": str(r[6]) if r[6] else None, "discord_avatar": r[7] or None,
-        "stats_fetched_at": r[8], "online": online, "messages_90d": msg_counts.get(r[4], 0), "messages_total": lifetime_counts.get(r[4], 0), "excused": excused.get(ign.lower()),
+        "stats_fetched_at": r[8], "online": online, "messages_90d": msg_counts.get(r[4], 0), "messages_total": lifetime_counts.get(r[4], 0), "excused": excused.get(ign.lower()), "is_bot": ign.lower() in bot_names,
         "level_gain_90d": level_gain_90d, "level_gain_days": level_gain_days,
     }
 
 
 def create_ipc_app(client):
     app = FastAPI(docs_url=None, redoc_url=None)
+    # The guilds' own bot accounts sit in the roster but are not real players (excluded from averages).
+    bot_names = {c.mc_username.lower() for c in client.guild_configs.values()}
 
     @app.get("/status", dependencies=[Depends(_verify)])
     def get_status():
@@ -109,7 +111,7 @@ def create_ipc_app(client):
             lifetime = manager.get_message_counts_lifetime(key)
             old_levels = manager.get_level_gain_90d(key)
             excused = manager.get_excused(key)
-            members = [_member_dict(r, False, msg_counts, old_levels, lifetime, excused) for r in rows]
+            members = [_member_dict(r, False, msg_counts, old_levels, lifetime, excused, bot_names) for r in rows]
             return {"members": sorted(members, key=lambda m: m["ign"].lower())}
 
         # Refresh DB from /guild list. Serialized with the Discord
@@ -142,7 +144,7 @@ def create_ipc_app(client):
         lifetime = manager.get_message_counts_lifetime(key)
         old_levels = manager.get_level_gain_90d(key)
         excused = manager.get_excused(key)
-        members = [_member_dict(r, r[0] in online_igns, msg_counts, old_levels, lifetime, excused) for r in rows]
+        members = [_member_dict(r, r[0] in online_igns, msg_counts, old_levels, lifetime, excused, bot_names) for r in rows]
         members.sort(key=lambda m: (not m["online"], m["ign"].lower()))
         return {"members": members}
 

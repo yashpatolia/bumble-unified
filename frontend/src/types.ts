@@ -49,6 +49,7 @@ export interface GuildMember {
   stats_fetched_at: number | null
   messages_90d: number
   messages_total: number
+  is_bot?: boolean
   excused?: { reason: string | null; until: string | null; by: string | null } | null
   level_gain_90d: number | null
   level_gain_days: number | null

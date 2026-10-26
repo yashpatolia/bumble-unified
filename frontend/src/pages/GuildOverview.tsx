@@ -77,7 +77,8 @@ export default function GuildOverviewPage() {
   const stats = useMemo(() => {
     if (!members) return null
     const online = members.filter(m => m.online).length
-    const levels = members.map(m => m.skyblock_level).filter((l): l is number => l != null)
+    // Bot accounts sit in the roster but are not real players, so they stay out of the average.
+    const levels = members.filter(m => !m.is_bot).map(m => m.skyblock_level).filter((l): l is number => l != null)
     const avg = levels.length ? levels.reduce((a, b) => a + b, 0) / levels.length : 0
     const linked = members.filter(m => m.discord_name).length
     const messages = members.reduce((a, m) => a + (m.messages_90d ?? 0), 0)
@@ -118,7 +119,7 @@ export default function GuildOverviewPage() {
         {[
           { label: 'Members', value: stats ? stats.total : (data.member_count || '...'), sub: stats ? `${stats.online} online right now` : 'Loading roster' },
           { label: 'Online now', value: stats ? stats.online : '...', sub: stats && stats.total ? `${Math.round((stats.online / stats.total) * 100)}% of the guild` : '' },
-          { label: 'Average level', value: stats ? stats.avg.toFixed(0) : '...', sub: 'Skyblock level, all members' },
+          { label: 'Average level', value: stats ? stats.avg.toFixed(0) : '...', sub: 'Skyblock level, bots excluded' },
           { label: 'Discord linked', value: stats ? `${stats.linked}/${stats.total}` : '...', sub: stats ? `${stats.total - stats.linked} not linked` : '' },
         ].map((k, i) => (
           <div key={k.label} className="card kpi reveal" style={{ '--i': 2 + i } as React.CSSProperties}>

@@ -79,7 +79,9 @@ async def get_level_trend(key: str, days: int = 30, _=Depends(require_auth)):
     if key not in GUILD_CONFIGS:
         raise HTTPException(status_code=404, detail="Unknown guild key")
     days = max(7, min(days, 90))
-    rows = manager.get_average_level_trend(key, days)
+    # The guilds' bot accounts are in the roster but are not real players, so they stay out of the average.
+    bots = tuple(c.mc_username for c in GUILD_CONFIGS.values())
+    rows = manager.get_average_level_trend(key, days, exclude_igns=bots)
     return {"points": [{"t": datetime.datetime.utcfromtimestamp(r[0]).strftime("%Y-%m-%d"), "avg": round(r[1], 2), "members": r[2]} for r in rows]}
 
 

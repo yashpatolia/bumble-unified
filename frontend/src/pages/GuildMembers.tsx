@@ -376,11 +376,17 @@ export default function GuildMembers() {
                     <span className="sortable" style={{ cursor: 'pointer' }} onClick={() => handleSort('rank')}>Rank{arrow('rank')}</span>
                   </th>
                   <th>Discord</th>
-                  <th className="sortable" onClick={() => handleSort('level')}>Level{arrow('level')}</th>
+                  <th className="sortable" onClick={() => handleSort('level')}>Level{arrow('level')}<div style={{ fontWeight: 500, fontSize: 11 }}>90d change</div></th>
                   <th className="sortable" onClick={() => handleSort('last_login')} title="Last login">Seen{arrow('last_login')}</th>
                   <th className="sortable" onClick={() => handleSort('status')}>Status{arrow('status')}</th>
-                  <th className="sortable" onClick={() => handleSort('messages_90d')} style={{ textAlign: 'right' }}>Messages{arrow('messages_90d')}<div style={{ fontWeight: 500, fontSize: 11 }}>last 90 days</div></th>
-                  <th className="sortable" onClick={() => handleSort('messages_total')} style={{ textAlign: 'right' }}>Messages{arrow('messages_total')}<div style={{ fontWeight: 500, fontSize: 11 }}>all time</div></th>
+                  <th style={{ textAlign: 'right' }}>
+                    Messages
+                    <div style={{ fontWeight: 500, fontSize: 11 }}>
+                      <span style={{ cursor: 'pointer' }} onClick={() => handleSort('messages_90d')}>90d{arrow('messages_90d')}</span>
+                      <span style={{ opacity: 0.5 }}> / </span>
+                      <span style={{ cursor: 'pointer' }} onClick={() => handleSort('messages_total')}>all time{arrow('messages_total')}</span>
+                    </div>
+                  </th>
                   <th title="When this member's stats were last refreshed">Updated</th>
                   {canManageMembers && <th style={{ width: 1 }}></th>}
                 </tr>
@@ -417,16 +423,22 @@ export default function GuildMembers() {
                       <td className="num" style={{ whiteSpace: 'nowrap' }} title={m.stats_fetched_at ? `Stats fetched ${new Date(m.stats_fetched_at * 1000).toLocaleString()}` : undefined}>
                         {m.skyblock_level != null ? m.skyblock_level.toFixed(1) : 'N/A'}
                         {m.level_gain_90d != null && (
-                          <div className={m.level_gain_90d >= 0 ? 'gain-up' : 'gain-down'} style={{ fontSize: 12 }}>
+                          <div
+                            className={m.level_gain_90d >= 0 ? 'gain-up' : 'gain-down'}
+                            style={{ fontSize: 12 }}
+                            title={m.level_gain_days != null && m.level_gain_days < 90 ? `Change over the ${m.level_gain_days} days of history recorded so far (90 days once enough builds up)` : 'Change over the last 90 days'}
+                          >
                             {m.level_gain_90d >= 0 ? '+' : ''}{m.level_gain_90d.toFixed(1)}
-                            {m.level_gain_days != null && m.level_gain_days < 90 ? ` in ${m.level_gain_days}d` : ''}
                           </div>
                         )}
                       </td>
                       <td className="text-muted" style={{ whiteSpace: 'nowrap' }}>{formatLastLogin(m.last_login)}</td>
                       <td>{m.online ? <span className="badge badge-on">Online</span> : <span className="badge badge-off">Offline</span>}</td>
-                      <td className="num" style={{ textAlign: 'right', fontWeight: 600, color: tierColor(m.messages_90d ?? 0, activity.d90) }} title={TIER_NAMES[tierIndex(m.messages_90d ?? 0, activity.d90)]}>{(m.messages_90d ?? 0).toLocaleString()}</td>
-                      <td className="num" style={{ textAlign: 'right', fontWeight: 600, color: tierColor(m.messages_total ?? 0, activity.total) }} title={TIER_NAMES[tierIndex(m.messages_total ?? 0, activity.total)]}>{(m.messages_total ?? 0).toLocaleString()}</td>
+                      <td className="num" style={{ textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        <span style={{ color: tierColor(m.messages_90d ?? 0, activity.d90) }} title={`Last 90 days: ${TIER_NAMES[tierIndex(m.messages_90d ?? 0, activity.d90)]}`}>{(m.messages_90d ?? 0).toLocaleString()}</span>
+                        <span className="text-muted" style={{ fontWeight: 400 }}> / </span>
+                        <span style={{ color: tierColor(m.messages_total ?? 0, activity.total) }} title={`All time: ${TIER_NAMES[tierIndex(m.messages_total ?? 0, activity.total)]}`}>{(m.messages_total ?? 0).toLocaleString()}</span>
+                      </td>
                       <td className="text-muted" style={{ whiteSpace: 'nowrap', fontSize: 12.5 }}>{formatFetchedAt(m.stats_fetched_at)}</td>
                       {canManageMembers && (
                         <td>
