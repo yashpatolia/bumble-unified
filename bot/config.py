@@ -19,7 +19,11 @@ PANEL_JWT_SECRET = os.getenv("PANEL_JWT_SECRET")
 PANEL_ADMIN_DISCORD_ID = int(os.getenv("PANEL_ADMIN_DISCORD_ID", "0"))
 
 SERVER = os.getenv("MINECRAFT_SERVER_IP") or "mc.hypixel.net"
-VERSION = os.getenv("MINECRAFT_VERSION") or "1.8.9"
+# Preferred protocol version. Anything other than FALLBACK_VERSION is treated as "modern":
+# the bots join SkyBlock (Hypixel requires 26.1+ for it) and fall back to FALLBACK_VERSION
+# on their own if they keep disconnecting (see cogs/bridge/connections.py).
+FALLBACK_VERSION = "1.8.9"
+VERSION = os.getenv("MINECRAFT_VERSION") or FALLBACK_VERSION
 
 # Webhook URLs (Shared)
 BRIDGE_CHANNEL = os.getenv("BRIDGE_CHANNEL")
@@ -36,8 +40,6 @@ MESSAGE_LOGS_CHANNEL = os.getenv("MESSAGE_LOGS_CHANNEL")
 # Channel IDs
 BRIDGE_CHANNEL_ID = int(os.getenv("BRIDGE_CHANNEL_ID"))
 OFFICER_CHANNEL_ID = int(os.getenv("OFFICER_CHANNEL_ID"))
-LOGS_CHANNEL_ID = int(os.getenv("LOGS_CHANNEL_ID"))
-DYES_CHANNEL_ID = int(os.getenv("DYES_CHANNEL_ID"))
 
 # Discord Role IDs
 BK_STAFF_ROLE = int(os.getenv("BK_STAFF_ROLE_ID"))
@@ -46,27 +48,11 @@ BOT_ROLE = int(os.getenv("BOT_ROLE_ID"))
 OWNER_ID = int(os.getenv("OWNER_ID"))
 EXEC_ROLE = int(os.getenv("EXEC_ROLE_ID"))
 
-# Member roles
-BK_MEMBER = int(os.getenv("KINDERGARTEN_MEMBER_ROLE_ID"))
-BU_MEMBER = int(os.getenv("UNIVERSITY_MEMBER_ROLE_ID"))
-
-# BK rank role IDs
-BABY = int(os.getenv("BABY"))
-TODDLER = int(os.getenv("TODDLER"))
-SWEATY = int(os.getenv("SWEATY"))
-ULTIMATE = int(os.getenv("ULTIMATE"))
-
 # BK rank level requirements
 BABY_REQ = int(os.getenv("BABY_REQ"))
 TODDLER_REQ = int(os.getenv("TODDLER_REQ"))
 SWEATY_REQ = int(os.getenv("SWEATY_REQ"))
 ULTIMATE_REQ = int(os.getenv("ULTIMATE_REQ"))
-
-# BU rank role IDs
-STUDENT = int(os.getenv("STUDENT"))
-BACHELOR = int(os.getenv("BACHELOR"))
-MASTER = int(os.getenv("MASTER"))
-DOCTOR = int(os.getenv("DOCTOR"))
 
 # BU rank level requirements
 STUDENT_REQ = int(os.getenv("STUDENT_REQ"))
@@ -90,7 +76,6 @@ class GuildConfig:
     mc_options: dict                    # Mineflayer connection options
     guild_name: str                     # Hypixel guild name (for /guild list matching)
     staff_role_id: int                  # Discord staff role
-    member_role_id: int                 # Discord member role
     ranks: dict                         # {bot_rank_key: skyblock_level_req}
     discord_rank_map: dict              # {Hypixel guild rank → bot rank key}
     bridge_channel_id: Optional[int]    # Discord channel that feeds this MC guild (None = no listener)
@@ -108,7 +93,6 @@ BK_CONFIG = GuildConfig(
     mc_options=BK_OPTIONS,
     guild_name=os.getenv("KINDERGARTEN_GUILD_NAME", "Bumble Kindergarten"),
     staff_role_id=BK_STAFF_ROLE,
-    member_role_id=BK_MEMBER,
     ranks=BK_GUILD_RANKS,
     discord_rank_map={'Baby Bee': 'Baby', 'Toddler Bee': 'Tot', 'Sweaty Bee': 'Sweat', 'Ultimate Bee': 'Pro'},
     bridge_channel_id=BRIDGE_CHANNEL_ID,
@@ -122,7 +106,6 @@ BU_CONFIG = GuildConfig(
     mc_options=BU_OPTIONS,
     guild_name=os.getenv("UNIVERSITY_GUILD_NAME", "Bumble University"),
     staff_role_id=BU_STAFF_ROLE,
-    member_role_id=BU_MEMBER,
     ranks=BU_GUILD_RANKS,
     discord_rank_map={'Student': 'Junior', 'Bachelor': 'Bach', 'Master': 'Master', 'Doctorate': 'Dctr'},
     bridge_channel_id=None,    # BU messages come from BK's shared Discord channel

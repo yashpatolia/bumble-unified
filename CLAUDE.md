@@ -92,12 +92,14 @@ python bot/web_main.py   # Web panel (talks to the bot process via IPC)
 
 ```
 bumble-unified/
+├── README.md                 # Project overview, features, setup, deployment
 ├── deploy.sh                 # VPS deploy script
 ├── example.env               # Template for .env — copy and fill before running
 │
-├── docs/                      # All project documentation other than this file
-│   ├── README.md               # Project overview, features, setup, architecture
+├── docs/
 │   └── DEVELOPMENT.md          # Prod DB copy script usage
+├── scripts/
+│   └── copy-prod-db.sh         # Streams the VPS database into a local Postgres (see docs/DEVELOPMENT.md)
 │
 ├── frontend/                 # React/Vite web panel UI
 │   └── src/
@@ -110,7 +112,11 @@ bumble-unified/
     ├── config.py             # All configuration + GuildConfig dataclass + BK/BU instances
     ├── constants.py          # Static lookup tables: dungeon XP, dungeon floor XP + class boosts, MP values, dye IDs/roles/emojis
     ├── requirements.txt      # Python dependencies
-    ├── package.json          # Node.js dependencies (Mineflayer, skyhelper-networth)
+    ├── package.json          # Node.js dependencies (Mineflayer, skyhelper-networth, patch-package)
+    ├── js_deps.js            # Loads every Node package the Python side uses, from bot/node_modules
+    ├── mc_patches.js         # Runtime Mineflayer fixes applied to each bot (resource pack reply, chat during server switches)
+    ├── patches/              # patch-package patches applied to node_modules on every npm install/ci
+    │   └── mineflayer+4.39.0.patch # Vanilla-accurate movement packets (tick_end, player_input, position reminder)
     │
     ├── db/
     │   ├── __init__.py       # Exports `manager` singleton (DatabaseManager instance), reads DATABASE_URL
@@ -132,6 +138,7 @@ bumble-unified/
     ├── lib/                  # Low-level utility functions (no Discord, no cog state)
     │   ├── guild_settings.py # defaults + DB overrides + validation for rank requirements and attention thresholds; 20s cache for the bot
     │   ├── __init__.py       # Re-exports all lib symbols
+    │   ├── chat_wait.py      # wait_for_chat()/feed() — let async code wait for a specific Minecraft chat line
     │   ├── condense.py       # Number formatter: 1_500_000 → "1.5M"
     │   ├── deep_get.py       # Safe nested dict access
     │   ├── fetch.py          # async fetch() and sync request() for HTTP/JSON
@@ -153,7 +160,8 @@ bumble-unified/
     │
     ├── utils/
     │   ├── command_handler.py # bridge_commands() — routes .commands from Minecraft/Discord
-    │   └── roll_dye.py        # roll_dye() — weighted random dye drop, announces if new
+    │   ├── roll_dye.py        # roll_dye() — weighted random dye drop, announces if new
+    │   └── warpout.py         # warpout() — .warpout: party a player and /p warp them to a bot in SkyBlock
     │
     ├── web/                  # FastAPI web panel backend
     │   ├── app.py             # create_app() factory — mounts routers, OAuth2, /api/me, SPA fallback
@@ -180,7 +188,8 @@ bumble-unified/
         ├── bridge/               # One set of cogs handles both guilds via GuildConfig
         │   ├── bridge.py         # GuildBridge — MC→Discord chat relay + Discord→MC listener
         │   ├── connections.py    # GuildConnections — spawn/disconnect events, auto-reconnect, Hypixel member sync
-        │   └── message_handler.py# GuildMessageHandler — system messages (join/leave/kick/mute/invite), auto-rank on join
+        │   ├── message_handler.py# GuildMessageHandler — system messages (join/leave/kick/mute/invite), auto-rank on join
+        │   └── skyblock.py       # GuildSkyblock — keeps a 26.1+ bot in SkyBlock (inert on 1.8.9)
         │
         └── tasks/
             ├── online_snapshot.py # OnlineSnapshotTask - every 10 min records how many members are online per guild
@@ -193,12 +202,15 @@ bumble-unified/
 ## Key Files and Their Responsibilities
 
 ### `bot/main.py`
-- Defines `GuildState` dataclass: holds the live Mineflayer bot instance, `connected` flag, guild-list/guild-online buffers, invite result buffer, per-guild logs webhook, `manual_stop` flag, `guild_member_count`, and a `recent_chat` deque (last 50 messages, used by the web panel's guild overview).
+- Defines `GuildState` dataclass: holds the live Mineflayer bot instance, `connected` flag, guild-list/guild-online buffers, invite result buffer, per-guild logs webhook, `manual_stop` flag, `guild_member_count`, a `recent_chat` deque (last 50 messages, used by the web panel's guild overview), and `version`/`recent_disconnects` for the automatic version fallback (see `cogs/bridge/connections.py`).
 - Defines `Client(commands.Bot)`: holds `guild_configs` (static config map) and `guilds_state` (runtime state map, both keyed `'bk'`/`'bu'`), shared webhooks, and the skyhelper JS reference.
 - `setup_hook()` runs on startup: creates Mineflayer bots, sets per-guild log webhooks, sets shared webhooks, then dynamically loads every `.py` file inside every `cogs/` subdirectory (including `cogs/tasks/`).
 - `start_mineflayer()` only creates the raw Mineflayer bot object(s); it no longer knows about cog reloading. On reconnect (via `connections.py`) or a manual restart (via `bot_ipc.py`), the caller follows it with `cogs.bridge.connections.reload_bridge_cogs(client, config)` to reload the `connections`, `bridge`, and `message_handler` cogs against the new bot instance — see `cogs/bridge/connections.py` below.
 - `run_bot()` applies DB migrations, then runs the Discord client and the internal `bot_ipc` FastAPI server concurrently via `asyncio.gather`.
-- Right after `mineflayer = require("mineflayer")`, module-level code patches `minecraft-data`'s cached protocol object for `VERSION` so Hypixel's `window_items` packet is read as an opaque `restBuffer` instead of being structurally parsed. Works around an open upstream mineflayer/protodef bug where Minecraft 1.20.5+'s "Data Components" item encoding desyncs the NBT parser on that packet specifically (`Invalid tag: N > 20` in `play.toClient`, crashing a few seconds after spawn — see PrismarineJS/mineflayer #3669/#3787/#3583/#3750). Confirmed via `bot/scripts/test_mineflayer.py` that mineflayer's own `inventory.js` handler for this packet degrades to a silent no-op on an unparsed body rather than crashing, and that the patch is harmless on the `1.8.9` default too — so it's applied unconditionally rather than gated on `VERSION`. The one cost: `bot.inventory`/hotbar tracking won't reflect real contents, which nothing in this codebase reads anyway. Set `MINECRAFT_VERSION=1.8.9` in `.env` to fall back to the always-stable legacy path if a newer version misbehaves in some other way.
+- Node packages are loaded through `require("./js_deps.js")`, never a bare `require("mineflayer")`: JSPyBridge resolves bare names from its own private `node_modules` inside the Python venv, which ignores `bot/package.json` and silently keeps whatever version it auto-installed first. `js_deps.js` does plain CommonJS `require()`s from `bot/`, so `bot/package.json` + `bot/package-lock.json` are what actually runs.
+- `start_mineflayer()` creates each bot with `{**config.mc_options, "version": state.version}` and immediately calls `apply_mc_patches(bot)` (`mc_patches.js`): it fixes Mineflayer answering a resource pack with an all-zero UUID (Hypixel's SkyBlock servers force a pack during the configuration phase and hang forever without a reply for the real id; fixed upstream in PrismarineJS/mineflayer#4061 but not yet released), and holds `bot.chat()` calls made while the connection is mid server switch (`_client.state === 'configuration'`), because a chat packet sent then makes Hypixel close the socket.
+- Mineflayer's movement packets are fixed by `patches/mineflayer+4.39.0.patch` (patch-package, applied by `npm ci`'s postinstall). It ports `lib/plugins/physics.js` from u9g's mineflayer `v4.39.0-allprs.3` build (PrismarineJS/mineflayer#4063 and #4068): `tick_end` at the end of every physics tick, `player_input`, a tick-counted position reminder and real `hasHorizontalCollision`. Without it Hypixel never sends the bot its per-tick `ping`s and, ~43s after joining SkyBlock, says "Out of sync, check your internet connection!" and moves it to Limbo. Do **not** disable physics (`physicsEnabled = false`) to keep the bot still: the bot then reports itself airborne, Hypixel's anticheat flags it as flying and kicks it off SkyBlock within ~20s. With no control state set, physics just keeps it standing on the ground like an idle vanilla client.
+- When bumping Mineflayer, re-check whether these fixes have landed upstream; if the patch no longer applies, `npm ci` fails loudly. Recreate it with `npx patch-package mineflayer` after editing `node_modules/mineflayer`, or delete it once upstream covers it.
 
 ### `bot/web_main.py`
 - Separate process entry point for the web panel. Applies DB migrations, then serves `web/app.py`'s FastAPI app with uvicorn on `PANEL_PORT`.
@@ -216,7 +228,7 @@ bumble-unified/
   - `display_name` / `short_name` — e.g. `'Bumble Kindergarten'` / `'BK'`
   - `mc_options` — passed directly to `mineflayer.createBot()`; `mc_username` property reads the username out of it
   - `guild_name` — matched against `/guild list` output and used for the Hypixel guild API sync
-  - `staff_role_id`, `member_role_id` — Discord role IDs for permission checks
+  - `staff_role_id` — Discord role ID for staff permission checks
   - `ranks` — `{bot_rank_key: skyblock_level_requirement}` for auto-rankup
   - `discord_rank_map` — maps Hypixel guild rank names to bot rank keys, used by the background refresh task and auto-rank-on-join
   - `bridge_channel_id` / `officer_channel_id` — which Discord channels feed into this guild's MC chat (`None` = no Discord→MC listener for that guild)
@@ -243,7 +255,13 @@ bumble-unified/
 - `GuildConnections` handles Mineflayer `spawn` and `end` events per guild.
 - On `spawn`: marks `state.connected = True` and kicks off `_sync_guild_members_from_api()` on a background `threading.Thread` — this hits the Hypixel `/v2/guild` API directly (not the bridge's Mineflayer chat), resolves each member's IGN via `get_username()`, and calls `manager.sync_guild_members()` to reconcile the `guild_members` table.
 - On `end`: if `state.manual_stop` was set (by the web panel's stop endpoint), it clears the flag and does **not** reconnect. Otherwise it schedules a reconnect via `run_coroutine_threadsafe(reconnect(), self.client.loop)`, which sleeps 5s, calls `start_mineflayer(account=config.key)` to get a fresh bot object, then `reload_bridge_cogs(client, config)` to rebind the `connections`/`bridge`/`message_handler` cogs to it — this now uses the bot's own running event loop rather than spinning up a separate one.
-- `reload_bridge_cogs(client, config)` (module-level function, not a method) removes and re-adds those three cogs for one guild key. This re-runs their `__init__`, which creates fresh Mineflayer event bindings against the new bot instance; old bindings on the dead bot instance are abandoned. It's called from both the auto-reconnect path above and `bot_ipc.py`'s manual `/restart/{key}` endpoint — the two are the only places a bot instance gets replaced after startup.
+- Version fallback: every `end` is recorded in `state.recent_disconnects`; 3 disconnects within 10 minutes on any version other than `FALLBACK_VERSION` (`1.8.9`) switches `state.version` to the fallback for the following reconnects and says so in the bridge embed. `bot_ipc.py`'s manual `/restart/{key}` resets `state.version` to `MINECRAFT_VERSION`.
+- `reload_bridge_cogs(client, config)` (module-level function, not a method) removes and re-adds the `connections`, `bridge`, `message_handler` and `skyblock` cogs for one guild key. This re-runs their `__init__`, which creates fresh Mineflayer event bindings against the new bot instance; old bindings on the dead bot instance are abandoned. It's called from both the auto-reconnect path above and `bot_ipc.py`'s manual `/restart/{key}` endpoint — the two are the only places a bot instance gets replaced after startup.
+
+### `cogs/bridge/skyblock.py`
+- `GuildSkyblock` keeps a bot in SkyBlock when its `state.version` is 26.1+ (Hypixel refuses SkyBlock to older clients: "You must be using Minecraft Version 26.1 or later to play SkyBlock!"); on 1.8.9 its `__init__` returns before binding anything.
+- After every `spawn` (world change) it sends `/locraw` 3s later; if the JSON reply's `gametype` isn't `SKYBLOCK` it sends `/skyblock`. Hypixel moves bots on its own (lobby restarts, AFK, getting kicked off a SkyBlock server), so this is what brings it back.
+- "You were kicked while joining that server!" / "You tried to rejoin too fast" start a 60s cooldown, after which it retries `/skyblock` once.
 
 ### `cogs/bridge/message_handler.py`
 - Listens to `messagestr` (raw text lines from Minecraft, not parsed chat).
@@ -259,9 +277,14 @@ bumble-unified/
 - Waits 60s after `wait_until_ready()` before starting, so it doesn't compete with startup traffic.
 
 ### `utils/command_handler.py`
-- `bridge_commands(client, message, username, guild_rank, chat_state, config)` dispatches `.help`, `.lvl`, `.hlvl`, `.nw`, `.slayer`/`.slayers`, `.slayerxp <type>`, `.cata`, `.rtc`, `.rtca`, `.rtcaf`, `.pb`, `.mp`, `.bank`, `.chim <looting> <mf>`, `.petscore`.
+- `bridge_commands(client, message, username, guild_rank, chat_state, config)` dispatches `.warpout [ign]`, `.help`, `.lvl`, `.hlvl`, `.nw`, `.sacks`, `.slayer`/`.slayers`, `.slayerxp <type>`, `.cata`, `.rtc`, `.rtca`, `.rtcaf`, `.pb`, `.mp`, `.bank`, `.chim <looting> <mf>`, `.petscore`.
 - Each handler is a private `async` function that returns `(display_name, response_text, raw_username)`. The dispatcher sends the response to all guild bots and the appropriate webhook.
 - There is no in-game `.ranks` command anymore — rank auto-updates happen continuously via `cogs/tasks/member_refresh.py` and immediately on join via `message_handler.py`'s `_auto_fetch_and_rank()`.
+
+### `utils/warpout.py` + `lib/chat_wait.py`
+- `.warpout [ign]` (defaults to the sender) picks a connected bot whose `state.version` supports SkyBlock — this guild's first, else any — and runs `/p invite <ign>` → waits up to 60s for "<ign> joined the party." → `/p warp` → `/p disband`, replying with the outcome. Known invite failures ("Couldn't find a player with that name!", "...since they're not online.", "You cannot invite that player.") are reported directly. On 1.8.9 it refuses, since a 1.8.9 bot can't be in SkyBlock.
+- `state.warpout_lock` allows one warpout per bot at a time; a second request gets "Already warping someone". `_warpout` is the one dispatcher handler that also receives `config`.
+- It reads Hypixel's replies through `lib/chat_wait.py`: `wait_for_chat(state, predicate, timeout)` registers a `(predicate, future)` in `state.chat_waiters`, and `cogs/bridge/message_handler.py` passes every `messagestr` line to `feed()`, which resolves matching futures on the event loop (Mineflayer callbacks run on the JSPyBridge thread). Use it for any future command that needs to read Hypixel's reply instead of the sleep-then-read-a-buffer pattern the guild list uses.
 
 ### `player/class_average.py`
 - `ClassAverage` backs the `.rtca [username] [floor]` command (floor defaults to `m7`; the target is always class average 50). It reads `dungeons.player_classes.<class>.experience` — the only place in the codebase that touches class XP.
@@ -389,13 +412,14 @@ There is no log-streaming page — `Logs.tsx`, its `/ws/logs` backend endpoint, 
 | Package | Why |
 |---------|-----|
 | `mineflayer` | Minecraft bot client — connects to Hypixel, sends/receives chat |
-| `skyhelper-networth` | Calculates player net worth from profile data; called via the `javascript` bridge |
+| `skyhelper-networth` | Calculates player net worth (and the per-category breakdown `.sacks` uses) from profile data; called via the `javascript` bridge |
+| `patch-package` | Applies `bot/patches/*.patch` to `node_modules` on every `npm install`/`npm ci` (postinstall) |
 
 ### Frontend (`frontend/package.json`)
 | Package | Why |
 |---------|-----|
 | `react` / `react-dom` | UI framework |
-| `react-router-dom` | Client-side routing (Home, guild pages, Admin, Users, Logs) |
+| `react-router-dom` | Client-side routing (Landing, Home, guild pages, Dyes, Admin, Users) |
 | `vite` | Build tool; also runs a dev server that proxies `/api` and `/ws` to the Python backend |
 | `typescript` | Type safety across all frontend code |
 
@@ -626,7 +650,7 @@ Panel permissions are per-flag (`can_control_bots`, `can_fetch_api`, `can_manage
 All Mineflayer event handlers (`@On`, `@Once`) run in their own thread. Accessing `client` attributes from inside them is safe for reads, but any mutation of shared state (like `state.guild_list`) must be treated carefully. Currently the only writes are appends to lists and simple flag assignments, which is safe enough in CPython due to the GIL.
 
 ### Reconnect reloads bridge extensions
-`cogs/bridge/connections.py::reload_bridge_cogs(client, config)` removes and re-adds the `connections`, `bridge`, and `message_handler` cogs for that guild key, always immediately after `client.start_mineflayer(account=config.key)` creates a fresh bot object. This re-runs their `__init__`, which creates fresh Mineflayer event bindings against the new bot instance. Old bindings on the dead bot instance are abandoned. If you add new bridge modules, add their reload to `reload_bridge_cogs()`'s suffix list.
+`cogs/bridge/connections.py::reload_bridge_cogs(client, config)` removes and re-adds the `connections`, `bridge`, `message_handler`, and `skyblock` cogs for that guild key, always immediately after `client.start_mineflayer(account=config.key)` creates a fresh bot object. This re-runs their `__init__`, which creates fresh Mineflayer event bindings against the new bot instance. Old bindings on the dead bot instance are abandoned. If you add new bridge modules, add their reload to `reload_bridge_cogs()`'s suffix list.
 
 ### The bot and web processes are independent
 `web/routes/bots.py` never touches a live `Client` object — it only reaches the bot process via HTTP IPC (`BOT_IPC_URL`/`BOT_IPC_SECRET`) or reads shared PostgreSQL state. If the bot process is down, IPC calls fail and routes fall back to DB-cached/offline data (or a 503) rather than crashing. Don't reintroduce a shared in-process `Client` reference between the two — they are meant to be deployable and restartable independently.
@@ -654,6 +678,12 @@ The boost paths in `player/class_average.py` are confirmed against a live profil
 
 Also note the top-level `shards` object is the shard *inventory* (`owned`, `fused`, sort settings) and carries no attribute progress — don't reach for it.
 
+### JSPyBridge leaves its Node process running
+When a Python process using `javascript` exits, its `node .../javascript/js/bridge.js` child keeps running and keeps the parent's stdout pipe open. Piping such a script's output (`python x.py | tail`) therefore hangs forever even after Python is done; redirect to a file instead. Leftover `bridge.js` processes also lock files under the venv on Windows.
+
+### Testing against Hypixel
+Use a spare Microsoft account, never a live bot's: logging the same account in elsewhere kicks the running bridge bot. Hypixel also rate-limits rapid SkyBlock rejoins ("You tried to rejoin too fast").
+
 ### NBT parsing monkey-patch
 `player/magical_power.py` monkey-patches `nbt.nbt.TAG_String._parse_buffer` to handle non-UTF-8 strings in talisman NBT data. This runs at import time. It is a workaround for malformed Minecraft item names and must not be removed.
 
@@ -661,7 +691,7 @@ Also note the top-level `shards` object is the shard *inventory* (`owned`, `fuse
 `BU_CONFIG.bridge_channel_id = None` intentionally. All Discord messages go through the BK bridge's `on_message`, which sends to all bots. BU bridge only handles MC → Discord direction. If you need BU to have its own Discord input channel, set `BU_CONFIG.bridge_channel_id` and `BU_CONFIG.officer_channel_id` and add the corresponding env vars.
 
 ### Adding a new guild
-1. Add env vars for the new MC account, webhook URLs, role IDs, and rank requirements to `.env` and `example.env`
+1. Add env vars for the new MC account, webhook URLs, staff role ID, and rank requirements to `.env` and `example.env`
 2. Load them in `config.py` and create a new `GuildConfig` instance
 3. Add it to `GUILD_CONFIGS`
 4. Add its log webhook URL to `log_urls` in `main.py`
@@ -685,6 +715,7 @@ See `example.env` for the full list. Critical ones:
 | `BRIDGE_CHANNEL_ID` / `OFFICER_CHANNEL_ID` | `GuildBridge.on_message` channel filter (BK) |
 | `BK_STAFF_ROLE_ID` / `BU_STAFF_ROLE_ID` | Slash command permission checks |
 | `EXEC_ROLE_ID` | `/admin` and `/bk-exec`/`/bu-exec` permission checks |
+| `MINECRAFT_VERSION` | Protocol version the bots prefer (default `1.8.9`). `26.1` is needed for SkyBlock; bots fall back to `1.8.9` automatically if it keeps disconnecting |
 | `BOT_IPC_PORT` | Port the bot process's internal IPC API listens on (default 8081), bound to `127.0.0.1` only |
 | `BOT_IPC_URL` | Base URL the web process uses to reach the bot's IPC API (default `http://localhost:8081`) |
 | `BOT_IPC_SECRET` | Shared secret sent as `X-IPC-Secret`; required by `bot_ipc.py` if set |

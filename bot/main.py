@@ -21,24 +21,13 @@ from config import (
     VERSION,
 )
 
-mineflayer = require("mineflayer")
-skyhelper = require("skyhelper-networth")
-
-# Minecraft 1.20.5+'s Data Components item encoding desyncs mineflayer's NBT parser on a few
-# specific packets - an open upstream bug (PrismarineJS/mineflayer #3669/#3787/#3583/#3750, no
-# fix as of this writing). `window_items` (inventory sync) crashed the bot a few seconds after
-# spawn with "Invalid tag: N > 20"; `world_particles` throws a PartialReadError on every packet,
-# flooding the logs. Both packets' mineflayer handlers (inventory.js / particle.js) already
-# degrade to a harmless no-op on an unparsed body, and nothing in this codebase reads inventory
-# or particle data, so making both packets opaque buffers is safe - confirmed harmless on 1.8.9
-# too, so it's applied unconditionally rather than gated on MINECRAFT_VERSION.
-# Set MINECRAFT_VERSION back to 1.8.9 in .env to fall back to the legacy, always-stable path.
-try:
-    _mc_data = require("minecraft-data")(VERSION).protocol.play.toClient.types
-    _mc_data["packet_window_items"] = "restBuffer"
-    _mc_data["packet_world_particles"] = "restBuffer"
-except Exception as e:
-    logging.warning(f"Could not apply packet compatibility patches for version {VERSION}: {e}")
+# Node packages come from bot/node_modules via js_deps.js (see the comment there for why a
+# bare require() isn't used). apply_mc_patches holds the runtime fixes for modern protocol
+# versions (resource pack reply, chat during server switches) - see mc_patches.js.
+_js = require("./js_deps.js")
+mineflayer = _js.mineflayer
+skyhelper = _js.skyhelper
+apply_mc_patches = _js.applyMcPatches
 
 logging.basicConfig(
     level=logging.INFO,
@@ -65,6 +54,14 @@ class GuildState:
     manual_stop: bool = False
     guild_member_count: int = 0
     recent_chat: deque = field(default_factory=lambda: deque(maxlen=50))
+    # Protocol version this bot connects with. Starts at MINECRAFT_VERSION and drops to
+    # FALLBACK_VERSION if a modern version keeps disconnecting (connections.py).
+    version: str = VERSION
+    recent_disconnects: deque = field(default_factory=lambda: deque(maxlen=10))
+    # (predicate, future) pairs resolved by message_handler.py; see lib/chat_wait.py.
+    chat_waiters: list = field(default_factory=list)
+    # Held for the whole of a .warpout so two can't share the bot's party (utils/warpout.py).
+    warpout_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
 class Client(commands.Bot):
@@ -90,8 +87,10 @@ class Client(commands.Bot):
         for key, config in self.guild_configs.items():
             if account not in (key, "both"):
                 continue
-            logging.info(f"Logging in Mineflayer bot: {config.display_name} ({config.mc_username})")
-            self.guilds_state[key].bot = mineflayer.createBot(config.mc_options)
+            state = self.guilds_state[key]
+            logging.info(f"Logging in Mineflayer bot: {config.display_name} ({config.mc_username}) on {state.version}")
+            state.bot = mineflayer.createBot({**config.mc_options, "version": state.version})
+            apply_mc_patches(state.bot)
 
     async def setup_hook(self) -> None:
         await self.start_mineflayer()

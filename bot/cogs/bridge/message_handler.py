@@ -7,6 +7,7 @@ from discord.ext import commands
 from javascript import On
 from config import GuildConfig
 from db import manager
+from lib.chat_wait import feed as feed_chat_waiters
 from lib.get_uuid import get_uuid
 from lib.guild_settings import get_rank_requirements
 from lib.hypixel import fetch_member_stats
@@ -67,6 +68,8 @@ class GuildMessageHandler(commands.Cog):
         def on_messagestr(this, message, *args) -> None:
             if not message:
                 return
+
+            feed_chat_waiters(state, message, self.client.loop)
 
             logging.debug(f"[MC/{config.short_name}] {message}")
 

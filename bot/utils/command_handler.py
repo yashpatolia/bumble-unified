@@ -26,6 +26,7 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
             ".hlevel":      _highest_level,
             ".nw":          _networth,
             ".networth":    _networth,
+            ".sacks":       _sacks,
             ".slayer":      _slayers,
             ".slayers":     _slayers,
             ".slayerxp":    _slayer_xp,
@@ -43,6 +44,7 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
             ".chim":        _chim,
             ".petscore":    _petscore,
             ".pets":        _petscore,
+            ".warpout":     _warpout,
         }
 
         handler = command_map.get(parts[0])
@@ -50,7 +52,10 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
             return
 
         try:
-            result = await handler(username, parts, client)
+            if handler is _warpout:
+                result = await _warpout(username, parts, client, config)
+            else:
+                result = await handler(username, parts, client)
         except PlayerNotFoundError as e:
             target = str(e) or username
             result = (username, f"Couldn't find a Minecraft account named '{target}'", username)
@@ -82,10 +87,10 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
 
 async def _help(username: str, parts: list, client):
     mc_commands = " ".join([
-        ".lvl", ".hlvl", ".nw", ".cata", ".rtc", ".rtca", ".slayer", ".slayerxp", ".pb", ".mp", ".bank", ".chim", ".petscore"
+        ".lvl", ".hlvl", ".nw", ".sacks", ".cata", ".rtc", ".rtca", ".slayer", ".slayerxp", ".pb", ".mp", ".bank", ".chim", ".petscore", ".warpout"
     ])
     discord_commands = " | ".join([
-        ".lvl", ".hlvl", ".nw", ".cata", ".rtc [level]", ".rtca [floor]", ".slayer", ".slayerxp <type>", ".pb (f/m)(1-7)", ".mp", ".bank", ".chim <looting> <mf>", ".petscore"
+        ".lvl", ".hlvl", ".nw", ".sacks", ".cata", ".rtc [level]", ".rtca [floor]", ".slayer", ".slayerxp <type>", ".pb (f/m)(1-7)", ".mp", ".bank", ".chim <looting> <mf>", ".petscore", ".warpout [ign]"
     ])
     return username, mc_commands, discord_commands, username
 
@@ -112,6 +117,12 @@ async def _networth(username: str, parts: list, client):
         f"Networth - {condense(nw.cosmetic_networth)} | Non-Cosmetic - {condense(nw.non_cosmetic_networth)}",
         username,
     )
+
+
+async def _sacks(username: str, parts: list, client):
+    username = parts[1] if len(parts) > 1 else username
+    player = skyblock.Player(username=username)
+    return f"{player.username}{player.gamemode}", f"Sacks - {condense(player.sack_value(client.skyhelper))}", username
 
 
 async def _slayers(username: str, parts: list, client):
@@ -308,3 +319,7 @@ async def _petscore(username: str, parts: list, client):
     return f"{player.username}{player.gamemode}", f"Pet Score - {player.pet_score}", username
 
 
+async def _warpout(username: str, parts: list, client, config: GuildConfig = None):
+    from utils.warpout import warpout
+    ign = parts[1] if len(parts) > 1 else username
+    return username, await warpout(client, config, ign), username

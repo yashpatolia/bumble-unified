@@ -7,7 +7,8 @@
     "lib": "lib"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "postinstall": "patch-package"
   },
   "repository": {
     "type": "git",
@@ -17,8 +18,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "mineflayer": "^4.37.1",
-    "skyhelper-networth": "^2.8.0"
+    "mineflayer": "^4.39.0",
+    "patch-package": "^8.0.1",
+    "skyhelper-networth": "^2.11.1"
   },
   "type": "commonjs",
   "bugs": {

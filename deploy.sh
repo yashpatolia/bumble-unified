@@ -25,13 +25,19 @@ if echo "$CHANGED" | grep -q '^bot/'; then
     echo "Installing Python dependencies..."
     pip install -r bot/requirements.txt
 
+    # npm ci installs exactly what bot/package-lock.json pins (and wipes anything stale).
+    # The bot loads these through bot/js_deps.js, so this is what actually runs.
     echo "Installing Node dependencies..."
-    (cd bot && npm install)
+    (cd bot && npm ci)
+
+    # JSPyBridge keeps a private node_modules inside the venv for bare require() calls.
+    # Nothing uses it any more (see bot/js_deps.js), so drop the stale copy if it exists.
+    rm -rf venv/lib/python3*/site-packages/javascript/js/node_modules
 fi
 
 if echo "$CHANGED" | grep -q '^frontend/'; then
     echo "Building frontend..."
-    (cd frontend && npm install && npm run build)
+    (cd frontend && npm ci && npm run build)
 fi
 
 echo "Running database migrations..."

@@ -1,14 +1,21 @@
 import asyncio
 import logging
 import threading
+import time
 import discord
 import requests as _requests
 from asyncio import run_coroutine_threadsafe
 from discord.ext import commands
 from javascript import Once, On
-from config import GuildConfig, API_KEY
+from config import GuildConfig, API_KEY, FALLBACK_VERSION
 from db import manager
 from lib.get_username import get_username
+
+
+# A modern protocol version that drops this many times inside the window gets swapped for
+# FALLBACK_VERSION until the next manual restart (bot_ipc.py resets it).
+_FALLBACK_DISCONNECTS = 3
+_FALLBACK_WINDOW_SECONDS = 10 * 60
 
 
 def _sync_guild_members_from_api(config: GuildConfig) -> None:
@@ -49,12 +56,14 @@ async def reload_bridge_cogs(client, config: GuildConfig) -> None:
     disconnect-triggered reconnect and a manual restart from the web panel."""
     from cogs.bridge.bridge import GuildBridge
     from cogs.bridge.message_handler import GuildMessageHandler
+    from cogs.bridge.skyblock import GuildSkyblock
 
-    for suffix in ("connections", "bridge", "message_handler"):
+    for suffix in ("connections", "bridge", "message_handler", "skyblock"):
         await client.remove_cog(f"{config.key}_{suffix}")
     await client.add_cog(GuildConnections(client, config))
     await client.add_cog(GuildBridge(client, config))
     await client.add_cog(GuildMessageHandler(client, config))
+    await client.add_cog(GuildSkyblock(client, config))
 
 
 class GuildConnections(commands.Cog):
@@ -70,10 +79,10 @@ class GuildConnections(commands.Cog):
         @Once(state.bot, "spawn")
         def on_spawn(this):
             state.connected = True
-            logging.info(f"[{config.short_name}] Connected to {config.mc_options['host']}")
+            logging.info(f"[{config.short_name}] Connected to {config.mc_options['host']} on {state.version}")
             threading.Thread(target=_sync_guild_members_from_api, args=(config,), daemon=True).start()
             embed = discord.Embed(
-                description=f"**{config.short_name} Bridge Connected to:** `{config.mc_options['host']}`",
+                description=f"**{config.short_name} Bridge Connected to:** `{config.mc_options['host']}` ({state.version})",
                 color=discord.Color.dark_green(),
             )
             self.client.bridge.send(embed=embed)
@@ -91,14 +100,26 @@ class GuildConnections(commands.Cog):
                 self.client.bridge.send(embed=embed)
                 return
 
-            logging.info(f"[{config.short_name}] Disconnected — reconnecting in 5s")
-            embed = discord.Embed(
-                description=(
-                    f"**{config.short_name} Bridge Disconnected from:** `{config.mc_options['host']}`\n"
-                    f"Reconnecting in 5 seconds..."
-                ),
-                color=discord.Color.orange(),
+            now = time.time()
+            state.recent_disconnects.append(now)
+            recent = [t for t in state.recent_disconnects if now - t < _FALLBACK_WINDOW_SECONDS]
+            fell_back = state.version != FALLBACK_VERSION and len(recent) >= _FALLBACK_DISCONNECTS
+            if fell_back:
+                logging.warning(
+                    f"[{config.short_name}] {len(recent)} disconnects on {state.version} in "
+                    f"{_FALLBACK_WINDOW_SECONDS // 60} min — falling back to {FALLBACK_VERSION}"
+                )
+                state.version = FALLBACK_VERSION
+                state.recent_disconnects.clear()
+
+            logging.info(f"[{config.short_name}] Disconnected ({event}) — reconnecting in 5s")
+            description = (
+                f"**{config.short_name} Bridge Disconnected from:** `{config.mc_options['host']}`\n"
+                f"Reconnecting in 5 seconds..."
             )
+            if fell_back:
+                description += f"\nKept disconnecting, so reconnecting on **{FALLBACK_VERSION}** instead."
+            embed = discord.Embed(description=description, color=discord.Color.orange())
             self.client.bridge.send(embed=embed)
 
             async def reconnect():

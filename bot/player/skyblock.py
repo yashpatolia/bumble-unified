@@ -2,7 +2,7 @@ from config import API_KEY
 from constants import GAMEMODE
 from lib import get_uuid, get_username, deep_get, request
 from player.level import SkyblockLevel
-from player.networth import Networth
+from player.networth import Networth, sack_value
 from player.catacombs import Catacombs
 from player.class_average import ClassAverage
 from player.slayers import Slayers
@@ -96,6 +96,9 @@ class Player:
     def networth(self, skyhelper) -> Networth:
         profile_id = self.__selected_profile.get("profile_id") if self.__selected_profile else None
         return Networth(self.__uuid, self.__member_data, profile_id, self.bank, skyhelper)
+
+    def sack_value(self, skyhelper) -> int:
+        return sack_value(self.__member_data, self.bank, skyhelper)
 
     @property
     def catacombs(self) -> Catacombs:

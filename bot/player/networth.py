@@ -18,7 +18,7 @@ class Networth:
         if museum_data:
             calculator = skyhelper.ProfileNetworthCalculator(member_data, museum_data, bank)
         else:
-            calculator = skyhelper.ProfileNetworthCalculator(member_data, bank)
+            calculator = skyhelper.ProfileNetworthCalculator(member_data, None, bank)
 
         return round(calculator.getNetworth()["networth"]), round(calculator.getNonCosmeticNetworth()["networth"])
 
@@ -29,3 +29,14 @@ class Networth:
     @property
     def non_cosmetic_networth(self) -> int:
         return self.__non_cosmetic
+
+
+def sack_value(member_data: dict, bank: int, skyhelper) -> int:
+    """Total coin value of the player's sacks, via skyhelper's per-category networth breakdown.
+
+    Sacks don't depend on museum data, so this skips the museum request `Networth` makes.
+    """
+    if not member_data:
+        return 0
+    calculator = skyhelper.ProfileNetworthCalculator(member_data, None, bank)
+    return round(calculator.getNetworth()["types"]["sacks"]["total"])

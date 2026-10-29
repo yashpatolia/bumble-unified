@@ -1,28 +1,36 @@
-# Environment
+# Environment (example.env is the committed template)
 .env
+.env.*
 
 # Python
 __pycache__/
 *.py[cod]
-*.pyo
 venv/
 .venv/
 *.egg-info/
+.pytest_cache/
 
 # Node
 node_modules/
-frontend/node_modules/
 
 # Frontend build output
 frontend/dist/
+*.tsbuildinfo
 
-# Database
+# Local databases (the old pre-Postgres SQLite file, etc.)
 *.db
 *.db-shm
 *.db-wal
 
 # Logs
 *.log
+
+# Editors / tools
+.vscode/
+.idea/
+.claude/settings.local.json
+.claude/worktrees/
+.impeccable/
 
 # OS
 .DS_Store
