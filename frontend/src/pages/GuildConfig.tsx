@@ -6,21 +6,18 @@ import { TIER_NAMES, TIER_ORDER } from '../lib/activity'
 import { getAttention } from '../lib/attention'
 import { loadGuildConfig, setCachedGuildConfig } from '../lib/guildConfig'
 import { loadMembers } from '../lib/membersCache'
-import { DyeCatalogCard } from '../components/DyeCatalogCard'
-import { SharedSettingsCard } from '../components/SharedSettingsCard'
 import type { ActivityConfig, AttentionSettings, GuildConfigData, GuildMember } from '../types'
 
 type AttentionKey = keyof AttentionSettings
 type Period = 'd90' | 'total'
-type Tab = 'ranks' | 'activity' | 'bot' | 'dyes'
+type Tab = 'ranks' | 'activity' | 'bot'
 
-// Ranks, Activity and the bot's version are this guild's settings (header Save); warpout,
-// chat and dyes are shared by both guilds and save from their own cards.
+// Everything on this page is this guild's own (header Save). Settings shared by both guilds
+// (warpout, chat, dyes) are on the Global settings page.
 const TABS: { id: Tab; label: string }[] = [
   { id: 'ranks', label: 'Ranks and attention' },
   { id: 'activity', label: 'Message tiers' },
-  { id: 'bot', label: 'Bot and warpout' },
-  { id: 'dyes', label: 'Dyes' },
+  { id: 'bot', label: 'Bot' },
 ]
 
 const PERIODS: { id: Period; title: string; sub: string; field: 'messages_90d' | 'messages_total' }[] = [
@@ -131,7 +128,6 @@ export default function GuildConfig() {
     ),
     activity: !!data && PERIODS.some(p => TIER_ORDER.some(k => String(data.activity[p.id][k]) !== (actForm[p.id][k] ?? ''))),
     bot: !!data && versionForm !== data.minecraft_version,
-    dyes: false,
   }
   const dirty = Object.values(dirtyTabs).some(Boolean)
 
@@ -181,7 +177,7 @@ export default function GuildConfig() {
       <div className="crumb reveal">{key?.toUpperCase()} / Config</div>
       <div className="page-head reveal" style={{ '--i': 1 } as React.CSSProperties}>
         <h1 className="page-title">Config</h1>
-        {canEdit && tab !== 'dyes' && (
+        {canEdit && (
           <div className="head-actions">
             {saved && <span className="badge badge-on">Saved</span>}
             <button className="btn btn-primary" onClick={save} disabled={!dirty || !valid || saving}>{saving ? 'Saving...' : `Save ${key?.toUpperCase()} changes`}</button>
@@ -341,10 +337,6 @@ export default function GuildConfig() {
             </div>
           </div>
         </div>
-        <div>
-          <SharedSettingsCard canEdit={canEdit} />
-          <p className="card-sub" style={{ marginTop: 10 }}>Warpout and chat settings apply to both guilds and save with their own button.</p>
-        </div>
       </div>
       )}
 
@@ -404,14 +396,7 @@ export default function GuildConfig() {
       </div>
       )}
 
-      {tab === 'dyes' && (
-        <>
-          <p className="card-sub" style={{ marginBottom: 12 }}>The dye catalog is shared by both guilds. Each change saves straight away.</p>
-          <DyeCatalogCard canEdit={canEdit} />
-        </>
-      )}
-
-      {tab !== 'dyes' && data.updated_by && data.updated_at && (
+      {data.updated_by && data.updated_at && (
         <p className="card-sub" style={{ marginTop: 14 }}>
           Last changed by {data.updated_by} on {new Date(data.updated_at).toLocaleString()}.
         </p>

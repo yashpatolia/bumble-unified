@@ -14,6 +14,7 @@ import Admin from './pages/Admin'
 import Users from './pages/Users'
 import GuildConfig from './pages/GuildConfig'
 import Dyes from './pages/Dyes'
+import GlobalSettings from './pages/GlobalSettings'
 
 interface AuthCtx {
   me: Me | null
@@ -103,6 +104,7 @@ function AppRouter() {
         <Route path="/guilds/:key/leaderboard" element={<GuildLeaderboard />} />
         <Route path="/dyes" element={<Dyes />} />
         <Route path="/admin" element={<Admin />} />
+        <Route path="/settings" element={<GlobalSettings />} />
         <Route path="/guilds/:key/config" element={<GuildConfig />} />
         <Route path="/users" element={<Users />} />
       </Route>

@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { api } from '../api'
 import { useAuth } from '../App'
 import { usePolling } from '../hooks/usePolling'
-import { DropletIcon, GearIcon, LogoutIcon, MenuIcon, ShieldIcon, TrophyIcon, UsersIcon, BotIcon, SlidersIcon } from './icons'
+import { DropletIcon, GearIcon, LogoutIcon, MenuIcon, ShieldIcon, TrophyIcon, UsersIcon, BotIcon, SlidersIcon, GlobeIcon } from './icons'
 import { ThemeToggle } from './ThemeToggle'
 import type { GuildStatus } from '../types'
 
@@ -62,6 +62,7 @@ export default function AppShell() {
           <NavLink to={`/guilds/${guild}/config`} className={navClass}><SlidersIcon />Config</NavLink>
           <div className="nav-label" style={{ marginTop: 10 }}>Tools</div>
           <NavLink to="/dyes" className={navClass}><DropletIcon />Dyes</NavLink>
+          <NavLink to="/settings" className={navClass}><GlobeIcon />Global settings</NavLink>
           <NavLink to="/admin" className={navClass}><GearIcon />Admin</NavLink>
           <NavLink to="/users" className={navClass}><ShieldIcon />Users</NavLink>
         </nav>

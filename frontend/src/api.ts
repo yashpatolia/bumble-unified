@@ -1,4 +1,4 @@
-import type { LevelLeaderboardData, ActivityConfig, ActivityPoint, AttentionSettings, DyeCatalog, GuildConfigData, SharedSettings, WarpoutSettings, LevelTrendPoint, ApiUsageStats, DyeDrop, DyeProfile, DyeSearchResult, GuildMember, GuildOverview, GuildStatus, Me, PanelUser } from './types'
+import type { BotEmoji, LevelLeaderboardData, ActivityConfig, ActivityPoint, AttentionSettings, DyeCatalog, GuildConfigData, SharedSettings, WarpoutSettings, LevelTrendPoint, ApiUsageStats, DyeDrop, DyeProfile, DyeSearchResult, GuildMember, GuildOverview, GuildStatus, Me, PanelUser } from './types'
 
 function token(): string | null {
   return localStorage.getItem('token')
@@ -91,6 +91,9 @@ export const api = {
   dyeCatalog: () => req<DyeCatalog>('/api/dyes/catalog'),
   saveDye: (dyeId: string, data: { dye_name: string; weight: number; hex: string; role_id: string; emoji_id: string }) =>
     req<DyeCatalog>(`/api/dyes/catalog/${encodeURIComponent(dyeId)}`, { method: 'PUT', body: JSON.stringify(data) }),
+  dyeEmojis: () => req<{ emojis: BotEmoji[]; offline?: boolean }>('/api/dyes/emojis'),
+  uploadDyeEmoji: (name: string, image: string) =>
+    req<BotEmoji>('/api/dyes/emojis', { method: 'POST', body: JSON.stringify({ name, image }) }),
   deleteDye: (dyeId: string) => req<DyeCatalog>(`/api/dyes/catalog/${encodeURIComponent(dyeId)}`, { method: 'DELETE' }),
 
   myDyes: () => req<DyeProfile>('/api/dyes/me'),

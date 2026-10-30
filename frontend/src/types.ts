@@ -219,3 +219,10 @@ export interface LevelLeaderboardData {
   top: LevelPerson[]
   climbers: LevelPerson[]
 }
+
+export interface BotEmoji {
+  id: string
+  name: string
+  animated: boolean
+  source: 'application' | 'server'
+}

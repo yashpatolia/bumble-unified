@@ -3,7 +3,7 @@ import { api } from '../api'
 import { Modal } from './Modal'
 import { PencilIcon, PlusIcon, TrashIcon } from './icons'
 import { isValidDiscordId } from '../lib/validators'
-import type { CatalogDye, DyeCatalog } from '../types'
+import type { BotEmoji, CatalogDye, DyeCatalog } from '../types'
 
 type Form = { dye_id: string; dye_name: string; weight: string; hex: string; role_id: string; emoji_id: string }
 const EMPTY: Form = { dye_id: '', dye_name: '', weight: '', hex: '', role_id: '', emoji_id: '' }
@@ -18,6 +18,92 @@ const formError = (f: Form, isNew: boolean, others: number): string | null => {
   if (f.role_id.trim() && !isValidDiscordId(f.role_id.trim())) return 'Role must be a Discord role ID (17-20 digits).'
   if (f.emoji_id.trim() && !isValidDiscordId(f.emoji_id.trim())) return 'Emoji must be a Discord emoji ID (17-20 digits).'
   return null
+}
+
+// The bot's Discord emoji, straight from Discord's CDN by id (hidden if the id doesn't resolve).
+function DyeEmoji({ id, size = 22 }: { id: string | null; size?: number }) {
+  const [broken, setBroken] = useState(false)
+  useEffect(() => setBroken(false), [id])
+  if (!id || broken) return null
+  return <img src={`https://cdn.discordapp.com/emojis/${id}.webp?size=${size * 2}`} alt="" width={size} height={size}
+    style={{ objectFit: 'contain', flexShrink: 0 }} onError={() => setBroken(true)} />
+}
+
+const MAX_EMOJI_BYTES = 256 * 1024
+
+const readBase64 = (file: File) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader()
+  reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
+  reader.onerror = () => reject(new Error('Could not read that file'))
+  reader.readAsDataURL(file)
+})
+
+/** Pick one of the bot's Discord emojis, or upload a new one (saved on the bot as an
+ * application emoji, named after the dye id). Falls back to a plain ID box if the bot is offline. */
+function EmojiPicker({ value, onChange, uploadName, canEdit }: {
+  value: string; onChange: (id: string) => void; uploadName: string; canEdit: boolean
+}) {
+  const [emojis, setEmojis] = useState<BotEmoji[] | null>(null)
+  const [offline, setOffline] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    api.dyeEmojis().then(d => { setEmojis(d.emojis); setOffline(!!d.offline) }).catch(() => { setEmojis([]); setOffline(true) })
+  }, [])
+
+  const name = uploadName.replace(/[^A-Za-z0-9_]/g, '').slice(0, 32)
+  const upload = async (file: File | undefined) => {
+    if (!file) return
+    setError(null)
+    if (file.size > MAX_EMOJI_BYTES) { setError('Emoji images can be at most 256 KB.'); return }
+    setUploading(true)
+    try {
+      const made = await api.uploadDyeEmoji(name, await readBase64(file))
+      setEmojis(list => [...(list ?? []), made].sort((a, b) => a.name.localeCompare(b.name)))
+      onChange(made.id)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Upload failed')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  if (emojis === null) return <span className="card-sub">Loading emojis...</span>
+  if (offline && emojis.length === 0) {
+    return (
+      <div>
+        <input className="form-input mono" style={{ width: '100%' }} inputMode="numeric" placeholder="Emoji ID" value={value}
+          onChange={e => onChange(e.target.value.trim())} />
+        <div className="card-sub" style={{ marginTop: 4 }}>The bot is offline, so its emojis can't be listed. Paste an emoji ID instead.</div>
+      </div>
+    )
+  }
+  return (
+    <div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 132, overflowY: 'auto', padding: 2 }}>
+        <button type="button" className={`chip${value === '' ? ' active' : ''}`} onClick={() => onChange('')}>None</button>
+        {emojis.map(e => (
+          <button key={e.id} type="button" title={`${e.name} (${e.source})`} aria-label={e.name} aria-pressed={value === e.id}
+            className={`icon-btn${value === e.id ? ' active' : ''}`} style={value === e.id ? { boxShadow: '0 0 0 2px var(--accent)' } : undefined}
+            onClick={() => onChange(e.id)}>
+            <DyeEmoji id={e.id} size={22} />
+          </button>
+        ))}
+      </div>
+      {canEdit && (
+        <div style={{ marginTop: 8 }}>
+          <label className={`btn btn-sm${uploading || !name ? ' disabled' : ''}`} style={{ cursor: uploading || !name ? 'not-allowed' : 'pointer', opacity: uploading || !name ? 0.6 : 1 }}>
+            {uploading ? 'Uploading...' : 'Upload new emoji'}
+            <input type="file" accept="image/png,image/jpeg,image/gif" hidden disabled={uploading || !name}
+              onChange={e => { upload(e.target.files?.[0]); e.target.value = '' }} />
+          </label>
+          <span className="card-sub" style={{ marginLeft: 10 }}>{name ? `Saved as "${name}". PNG, JPG or GIF, up to 256 KB.` : 'Fill in the dye ID first.'}</span>
+        </div>
+      )}
+      {error && <p className="error-text" style={{ margin: '6px 0 0' }}>{error}</p>}
+    </div>
+  )
 }
 
 const oddsFor = (weight: number) => (weight > 0 ? `1 in ${Math.round(100 / weight).toLocaleString()}` : '')
@@ -100,7 +186,7 @@ export function DyeCatalogCard({ canEdit }: { canEdit: boolean }) {
       <p className="card-sub" style={{ padding: '0 20px 10px' }}>
         Every guild chat message rolls for a dye. Weight is the percent chance per message, so a weight of 0.01 is 1 in 10,000.
         Together the weights cover {+data.total_weight.toFixed(4)}%; the other {+noDrop.toFixed(4)}% of messages drop nothing.
-        The role is the Discord colour role /dyes gives; the emoji shows in its reply.
+        The role is the Discord colour role /dyes gives; the emoji shows in its reply. Neither is required.
       </p>
       {notice && <p className="card-sub" style={{ padding: '0 20px 10px' }}><span className="badge badge-on">{notice}</span></p>}
       <div className="table-wrap">
@@ -123,7 +209,7 @@ export function DyeCatalogCard({ canEdit }: { canEdit: boolean }) {
                 <td className="num">{d.weight}</td>
                 <td className="num">{d.odds}</td>
                 <td>{d.role_id ? <span className="mono">{d.role_id}</span> : <span className="badge badge-warn">None</span>}</td>
-                <td>{d.emoji_id ? <span className="mono">{d.emoji_id}</span> : <span className="card-sub">None</span>}</td>
+                <td>{d.emoji_id ? <span title={d.emoji_id} style={{ display: 'inline-flex' }}><DyeEmoji id={d.emoji_id} /></span> : <span className="badge badge-warn">None</span>}</td>
                 <td className="num">{d.unlocked_by}</td>
                 {canEdit && (
                   <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
@@ -177,19 +263,17 @@ export function DyeCatalogCard({ canEdit }: { canEdit: boolean }) {
                 </span>
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label className="form-label" htmlFor="dye-role">Discord role ID</label>
-                <input id="dye-role" className="form-input mono" style={{ width: '100%' }} inputMode="numeric" value={editing.form.role_id}
-                  onChange={e => setField('role_id', e.target.value)} />
-              </div>
-              <div>
-                <label className="form-label" htmlFor="dye-emoji">Discord emoji ID</label>
-                <input id="dye-emoji" className="form-input mono" style={{ width: '100%' }} inputMode="numeric" value={editing.form.emoji_id}
-                  onChange={e => setField('emoji_id', e.target.value)} />
-              </div>
+            <div>
+              <label className="form-label" htmlFor="dye-role">Discord role ID</label>
+              <input id="dye-role" className="form-input mono" style={{ width: '100%' }} inputMode="numeric" value={editing.form.role_id}
+                onChange={e => setField('role_id', e.target.value)} />
             </div>
-            <div className="card-sub">Without a role, players can still win the dye but /dyes can't give them its colour.</div>
+            <div>
+              <div className="form-label">Emoji</div>
+              <EmojiPicker value={editing.form.emoji_id} onChange={id => setField('emoji_id', id)}
+                uploadName={editing.form.dye_id} canEdit={canEdit} />
+            </div>
+            <div className="card-sub">Without a role, players can still win the dye but /dyes can't give them its colour. Without an emoji, the /dyes reply just shows the name.</div>
             {err && <p className="error-text" style={{ margin: 0 }}>{err}</p>}
           </div>
         </Modal>

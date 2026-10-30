@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import binascii
 import datetime
 import logging
 import os
@@ -24,6 +26,11 @@ class _KickBody(BaseModel):
 class _InviteBody(BaseModel):
     ign: str
     actor: str = "panel"
+
+
+class _EmojiBody(BaseModel):
+    name: str
+    image: str  # base64 of the PNG/JPG/GIF file
 
 
 def _clean_reason(reason: str) -> str:
@@ -222,6 +229,33 @@ def create_ipc_app(client):
                 state.manual_stop = False
                 raise HTTPException(status_code=500, detail="Failed to stop bot")
         return {"status": "stopped", "key": key}
+
+    @app.get("/emojis", dependencies=[Depends(_verify)])
+    async def list_emojis():
+        """Emojis the bot can use in messages: the ones uploaded to the application (what
+        POST /emojis creates) plus those of any server it is in, for the dye catalog picker."""
+        found = {}
+        try:
+            for e in await client.fetch_application_emojis():
+                found[e.id] = {"id": str(e.id), "name": e.name, "animated": e.animated, "source": "application"}
+        except discord.HTTPException as exc:
+            logging.warning(f"Could not fetch application emojis: {exc}")
+        for e in client.emojis:
+            found.setdefault(e.id, {"id": str(e.id), "name": e.name, "animated": e.animated, "source": "server"})
+        return {"emojis": sorted(found.values(), key=lambda e: e["name"].lower())}
+
+    @app.post("/emojis", dependencies=[Depends(_verify)])
+    async def upload_emoji(body: _EmojiBody):
+        """Uploads a new application emoji (usable anywhere the bot sends messages)."""
+        try:
+            image = base64.b64decode(body.image, validate=True)
+        except (binascii.Error, ValueError):
+            raise HTTPException(status_code=400, detail="Image is not valid base64")
+        try:
+            emoji = await client.create_application_emoji(name=body.name, image=image)
+        except discord.HTTPException as exc:
+            raise HTTPException(status_code=400, detail=f"Discord refused the emoji: {exc.text or exc}")
+        return {"id": str(emoji.id), "name": emoji.name, "animated": emoji.animated, "source": "application"}
 
     @app.get("/api-usage", dependencies=[Depends(_verify)])
     def get_api_usage():

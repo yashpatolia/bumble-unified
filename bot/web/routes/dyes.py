@@ -1,3 +1,5 @@
+import base64
+import binascii
 import re
 from typing import Optional
 
@@ -6,6 +8,7 @@ from pydantic import BaseModel
 
 from db import manager
 from web.auth import is_guest, require_auth, require_manage_config
+from web.ipc_client import ipc_get, ipc_post_json
 
 router = APIRouter(prefix="/api/dyes", tags=["dyes"])
 
@@ -152,6 +155,39 @@ async def save_dye(dye_id: str, body: DyeBody, _=Depends(require_manage_config))
         _discord_id(body.role_id, "Role"), _discord_id(body.emoji_id, "Emoji"),
     )
     return _catalog()
+
+
+# --- Emoji picker: the bot's own emojis live in Discord, so the bot process lists and uploads them.
+
+_EMOJI_NAME_RE = re.compile(r"^[A-Za-z0-9_]{2,32}$")
+_MAX_EMOJI_BYTES = 256 * 1024  # Discord's limit
+_IMAGE_MAGIC = tuple(bytes.fromhex(h) for h in ("89504e470d0a1a0a", "ffd8ff", "474946383761", "474946383961"))  # PNG, JPG, GIF87a, GIF89a
+
+
+class EmojiBody(BaseModel):
+    name: str
+    image: str  # base64, no data: prefix
+
+
+@router.get("/emojis")
+async def list_emojis(_=Depends(require_auth)):
+    data = await ipc_get("/emojis")
+    return data if data is not None else {"emojis": [], "offline": True}
+
+
+@router.post("/emojis")
+async def upload_emoji(body: EmojiBody, _=Depends(require_manage_config)):
+    if not _EMOJI_NAME_RE.match(body.name):
+        raise HTTPException(status_code=400, detail="Emoji name must be 2-32 letters, digits or underscores")
+    try:
+        raw = base64.b64decode(body.image, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(status_code=400, detail="Image is not valid base64")
+    if len(raw) > _MAX_EMOJI_BYTES:
+        raise HTTPException(status_code=400, detail="Emoji images can be at most 256 KB")
+    if not raw.startswith(_IMAGE_MAGIC):
+        raise HTTPException(status_code=400, detail="Emoji must be a PNG, JPG or GIF image")
+    return await ipc_post_json("/emojis", {"name": body.name, "image": body.image})
 
 
 @router.delete("/catalog/{dye_id}")
