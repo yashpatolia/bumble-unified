@@ -56,14 +56,12 @@ async def reload_bridge_cogs(client, config: GuildConfig) -> None:
     disconnect-triggered reconnect and a manual restart from the web panel."""
     from cogs.bridge.bridge import GuildBridge
     from cogs.bridge.message_handler import GuildMessageHandler
-    from cogs.bridge.skyblock import GuildSkyblock
 
-    for suffix in ("connections", "bridge", "message_handler", "skyblock"):
+    for suffix in ("connections", "bridge", "message_handler"):
         await client.remove_cog(f"{config.key}_{suffix}")
     await client.add_cog(GuildConnections(client, config))
     await client.add_cog(GuildBridge(client, config))
     await client.add_cog(GuildMessageHandler(client, config))
-    await client.add_cog(GuildSkyblock(client, config))
 
 
 class GuildConnections(commands.Cog):

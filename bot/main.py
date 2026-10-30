@@ -65,7 +65,7 @@ class GuildState:
     # lowercased IGNs waiting or running, for queue positions and duplicate checks.
     warpout_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     warpout_queue: list = field(default_factory=list)
-    last_party_command: float = 0.0  # time.monotonic() of the last /p command (utils/warpout.py)
+    last_warpout_command: float = 0.0  # time.monotonic() of the last warpout command (utils/warpout.py)
 
 
 class Client(commands.Bot):

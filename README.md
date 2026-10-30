@@ -22,7 +22,7 @@ Anyone in guild chat (or the Discord bridge channel) can run these. The username
 |---------|-------------|
 | `.lvl [user]` / `.hlvl [user]` | Skyblock level on the selected profile / highest across profiles |
 | `.nw [user]` | Networth and non-cosmetic networth |
-| `.sacks [user]` | Total value of everything in the player's sacks |
+| `.sacks [user]` / `.sax [user]` | Total value of everything in the player's sacks |
 | `.bank [user]` | Coop bank, personal bank and purse |
 | `.cata [user]` | Catacombs level, secrets and secrets per run |
 | `.rtc [user] [level] [floor]` | Runs to a Catacombs level |
@@ -33,7 +33,7 @@ Anyone in guild chat (or the Discord bridge channel) can run these. The username
 | `.mp [user]` | Magical power |
 | `.chim <looting> <mf>` | Chimera drop chance |
 | `.petscore [user]` | Pet score |
-| `.warpout [ign]` | Parties the player and `/p warp`s them to the bot in SkyBlock (needs the bot on 26.1) |
+| `.warpout [ign]` | The BU bot joins SkyBlock, parties the player and `/p warp`s them to it, then returns to the lobby. Requests queue (needs the bot on 26.1) |
 | `.help` | Lists commands |
 
 Networth and sack values come from [skyhelper-networth](https://www.npmjs.com/package/skyhelper-networth).
