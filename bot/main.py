@@ -98,6 +98,10 @@ class Client(commands.Bot):
             apply_mc_patches(state.bot)
 
     async def setup_hook(self) -> None:
+        # Each bot's Minecraft version comes from the panel (Config page), else MINECRAFT_VERSION.
+        from lib.guild_settings import get_minecraft_version
+        for key, config in self.guild_configs.items():
+            self.guilds_state[key].version = get_minecraft_version(config)
         await self.start_mineflayer()
 
         # Per-guild log webhooks

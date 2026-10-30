@@ -2,7 +2,6 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from config import EXEC_ROLE, OWNER_ID
-from constants import DYE_ROLES
 from db import manager
 
 
@@ -47,7 +46,7 @@ class AdminCommands(commands.GroupCog, name="admin"):
             removed = manager.reset_all_dye_rolls()
 
             roles_removed = 0
-            for role_id in set(DYE_ROLES.values()):
+            for role_id in set(manager.get_dye_roles().values()):
                 role = interaction.guild.get_role(role_id)
                 if role is None:
                     continue

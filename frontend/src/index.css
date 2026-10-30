@@ -136,6 +136,7 @@ button { font: inherit; cursor: pointer; color: inherit; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin: 6px 0 20px; }
 .page-title { font-family: var(--font-display); font-weight: 600; font-size: clamp(28px, 3.4vw, 44px); line-height: 1.08; letter-spacing: -0.01em; }
 .page-title small { font-family: var(--font-body); font-size: 14px; font-weight: 500; color: var(--text-2); margin-left: 10px; letter-spacing: 0; }
+.section-title { font-family: var(--font-display); font-weight: 600; font-size: 24px; line-height: 1.2; margin: 0 0 4px; }
 .head-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .section-label { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-2); font-weight: 700; margin: 26px 0 10px; }
 

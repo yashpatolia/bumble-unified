@@ -8,7 +8,6 @@ import time as _time
 import discord
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel
-from config import VERSION
 from db import manager
 from lib.guild_list import parse_guild_list as _parse_guild_list, parse_online_igns as _parse_online_igns
 
@@ -201,9 +200,10 @@ def create_ipc_app(client):
 
         if key not in client.guild_configs:
             raise HTTPException(status_code=404, detail="Unknown bot key")
-        # A manual restart retries the preferred version even after an automatic fallback.
+        # A manual restart picks up the panel's version choice, even after an automatic fallback.
+        from lib.guild_settings import get_minecraft_version
         state = client.guilds_state[key]
-        state.version = VERSION
+        state.version = get_minecraft_version(client.guild_configs[key])
         state.recent_disconnects.clear()
         await client.start_mineflayer(account=key)
         await reload_bridge_cogs(client, client.guild_configs[key])

@@ -80,7 +80,6 @@ class GuildConfig:
     discord_rank_map: dict              # {Hypixel guild rank → bot rank key}
     bridge_channel_id: Optional[int]    # Discord channel that feeds this MC guild (None = no listener)
     officer_channel_id: Optional[int]   # Officer channel (None = no listener)
-    handles_warpout: bool = False       # this guild's bot runs every .warpout (utils/warpout.py)
 
     @property
     def mc_username(self) -> str:
@@ -111,7 +110,6 @@ BU_CONFIG = GuildConfig(
     discord_rank_map={'Student': 'Junior', 'Bachelor': 'Bach', 'Master': 'Master', 'Doctorate': 'Dctr'},
     bridge_channel_id=None,    # BU messages come from BK's shared Discord channel
     officer_channel_id=None,
-    handles_warpout=True,      # BU's bot does all warpouts, from either guild or Discord
 )
 
 # Ordered dict of all guild configs — add new guilds here to scale

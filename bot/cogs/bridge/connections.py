@@ -13,7 +13,7 @@ from lib.get_username import get_username
 
 
 # A modern protocol version that drops this many times inside the window gets swapped for
-# FALLBACK_VERSION until the next manual restart (bot_ipc.py resets it).
+# FALLBACK_VERSION until the next manual restart (bot_ipc.py resets it to the panel's choice).
 _FALLBACK_DISCONNECTS = 3
 _FALLBACK_WINDOW_SECONDS = 10 * 60
 

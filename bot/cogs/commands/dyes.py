@@ -1,7 +1,6 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from constants import DYE_ROLES, DYE_EMOJIS
 from db import manager
 from typing import List
 
@@ -40,17 +39,27 @@ class Dyes(commands.Cog):
             )
             return
 
-        # Swap dye roles
-        for dye_id, role_id in DYE_ROLES.items():
-            role = interaction.guild.get_role(role_id)
-            if role in interaction.user.roles:
-                await interaction.user.remove_roles(role)
-                break
-        await interaction.user.add_roles(interaction.guild.get_role(DYE_ROLES[dye]))
+        # Roles and emojis are set per dye on the panel's Config page (dyes table).
+        dye_roles = manager.get_dye_roles()
+        new_role = interaction.guild.get_role(dye_roles[dye]) if dye in dye_roles else None
+        if new_role is None:
+            await interaction.edit_original_response(
+                embed=discord.Embed(colour=discord.Colour.dark_red(), description=f"{dye_name} has no Discord role set up yet.")
+            )
+            return
 
+        # Swap dye roles
+        for role_id in dye_roles.values():
+            role = interaction.guild.get_role(role_id)
+            if role in interaction.user.roles and role != new_role:
+                await interaction.user.remove_roles(role)
+        await interaction.user.add_roles(new_role)
+
+        emoji_id = manager.get_dye_emoji(dye)
+        emoji = f"<:{dye}:{emoji_id}> " if emoji_id else ""
         embed = discord.Embed(
             color=discord.Color.from_str(f"#{hex_color.lower()}"),
-            description=f"**Selected:** <:{dye}:{DYE_EMOJIS[dye]}> {dye_name}",
+            description=f"**Selected:** {emoji}{dye_name}",
         )
         await interaction.edit_original_response(embed=embed)
 

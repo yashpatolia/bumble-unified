@@ -164,8 +164,43 @@ export interface GuildConfigData {
   attention_defaults: AttentionSettings
   activity: ActivityConfig
   activity_defaults: ActivityConfig
+  minecraft_version: string
+  minecraft_version_default: string
+  minecraft_versions: string[]
   updated_by: string | null
   updated_at: string | null
+}
+
+export interface WarpoutSettings {
+  guild: string
+  max_queue: number
+  invite_timeout: number
+}
+
+export interface SharedSettings {
+  warpout: WarpoutSettings
+  warpout_defaults: WarpoutSettings
+  censor_words: string[]
+  guilds: { key: string; name: string }[]
+  updated_by: string | null
+  updated_at: string | null
+}
+
+export interface CatalogDye {
+  dye_id: string
+  dye_name: string
+  weight: number
+  hex: string
+  role_id: string | null
+  emoji_id: string | null
+  unlocked_by: number
+  odds: string
+}
+
+export interface DyeCatalog {
+  dyes: CatalogDye[]
+  total_weight: number
+  unlocks_removed?: number
 }
 
 export interface LevelPerson {

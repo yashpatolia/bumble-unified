@@ -6,6 +6,7 @@ from db.queries.guild_config import GuildConfigQueries
 from db.queries.guild_members import GuildMembersQueries
 from db.queries.message_counts import MessageCountsQueries
 from db.queries.panel_users import PanelUsersQueries
+from db.queries.settings import SettingsQueries
 from db.queries.users import UsersQueries
 
 
@@ -19,6 +20,7 @@ class DatabaseManager(
     ActivityQueries,
     GuildConfigQueries,
     ExcusedQueries,
+    SettingsQueries,
 ):
     """Centralized PostgreSQL access via a threaded connection pool.
 

@@ -167,7 +167,7 @@ Secrets and Discord IDs live in `.env` (see [example.env](example.env) for the f
 | `PANEL_JWT_SECRET`, `BOT_IPC_SECRET` | Random secrets: `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `PANEL_ADMIN_DISCORD_ID` | Panel owner, made an admin on first login |
 
-Gameplay settings that change often (rank requirements, inactivity thresholds, activity tiers) are edited on the panel's **Config** page and take effect within about 20 seconds, with no restart.
+Settings that change often are edited on the panel's **Config** page instead of `.env`: rank requirements, inactivity thresholds, activity tiers, each bot's Minecraft version (applied on its next restart), warpout options, extra censored chat words, and the dye catalog (add, edit or remove dyes, their drop weights, Discord roles and emojis). Most take effect within about 20 seconds, with no restart.
 
 ## Deployment
 

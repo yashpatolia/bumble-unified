@@ -6,6 +6,8 @@ import { TIER_NAMES, TIER_ORDER } from '../lib/activity'
 import { getAttention } from '../lib/attention'
 import { loadGuildConfig, setCachedGuildConfig } from '../lib/guildConfig'
 import { loadMembers } from '../lib/membersCache'
+import { DyeCatalogCard } from '../components/DyeCatalogCard'
+import { SharedSettingsCard } from '../components/SharedSettingsCard'
 import type { ActivityConfig, AttentionSettings, GuildConfigData, GuildMember } from '../types'
 
 type AttentionKey = keyof AttentionSettings
@@ -36,6 +38,7 @@ export default function GuildConfig() {
   const [rankForm, setRankForm] = useState<Record<string, string>>({})
   const [attnForm, setAttnForm] = useState<Record<string, string>>({})
   const [actForm, setActForm] = useState<Record<Period, Record<string, string>>>({ d90: {}, total: {} })
+  const [versionForm, setVersionForm] = useState('')
   const [members, setMembers] = useState<GuildMember[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -50,6 +53,7 @@ export default function GuildConfig() {
       d90: Object.fromEntries(TIER_ORDER.map(k => [k, String(d.activity.d90[k])])),
       total: Object.fromEntries(TIER_ORDER.map(k => [k, String(d.activity.total[k])])),
     })
+    setVersionForm(d.minecraft_version)
   }
 
   useEffect(() => {
@@ -110,7 +114,8 @@ export default function GuildConfig() {
   const dirty = !!data && (
     data.ranks.some(r => r.editable && String(r.level) !== (rankForm[r.key] ?? '')) ||
     ATTENTION_FIELDS.some(f => String(data.attention[f.key]) !== (attnForm[f.key] ?? '')) ||
-    PERIODS.some(p => TIER_ORDER.some(k => String(data.activity[p.id][k]) !== (actForm[p.id][k] ?? '')))
+    PERIODS.some(p => TIER_ORDER.some(k => String(data.activity[p.id][k]) !== (actForm[p.id][k] ?? ''))) ||
+    versionForm !== data.minecraft_version
   )
 
   // What the draft would do to the current roster, so changes are not made blind.
@@ -136,7 +141,7 @@ export default function GuildConfig() {
       const ranks = Object.fromEntries(data.ranks.filter(r => r.editable).map(r => [r.key, Number(rankForm[r.key])]))
       const attention = Object.fromEntries(ATTENTION_FIELDS.map(f => [f.key, Number(attnForm[f.key])])) as unknown as AttentionSettings
       const activity = Object.fromEntries(PERIODS.map(p => [p.id, Object.fromEntries(TIER_ORDER.map(k => [k, Number(actForm[p.id][k])]))])) as unknown as ActivityConfig
-      const next = await api.saveGuildConfig(key, { ranks, attention, activity })
+      const next = await api.saveGuildConfig(key, { ranks, attention, activity, minecraft_version: versionForm })
       setCachedGuildConfig(key, next)
       apply(next)
       setSaved(true)
@@ -182,7 +187,7 @@ export default function GuildConfig() {
             <span className="card-sub">Skyblock level needed for each guild rank</span>
           </div>
           <p className="card-sub" style={{ padding: '0 20px 10px' }}>
-            The bot promotes and demotes members automatically to match their level. A member needs a level <b>above</b> the number to hold the rank. The lowest rank is the default and has no requirement.
+            The bot promotes and demotes members automatically to match their level. A member needs a level <b>above</b> the number to hold the rank. Members at or below the lowest rank's number keep whatever rank they have.
           </p>
           <div className="table-wrap">
             <table>
@@ -275,6 +280,34 @@ export default function GuildConfig() {
             </div>
           </div>
 
+          <div className="card reveal" style={{ '--i': 4, marginTop: 16 } as React.CSSProperties}>
+            <div className="card-head">
+              <span className="card-title">Bridge bot</span>
+              <span className="card-sub">This guild's Minecraft bot</span>
+            </div>
+            <div className="attn-fields">
+              <div className="attn-field">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <label className="p-name" htmlFor="mc-version">Minecraft version</label>
+                  <select
+                    id="mc-version"
+                    className="form-input"
+                    style={{ width: 120 }}
+                    value={versionForm}
+                    disabled={!canEdit}
+                    onChange={e => { setVersionForm(e.target.value); setSaved(false) }}
+                  >
+                    {data.minecraft_versions.map(v => <option key={v} value={v}>{v}</option>)}
+                  </select>
+                </div>
+                <div className="card-sub">
+                  26.1 can enter SkyBlock, which .warpout needs. 1.8.9 is the long-stable fallback the bot also drops to on its own if 26.1 keeps disconnecting.
+                  Takes effect the next time the bot restarts (Overview, Restart). Default from the server's .env: {data.minecraft_version_default}.
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -337,6 +370,11 @@ export default function GuildConfig() {
           Last changed by {data.updated_by} on {new Date(data.updated_at).toLocaleString()}.
         </p>
       )}
+
+      <h2 className="section-title reveal" style={{ '--i': 7, marginTop: 28 } as React.CSSProperties}>Shared settings</h2>
+      <p className="card-sub" style={{ marginBottom: 12 }}>These apply to both guilds and save separately from the settings above.</p>
+      <SharedSettingsCard canEdit={canEdit} />
+      <DyeCatalogCard canEdit={canEdit} />
     </div>
   )
 }

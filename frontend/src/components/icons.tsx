@@ -213,3 +213,22 @@ export function UserMinusIcon(p: IconProps) {
     </svg>
   )
 }
+
+export function TrashIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <path d="M4 7h16" />
+      <path d="M10 11v6M14 11v6" />
+      <path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" />
+      <path d="M9 7V4h6v3" />
+    </svg>
+  )
+}
+
+export function PlusIcon(p: IconProps) {
+  return (
+    <svg {...base} {...p}>
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  )
+}

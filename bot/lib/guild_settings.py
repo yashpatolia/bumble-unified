@@ -1,6 +1,7 @@
 """Panel-editable guild settings, merged over the built-in defaults.
 
-Rank level requirements default to the env-driven values in config.py (GuildConfig.ranks);
+Rank level requirements (every rank, lowest included) default to the env-driven values in
+config.py (GuildConfig.ranks); the bot's Minecraft version defaults to MINECRAFT_VERSION;
 the "needs attention" thresholds default to ATTENTION_DEFAULTS. Overrides live in the
 `guild_config` table. Both the bot process (rank automation) and the panel process
 (config page) use this module; the bot reads through a short cache so a change made in
@@ -30,6 +31,10 @@ ACTIVITY_DEFAULTS = {
 _ACTIVITY_ORDER = ["red", "yellow", "green", "blue", "white"]
 
 _MAX_LEVEL = 10000
+
+# Versions offered on the panel: 26.1 can be in SkyBlock (needed for .warpout); 1.8.9 is the
+# long-stable fallback (config.FALLBACK_VERSION).
+MINECRAFT_VERSIONS = ("26.1", "1.8.9")
 _cache: dict = {}
 
 
@@ -47,13 +52,24 @@ def invalidate(guild_key: str) -> None:
 
 
 def get_rank_requirements(config) -> dict:
-    """{bot_rank_key: level} in rank order (lowest first). The lowest rank keeps its built-in
-    value because it is the default rank; only the higher ranks can be overridden."""
+    """{bot_rank_key: level} in rank order (lowest first): the panel's value where one is
+    saved, otherwise the built-in value from .env (config.ranks)."""
     overrides = _stored(config.key)["rank_requirements"]
-    merged = {}
-    for i, (rank, default_level) in enumerate(config.ranks.items()):
-        merged[rank] = default_level if i == 0 else int(overrides.get(rank, default_level))
-    return merged
+    return {rank: int(overrides.get(rank, default_level)) for rank, default_level in config.ranks.items()}
+
+
+def get_minecraft_version(config) -> str:
+    """The protocol version this guild's bot should connect with: the panel's choice, else
+    MINECRAFT_VERSION from .env. Read when the bot is (re)started."""
+    from config import VERSION
+    saved = manager.get_minecraft_version(config.key)
+    return saved if saved in MINECRAFT_VERSIONS else VERSION
+
+
+def validate_minecraft_version(version) -> str:
+    if version not in MINECRAFT_VERSIONS:
+        raise ValueError(f"Minecraft version must be one of: {', '.join(MINECRAFT_VERSIONS)}")
+    return version
 
 
 def get_activity_tiers(guild_key: str) -> dict:
@@ -70,22 +86,21 @@ def get_attention_settings(guild_key: str) -> dict:
 
 
 def validate_ranks(config, ranks: dict) -> dict:
-    """Returns the editable overrides ({rank: int}); raises ValueError with a user-facing message."""
+    """Returns the overrides ({rank: int}); raises ValueError with a user-facing message."""
     keys = list(config.ranks.keys())
-    editable = keys[1:]
-    unknown = set(ranks) - set(editable)
+    unknown = set(ranks) - set(keys)
     if unknown:
-        raise ValueError(f"Unknown or non-editable rank: {', '.join(sorted(unknown))}")
+        raise ValueError(f"Unknown rank: {', '.join(sorted(unknown))}")
     result = {}
-    previous = config.ranks[keys[0]]
-    for rank in editable:
+    previous = None
+    for rank in keys:
         value = ranks.get(rank, config.ranks[rank])
         if isinstance(value, bool) or not isinstance(value, (int, float)) or int(value) != value:
             raise ValueError(f"{rank}: the level requirement must be a whole number")
         value = int(value)
         if value < 0 or value > _MAX_LEVEL:
             raise ValueError(f"{rank}: the level requirement must be between 0 and {_MAX_LEVEL}")
-        if value <= previous:
+        if previous is not None and value <= previous:
             raise ValueError(f"{rank}: must be higher than the rank below it ({previous})")
         result[rank] = value
         previous = value

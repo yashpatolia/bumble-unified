@@ -12,7 +12,7 @@ from web.auth import (
     exchange_code,
     require_auth,
 )
-from web.routes import api_usage, bot_control, dyes, guild_config, guild_data, links, member_actions, stats_refresh, users
+from web.routes import api_usage, bot_control, dyes, guild_config, guild_data, links, member_actions, settings, stats_refresh, users
 
 FRONTEND_DIST = Path(__file__).parent.parent.parent / "frontend" / "dist"
 
@@ -33,6 +33,7 @@ def create_app() -> FastAPI:
     app.include_router(links.router)
     app.include_router(member_actions.router)
     app.include_router(guild_config.router)
+    app.include_router(settings.router)
     app.include_router(stats_refresh.router)
     app.include_router(api_usage.router)
     app.include_router(users.router)

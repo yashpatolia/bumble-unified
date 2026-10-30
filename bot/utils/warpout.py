@@ -1,6 +1,7 @@
 """`.warpout <ign>`: party a player and `/p warp` them to the warpout bot in SkyBlock.
 
-Every warpout runs on the bot of the guild with GuildConfig.handles_warpout (BU). That bot
+Every warpout runs on the bot of the guild chosen on the panel's Config page (default BU,
+see lib/shared_settings.py, which also sets the queue size and invite timeout). That bot
 idles in the lobby; a warpout takes it into SkyBlock, invites, warps and disbands, and once
 nobody else is queued it goes back to the lobby. SkyBlock needs 26.1+, so on the 1.8.9
 fallback the command refuses. Requests run one at a time in arrival order; anyone who has
@@ -13,9 +14,9 @@ import time
 from typing import Callable, Optional
 
 from lib.chat_wait import wait_for_chat
+from lib.shared_settings import get_warpout
 
 _IGN_RE = re.compile(r"^[A-Za-z0-9_]{3,16}$")
-_INVITE_TIMEOUT = 60   # Hypixel party invites expire after 60s
 _REPLY_TIMEOUT = 5     # how long to wait for Hypixel to answer a command
 _WARP_TIMEOUT = 10
 _JOIN_TIMEOUT = 6      # /skyblock usually lands in ~3s
@@ -28,7 +29,6 @@ _SETTLE_AFTER_WARP = 2 # Hypixel ignored a /p disband sent straight after /p war
 _COMMAND_GAP = 1.0
 _RATE_LIMIT_BACKOFF = 3
 _RATE_LIMITED = ("too fast", "slow down", "wait before")
-_MAX_QUEUE = 10        # waiting + running; each warpout can take up to ~80s
 
 # Hypixel only lets 26.1+ clients into SkyBlock ("You must be using Minecraft Version 26.1
 # or later to play SkyBlock!").
@@ -53,10 +53,7 @@ def supports_skyblock(version: str) -> bool:
 
 
 def _warpout_state(client):
-    for key, config in client.guild_configs.items():
-        if config.handles_warpout:
-            return client.guilds_state[key]
-    return None
+    return client.guilds_state.get(get_warpout()["guild"])
 
 
 async def warpout(client, ign: str, notify: Callable[[str], None]) -> str:
@@ -73,7 +70,7 @@ async def warpout(client, ign: str, notify: Callable[[str], None]) -> str:
     lowered = ign.lower()
     if lowered in state.warpout_queue:
         return f"{ign} is already in the warpout queue"
-    if len(state.warpout_queue) >= _MAX_QUEUE:
+    if len(state.warpout_queue) >= get_warpout()["max_queue"]:
         return "The warpout queue is full, try again in a few minutes"
 
     state.warpout_queue.append(lowered)
@@ -176,6 +173,7 @@ async def _disband(state) -> bool:
 async def _run(state, ign: str, notify: Callable[[str], None]) -> str:
     """One SkyBlock check, invite, warp, disband cycle. Caller holds state.warpout_lock."""
     lowered = ign.lower()
+    invite_timeout = get_warpout()["invite_timeout"]
     try:
         error = await _enter_skyblock(state, ign, notify)
         if error:
@@ -195,14 +193,14 @@ async def _run(state, ign: str, notify: Callable[[str], None]) -> str:
         joined = asyncio.ensure_future(wait_for_chat(
             state,
             lambda m: lowered in m.lower() and (m.endswith("joined the party.") or "has expired" in m),
-            _INVITE_TIMEOUT + 5,
+            invite_timeout + 5,
         ))
         state.warpout_party_empty = False
         await _command(state, f"/p invite {ign}")
 
         reply = await invite_reply
         if reply and reply not in _INVITE_FAILURES:
-            _status(notify, f"Invited {ign}, accept the party invite within {_INVITE_TIMEOUT}s")
+            _status(notify, f"Invited {ign}, accept the party invite within {invite_timeout}s")
         if reply in _INVITE_FAILURES:
             joined.cancel()
             state.warpout_party_empty = True  # the invite never went out, so there's no party

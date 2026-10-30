@@ -1,4 +1,4 @@
-import type { LevelLeaderboardData, ActivityConfig, ActivityPoint, AttentionSettings, GuildConfigData, LevelTrendPoint, ApiUsageStats, DyeDrop, DyeProfile, DyeSearchResult, GuildMember, GuildOverview, GuildStatus, Me, PanelUser } from './types'
+import type { LevelLeaderboardData, ActivityConfig, ActivityPoint, AttentionSettings, DyeCatalog, GuildConfigData, SharedSettings, WarpoutSettings, LevelTrendPoint, ApiUsageStats, DyeDrop, DyeProfile, DyeSearchResult, GuildMember, GuildOverview, GuildStatus, Me, PanelUser } from './types'
 
 function token(): string | null {
   return localStorage.getItem('token')
@@ -81,8 +81,17 @@ export const api = {
   levelLeaderboard: (key: string, days: number) => req<LevelLeaderboardData>(`/api/bots/${key}/level-leaderboard?days=${days}`),
 
   guildConfig: (key: string) => req<GuildConfigData>(`/api/bots/${key}/config`),
-  saveGuildConfig: (key: string, data: { ranks: Record<string, number>; attention: AttentionSettings; activity: ActivityConfig }) =>
+  saveGuildConfig: (key: string, data: { ranks: Record<string, number>; attention: AttentionSettings; activity: ActivityConfig; minecraft_version?: string }) =>
     req<GuildConfigData>(`/api/bots/${key}/config`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  sharedSettings: () => req<SharedSettings>('/api/settings'),
+  saveSharedSettings: (data: { warpout?: WarpoutSettings; censor_words?: string[] }) =>
+    req<SharedSettings>('/api/settings', { method: 'PUT', body: JSON.stringify(data) }),
+
+  dyeCatalog: () => req<DyeCatalog>('/api/dyes/catalog'),
+  saveDye: (dyeId: string, data: { dye_name: string; weight: number; hex: string; role_id: string; emoji_id: string }) =>
+    req<DyeCatalog>(`/api/dyes/catalog/${encodeURIComponent(dyeId)}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteDye: (dyeId: string) => req<DyeCatalog>(`/api/dyes/catalog/${encodeURIComponent(dyeId)}`, { method: 'DELETE' }),
 
   myDyes: () => req<DyeProfile>('/api/dyes/me'),
   searchDyeUsers: (q: string) => req<{ results: DyeSearchResult[] }>(`/api/dyes/search?q=${encodeURIComponent(q)}`),
