@@ -66,6 +66,7 @@ class GuildState:
     warpout_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     warpout_queue: list = field(default_factory=list)
     last_warpout_command: float = 0.0  # time.monotonic() of the last warpout command (utils/warpout.py)
+    warpout_party_empty: bool = False  # True after a confirmed /p disband, until the next invite
 
 
 class Client(commands.Bot):

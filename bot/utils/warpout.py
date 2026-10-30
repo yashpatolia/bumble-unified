@@ -18,13 +18,14 @@ _IGN_RE = re.compile(r"^[A-Za-z0-9_]{3,16}$")
 _INVITE_TIMEOUT = 60   # Hypixel party invites expire after 60s
 _REPLY_TIMEOUT = 5     # how long to wait for Hypixel to answer a command
 _WARP_TIMEOUT = 10
-_JOIN_TIMEOUT = 15     # /skyblock usually lands in ~3s
+_JOIN_TIMEOUT = 6      # /skyblock usually lands in ~3s
+_JOIN_ATTEMPTS = 3     # Hypixel silently ignores a /skyblock sent just after a server switch
 _REJOIN_COOLDOWN = 60  # after "You tried to rejoin too fast" / "kicked while joining"
 _DISBAND_ATTEMPTS = 3
 _SETTLE_AFTER_WARP = 2 # Hypixel ignored a /p disband sent straight after /p warp
 # Hypixel drops commands sent too close together, and the warpout bot is also relaying guild
 # chat, so commands are spaced out and a rate-limit reply makes the disband back off.
-_COMMAND_GAP = 1.5
+_COMMAND_GAP = 1.0
 _RATE_LIMIT_BACKOFF = 3
 _RATE_LIMITED = ("too fast", "slow down", "wait before")
 _MAX_QUEUE = 10        # waiting + running; each warpout can take up to ~80s
@@ -84,7 +85,9 @@ async def warpout(client, ign: str, notify: Callable[[str], None]) -> str:
             if not state.bot or not state.connected:
                 return f"The warpout bot disconnected before {ign}'s turn, try again"
             try:
-                return await _run(state, ign)
+                result = await _run(state, ign, notify)
+                logging.info(f"Warpout: {ign}: {result}")
+                return result
             finally:
                 # Stay in SkyBlock while others are waiting; back to the lobby once nobody is.
                 if state.warpout_queue == [lowered]:
@@ -113,11 +116,19 @@ async def _gametype(state) -> Optional[str]:
         return None
 
 
-async def _enter_skyblock(state) -> Optional[str]:
+def _status(notify: Callable[[str], None], text: str) -> None:
+    """Posts a progress line to chat/Discord and the bot log."""
+    logging.info(f"Warpout: {text}")
+    notify(text)
+
+
+async def _enter_skyblock(state, ign: str, notify: Callable[[str], None]) -> Optional[str]:
     """Gets the bot into SkyBlock if it isn't already. Returns an error to reply with, or None."""
     if await _gametype(state) == "SKYBLOCK":
         return None
-    for attempt in range(2):
+    _status(notify, f"Taking the bot to SkyBlock for {ign}'s warpout...")
+    refused_once = False
+    for attempt in range(_JOIN_ATTEMPTS):
         outcome = asyncio.ensure_future(wait_for_chat(
             state,
             lambda m: m == _SKYBLOCK_JOINED or any(phrase in m for phrase in _SKYBLOCK_JOIN_FAILED),
@@ -129,10 +140,15 @@ async def _enter_skyblock(state) -> Optional[str]:
             return None
         if line and "You must be using Minecraft Version" in line:
             return "Hypixel won't let the bot into SkyBlock on this Minecraft version"
-        if attempt == 0 and line:
+        if line and not refused_once:
             # Kicked while joining / rejoined too fast: Hypixel refuses /skyblock for a while.
-            logging.info(f"Warpout: SkyBlock join refused ({line}), retrying in {_REJOIN_COOLDOWN}s")
+            refused_once = True
+            logging.info(f"Warpout: SkyBlock join refused ({line})")
+            _status(notify, f"Hypixel refused the SkyBlock join, retrying in {_REJOIN_COOLDOWN}s...")
             await asyncio.sleep(_REJOIN_COOLDOWN)
+        elif line:
+            break
+        # No answer at all: the command was dropped, so just send it again.
     return "Couldn't get the bot into SkyBlock, try again in a minute"
 
 
@@ -150,23 +166,26 @@ async def _disband(state) -> bool:
         await _command(state, "/p disband")
         line = await reply
         if line and not any(phrase in line.lower() for phrase in _RATE_LIMITED):
+            state.warpout_party_empty = True
             return True
         await asyncio.sleep(_RATE_LIMIT_BACKOFF if line else 0)
     logging.warning(f"Warpout: /p disband wasn't confirmed after {_DISBAND_ATTEMPTS} tries")
     return False
 
 
-async def _run(state, ign: str) -> str:
+async def _run(state, ign: str, notify: Callable[[str], None]) -> str:
     """One SkyBlock check, invite, warp, disband cycle. Caller holds state.warpout_lock."""
     lowered = ign.lower()
     try:
-        error = await _enter_skyblock(state)
+        error = await _enter_skyblock(state, ign, notify)
         if error:
             return error
 
         # Start from an empty party even if an earlier warpout's disband didn't go through,
-        # so this player isn't warped along with a leftover member (or vice versa).
-        await _disband(state)
+        # so this player isn't warped along with a leftover member (or vice versa). Skipped
+        # when the last disband was confirmed, to keep the invite quick.
+        if not state.warpout_party_empty:
+            await _disband(state)
 
         invite_reply = asyncio.ensure_future(wait_for_chat(
             state,
@@ -178,11 +197,15 @@ async def _run(state, ign: str) -> str:
             lambda m: lowered in m.lower() and (m.endswith("joined the party.") or "has expired" in m),
             _INVITE_TIMEOUT + 5,
         ))
+        state.warpout_party_empty = False
         await _command(state, f"/p invite {ign}")
 
         reply = await invite_reply
+        if reply and reply not in _INVITE_FAILURES:
+            _status(notify, f"Invited {ign}, accept the party invite within {_INVITE_TIMEOUT}s")
         if reply in _INVITE_FAILURES:
             joined.cancel()
+            state.warpout_party_empty = True  # the invite never went out, so there's no party
             return _INVITE_FAILURES[reply].format(ign=ign)
         if reply is None:
             joined.cancel()
