@@ -4,6 +4,7 @@ from db.queries.dyes import DyesQueries
 from db.queries.excused import ExcusedQueries
 from db.queries.guild_config import GuildConfigQueries
 from db.queries.guild_members import GuildMembersQueries
+from db.queries.member_events import MemberEventsQueries
 from db.queries.message_counts import MessageCountsQueries
 from db.queries.panel_users import PanelUsersQueries
 from db.queries.settings import SettingsQueries
@@ -21,6 +22,7 @@ class DatabaseManager(
     GuildConfigQueries,
     ExcusedQueries,
     SettingsQueries,
+    MemberEventsQueries,
 ):
     """Centralized PostgreSQL access via a threaded connection pool.
 

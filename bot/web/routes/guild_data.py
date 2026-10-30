@@ -172,7 +172,7 @@ async def get_member_detail(key: str, ign: str, claims=Depends(require_auth)):
         dyes_owned = len(manager.get_unlocked_dyes(uuid))
 
     history = []
-    for recorded_at, lvl, cata_xp, slayer in manager.get_member_history(key, ign, 90):
+    for recorded_at, lvl, cata_xp, slayer in manager.get_member_history(key, ign, 90, uuid):
         slayer = slayer or None
         history.append({
             "t": datetime.datetime.utcfromtimestamp(recorded_at).strftime("%Y-%m-%d"),
@@ -182,6 +182,16 @@ async def get_member_detail(key: str, ign: str, claims=Depends(require_auth)):
             "slayer": slayer,
             "slayer_total": sum(slayer.values()) if slayer else None,
         })
+
+    events = []
+    for occurred_at, event_guild, event_ign, kind, detail in manager.get_member_events(key, ign, uuid):
+        event_config = GUILD_CONFIGS.get(event_guild)
+        events.append({
+            "t": occurred_at.isoformat(), "guild": event_config.short_name if event_config else event_guild,
+            "kind": kind, "ign": event_ign, "detail": detail or {},
+        })
+    joined = next((e for e in events if e["kind"] == "joined" and e["guild"] == config.short_name), None)
+    first_seen = manager.get_member_first_seen(key, ign, uuid)
 
     excused = manager.get_excused(key).get(ign.lower())
     if excused and guest:
@@ -195,4 +205,7 @@ async def get_member_detail(key: str, ign: str, claims=Depends(require_auth)):
         "dyes_owned": dyes_owned, "dyes_total": len(manager.get_all_dyes()),
         "excused": excused,
         "history": history,
+        "events": events,
+        "joined_at": joined["t"] if joined else None,
+        "tracked_since": datetime.datetime.utcfromtimestamp(first_seen).strftime("%Y-%m-%d") if first_seen else None,
     }

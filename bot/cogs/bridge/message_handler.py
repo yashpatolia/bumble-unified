@@ -108,9 +108,10 @@ class GuildMessageHandler(commands.Cog):
                 embed = discord.Embed(colour=discord.Colour.dark_teal(), description=message)
                 self.client.bridge.send(embed=embed)
                 logs.send(embed=embed)
-                m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+was (?:promoted|demoted) from .+? to ([A-Za-z ]+?)(?:[!.]|$)", message, re.IGNORECASE)
+                m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+was (promoted|demoted) from (.+?) to ([A-Za-z ]+?)(?:[!.]|$)", message, re.IGNORECASE)
                 if m:
-                    manager.upsert_guild_member(config.key, m.group(1), m.group(2))
+                    manager.upsert_guild_member(config.key, m.group(1), m.group(4))
+                    manager.record_member_event(config.key, m.group(1), m.group(2).lower(), detail={"from": m.group(3), "to": m.group(4)})
                     # Move the member's Discord rank role to match (no-op if unlinked or unmapped).
                     asyncio.run_coroutine_threadsafe(sync_member_roles(self.client, manager.get_member_uuid(config.key, m.group(1))), self.client.loop)
 
@@ -147,6 +148,7 @@ class GuildMessageHandler(commands.Cog):
                 if m:
                     ign = m.group(1)
                     manager.upsert_guild_member(config.key, ign, '')
+                    manager.record_member_event(config.key, ign, "joined")
                     asyncio.run_coroutine_threadsafe(
                         _auto_fetch_and_rank(self.client, config, ign),
                         self._loop,
@@ -159,6 +161,7 @@ class GuildMessageHandler(commands.Cog):
                 logs.send(embed=embed)
                 m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+left the guild", message, re.IGNORECASE)
                 if m:
+                    manager.record_member_event(config.key, m.group(1), "left")
                     manager.remove_guild_member(config.key, m.group(1))
 
             if "has muted" in message.lower() and "for" in message.lower():
@@ -178,6 +181,7 @@ class GuildMessageHandler(commands.Cog):
                 logs.send(embed=embed)
                 m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+was kicked from the guild", message, re.IGNORECASE)
                 if m:
+                    manager.record_member_event(config.key, m.group(1), "kicked")
                     manager.remove_guild_member(config.key, m.group(1))
 
             if "has requested to join the guild!" in message.lower():

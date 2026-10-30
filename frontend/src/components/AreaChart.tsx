@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-const HEIGHT = 230
+const DEFAULT_HEIGHT = 230
 const PAD = { top: 14, right: 14, bottom: 26, left: 40 }
 
 export interface Slot {
@@ -11,13 +11,14 @@ export interface Slot {
 /** Smooth area chart over evenly spaced slots. Null slots are gaps, not zeros, so a
  * missing hour or day never reads as a real drop. `yMode` 'zero' anchors the axis at 0
  * (counts); 'fit' zooms to the data range (levels, where the change is the story). */
-export function AreaChart({ slots, xTicks, yMode, unit, decimals = 0, ariaLabel }: {
+export function AreaChart({ slots, xTicks, yMode, unit, decimals = 0, ariaLabel, height = DEFAULT_HEIGHT }: {
   slots: Slot[]
   xTicks: number[]
   yMode: 'zero' | 'fit'
   unit: string
   decimals?: number
   ariaLabel: string
+  height?: number
 }) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(640)
@@ -49,7 +50,7 @@ export function AreaChart({ slots, xTicks, yMode, unit, decimals = 0, ariaLabel 
   }
 
   const innerW = width - PAD.left - PAD.right
-  const innerH = HEIGHT - PAD.top - PAD.bottom
+  const innerH = height - PAD.top - PAD.bottom
   const x = (i: number) => PAD.left + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW)
   const y = (v: number) => PAD.top + innerH - ((v - lo) / (hi - lo)) * innerH
   const ticks = [lo, (lo + hi) / 2, hi]
@@ -78,7 +79,7 @@ export function AreaChart({ slots, xTicks, yMode, unit, decimals = 0, ariaLabel 
 
   return (
     <div className="chart-wrap" ref={wrapRef}>
-      <svg width={width} height={HEIGHT} onMouseMove={onMove} onMouseLeave={() => setHover(null)} role="img" aria-label={ariaLabel}>
+      <svg width={width} height={height} onMouseMove={onMove} onMouseLeave={() => setHover(null)} role="img" aria-label={ariaLabel}>
         {ticks.map((t, k) => (
           <g key={k}>
             <line className="chart-grid" x1={PAD.left} x2={width - PAD.right} y1={y(t)} y2={y(t)} />
@@ -86,7 +87,7 @@ export function AreaChart({ slots, xTicks, yMode, unit, decimals = 0, ariaLabel 
           </g>
         ))}
         {xTicks.map((i, k) => (
-          <text key={i} className="chart-axis" x={x(i)} y={HEIGHT - 6} textAnchor={k === 0 ? 'start' : k === xTicks.length - 1 ? 'end' : 'middle'}>
+          <text key={i} className="chart-axis" x={x(i)} y={height - 6} textAnchor={k === 0 ? 'start' : k === xTicks.length - 1 ? 'end' : 'middle'}>
             {slots[i]?.label}
           </text>
         ))}

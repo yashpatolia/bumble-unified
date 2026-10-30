@@ -48,6 +48,13 @@ class MemberRefreshTask(commands.Cog):
             async with aiohttp.ClientSession() as session:
                 stats = await fetch_member_stats(session, uuid)
 
+            # The same response carries the player's current name: a different one is a rename.
+            name = stats.get("name")
+            if name and name != ign and manager.rename_member(guild_key, ign, name, uuid):
+                if name.lower() != ign.lower():
+                    logging.info(f"[refresh] {guild_key}: {ign} is now {name}")
+                ign = name
+
             level = stats["skyblock_level"]
             manager.update_guild_member_stats(guild_key, ign, level, stats["last_login"])
             logging.debug(f"[refresh] {guild_key}/{ign}: level={level}")

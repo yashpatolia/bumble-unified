@@ -11,6 +11,7 @@ import discord
 from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from db import manager
+from lib.roster import detect_renames
 from lib.guild_list import parse_guild_list as _parse_guild_list, parse_online_igns as _parse_online_igns
 
 _IPC_SECRET = os.getenv("BOT_IPC_SECRET", "")
@@ -139,6 +140,7 @@ def create_ipc_app(client):
 
             parsed = _parse_guild_list(list(state.guild_list))
             if parsed:
+                await detect_renames(key, parsed)  # keep a renamed member's history instead of splitting it
                 manager.sync_guild_members(key, parsed)
                 state.guild_member_count = len(parsed)
 

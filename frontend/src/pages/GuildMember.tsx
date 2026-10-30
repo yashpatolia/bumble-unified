@@ -4,12 +4,21 @@ import { api } from '../api'
 import { HistoryChart } from '../components/HistoryChart'
 import { DiscordIdentityCell } from '../components/IdentityCell'
 import { formatRelativeTime } from '../lib/time'
-import type { MemberDetail } from '../types'
+import type { MemberDetail, MemberEvent } from '../types'
 
 const BOSSES: { key: string; name: string }[] = [
   { key: 'zombie', name: 'Revenant' }, { key: 'spider', name: 'Tarantula' }, { key: 'wolf', name: 'Sven' },
   { key: 'enderman', name: 'Voidgloom' }, { key: 'blaze', name: 'Inferno' }, { key: 'vampire', name: 'Riftstalker' },
 ]
+
+const EVENT_TEXT: Record<string, (e: MemberEvent) => string> = {
+  joined: e => `Joined ${e.guild}`,
+  left: e => `Left ${e.guild}`,
+  kicked: e => `Kicked from ${e.guild}`,
+  promoted: e => `Promoted in ${e.guild}: ${e.detail.from} to ${e.detail.to}`,
+  demoted: e => `Demoted in ${e.guild}: ${e.detail.from} to ${e.detail.to}`,
+  renamed: e => `Changed name from ${e.detail.from} to ${e.detail.to}`,
+}
 
 const num = (n: number | null | undefined, digits = 0) => (n == null ? 'n/a' : n.toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits }))
 const gain = (n: number | null, digits = 0) => (n == null ? null : `${n >= 0 ? '+' : ''}${num(n, digits)}`)
@@ -70,6 +79,9 @@ export default function GuildMember() {
             <h1 className="page-title" style={{ margin: 0 }}>{data.ign}</h1>
             <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
               <span className="badge">{data.rank || 'No rank'}</span>
+              {data.joined_at
+                ? <span className="card-sub" title={new Date(data.joined_at).toLocaleString()}>Joined {formatRelativeTime(Date.now() - new Date(data.joined_at).getTime(), { justNowUnderMins: 2, maxTier: 'years' })}</span>
+                : data.tracked_since && <span className="card-sub">In the guild since at least {data.tracked_since}</span>}
               {data.excused && (
                 <span className="badge" title={[data.excused.reason, data.excused.until ? `until ${data.excused.until}` : 'until removed'].filter(Boolean).join(', ')}>
                   Excused{data.excused.until ? ` until ${data.excused.until}` : ''}
@@ -90,23 +102,22 @@ export default function GuildMember() {
         ))}
       </div>
 
-      <div className="grid-2">
-        <div className="stack">
-          <div className="card reveal" style={{ '--i': 7 } as React.CSSProperties}>
-            <div className="card-head"><span className="card-title">Skyblock level</span><span className="card-sub">Daily, last 90 days</span></div>
-            <HistoryChart points={h.map(p => ({ t: p.t, v: p.level }))} unit="level" decimals={1} ariaLabel={`${data.ign} Skyblock level over time`} />
-          </div>
-          <div className="card reveal" style={{ '--i': 8 } as React.CSSProperties}>
-            <div className="card-head"><span className="card-title">Catacombs level</span><span className="card-sub">Daily, last 90 days</span></div>
-            <HistoryChart points={h.map(p => ({ t: p.t, v: p.catacombs_level }))} unit="cata level" decimals={2} ariaLabel={`${data.ign} Catacombs level over time`} />
-          </div>
-          <div className="card reveal" style={{ '--i': 9 } as React.CSSProperties}>
-            <div className="card-head"><span className="card-title">Slayer XP</span><span className="card-sub">All six bosses combined</span></div>
-            <HistoryChart points={h.map(p => ({ t: p.t, v: p.slayer_total }))} unit="slayer xp" ariaLabel={`${data.ign} total slayer XP over time`} />
-          </div>
+      <div className="stack" style={{ marginBottom: 16 }}>
+        <div className="card reveal" style={{ '--i': 7 } as React.CSSProperties}>
+          <div className="card-head"><span className="card-title">Skyblock level</span><span className="card-sub">Daily, last 90 days</span></div>
+          <HistoryChart height={340} points={h.map(p => ({ t: p.t, v: p.level }))} unit="level" decimals={1} ariaLabel={`${data.ign} Skyblock level over time`} />
         </div>
+        <div className="card reveal" style={{ '--i': 8 } as React.CSSProperties}>
+          <div className="card-head"><span className="card-title">Catacombs level</span><span className="card-sub">Daily, last 90 days</span></div>
+          <HistoryChart height={340} points={h.map(p => ({ t: p.t, v: p.catacombs_level }))} unit="cata level" decimals={2} ariaLabel={`${data.ign} Catacombs level over time`} />
+        </div>
+        <div className="card reveal" style={{ '--i': 9 } as React.CSSProperties}>
+          <div className="card-head"><span className="card-title">Slayer XP</span><span className="card-sub">All six bosses combined</span></div>
+          <HistoryChart height={340} points={h.map(p => ({ t: p.t, v: p.slayer_total }))} unit="slayer xp" ariaLabel={`${data.ign} total slayer XP over time`} />
+        </div>
+      </div>
 
-        <div className="stack">
+      <div className="grid-eq">
           <div className="card reveal" style={{ '--i': 7 } as React.CSSProperties}>
             <div className="card-head"><span className="card-title">Guild</span></div>
             <div className="card-pad" style={{ paddingTop: 4, display: 'grid', gap: 12 }}>
@@ -130,6 +141,24 @@ export default function GuildMember() {
           </div>
 
           <div className="card reveal" style={{ '--i': 8 } as React.CSSProperties}>
+            <div className="card-head"><span className="card-title">Roster history</span><span className="card-sub">Joins, ranks, names</span></div>
+            {data.events.length === 0 ? (
+              <div className="chart-empty">Nothing recorded yet. Joins, leaves, promotions, demotions and name changes show up here from now on.</div>
+            ) : (
+              <ul style={{ listStyle: 'none', margin: 0, padding: '0 20px 14px', display: 'grid', gap: 10 }}>
+                {data.events.map((e, i) => (
+                  <li key={`${e.t}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                    <span>{EVENT_TEXT[e.kind]?.(e) ?? e.kind}</span>
+                    <span className="card-sub" style={{ whiteSpace: 'nowrap' }} title={new Date(e.t).toLocaleString()}>
+                      {formatRelativeTime(Date.now() - new Date(e.t).getTime(), { justNowUnderMins: 2, maxTier: 'years' })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="card reveal" style={{ '--i': 9 } as React.CSSProperties}>
             <div className="card-head"><span className="card-title">Slayer bosses</span><span className="card-sub">XP now, and gained {span}</span></div>
             {!stats.latestSlayer ? <div className="chart-empty">Slayer XP is recorded once a day, so it shows up after the next refresh.</div> : (
               <div className="table-wrap">
@@ -152,7 +181,6 @@ export default function GuildMember() {
               </div>
             )}
           </div>
-        </div>
       </div>
     </div>
   )

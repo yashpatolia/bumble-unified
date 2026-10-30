@@ -33,12 +33,15 @@ def _sync_guild_members_from_api(config: GuildConfig) -> None:
             return
         raw_members = data["guild"].get("members", [])
         members = []
+        # The roster's own name wins over the name cache, which never refreshes and would
+        # otherwise turn a renamed member back into their old name on every reconnect.
+        roster_names = {u.replace("-", ""): i for i, u in manager.get_guild_members_with_uuid(config.key) if u}
         for m in raw_members:
             uuid = m.get("uuid", "")
             rank = m.get("rank", "")
             if not uuid:
                 continue
-            ign = get_username(uuid)
+            ign = roster_names.get(uuid.replace("-", "")) or get_username(uuid)
             if ign:
                 members.append({"ign": ign, "uuid": uuid, "rank": rank})
         if members:

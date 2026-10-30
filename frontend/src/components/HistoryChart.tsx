@@ -8,11 +8,12 @@ const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padSt
 /** One value per day for a single member (level, Catacombs, slayer XP). The axis starts at the
  * first recorded day, so a newly tracked member gets a short, readable chart instead of 90 days
  * of mostly gaps. Days without a snapshot are gaps, not zeros. */
-export function HistoryChart({ points, unit, decimals = 0, ariaLabel }: {
+export function HistoryChart({ points, unit, decimals = 0, ariaLabel, height }: {
   points: { t: string; v: number | null }[]
   unit: string
   decimals?: number
   ariaLabel: string
+  height?: number
 }) {
   const slots: Slot[] = useMemo(() => {
     const known = points.filter(p => p.v != null)
@@ -31,6 +32,7 @@ export function HistoryChart({ points, unit, decimals = 0, ariaLabel }: {
   if (slots.filter(s => s.value != null).length < 2) {
     return <div className="chart-empty">History builds up one snapshot a day, so this chart needs a couple of days of data.</div>
   }
-  const q = Math.floor((slots.length - 1) / 4)
-  return <AreaChart slots={slots} xTicks={[0, q, q * 2, q * 3, slots.length - 1]} yMode="fit" unit={unit} decimals={decimals} ariaLabel={ariaLabel} />
+  const last = slots.length - 1
+  const ticks = Array.from(new Set([0, 1, 2, 3, 4, 5, 6].map(i => Math.round((i / 6) * last))))
+  return <AreaChart slots={slots} xTicks={ticks} yMode="fit" unit={unit} decimals={decimals} ariaLabel={ariaLabel} height={height} />
 }

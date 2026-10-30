@@ -261,4 +261,15 @@ export interface MemberDetail {
   dyes_total: number
   excused: { reason: string | null; until: string | null; by: string | null } | null
   history: MemberHistoryPoint[]
+  events: MemberEvent[]
+  joined_at: string | null
+  tracked_since: string | null
+}
+
+export interface MemberEvent {
+  t: string
+  guild: string
+  kind: 'joined' | 'left' | 'kicked' | 'promoted' | 'demoted' | 'renamed'
+  ign: string
+  detail: { from?: string; to?: string; seen?: string }
 }

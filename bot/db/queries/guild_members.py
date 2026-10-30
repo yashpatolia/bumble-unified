@@ -4,6 +4,7 @@ from typing import Optional
 from psycopg2.extras import Json, execute_values
 
 from db.base import BaseQueries
+from db.queries.member_events import insert_event
 
 
 class GuildMembersQueries(BaseQueries):
@@ -65,28 +66,33 @@ class GuildMembersQueries(BaseQueries):
 
     def sync_guild_members(self, guild_key: str, members: list) -> None:
         with self._cursor() as cur:
-            # Fetch existing IGNs for this guild
             cur.execute(
-                "SELECT ign FROM guild_members WHERE guild_key = %s", (guild_key,)
+                "SELECT ign::TEXT, uuid FROM guild_members WHERE guild_key = %s", (guild_key,)
             )
-            existing = {row[0].lower() for row in cur.fetchall()}
-            new_igns = {m['ign'].lower() for m in members}
+            existing = {row[0].lower(): row for row in cur.fetchall()}
+            # De-dupe by lowercased IGN first: `ign` is CITEXT, so `ON CONFLICT (guild_key, ign)`
+            # matches case-insensitively, and a single INSERT..ON CONFLICT statement can't touch the
+            # same conflict-target row twice (raises CardinalityViolation). Last occurrence wins.
+            deduped = {m['ign'].lower(): m for m in members}
+            new_igns = set(deduped)
+
+            removed = [existing[k] for k in existing.keys() - new_igns]
+            added = [deduped[k] for k in new_igns - existing.keys()]
+            # Joins and leaves seen here (rather than from chat) are only recorded for an existing
+            # roster, and not when most of it vanished at once, which means a bad /guild list parse.
+            record = bool(existing) and len(removed) <= max(5, len(existing) // 5)
 
             # Remove members no longer in guild (case-insensitive)
-            for ign_lower in existing - new_igns:
+            for ign, uuid in removed:
+                if record:
+                    insert_event(cur, guild_key, ign, "left", uuid, {"seen": "roster sync"})
                 cur.execute(
                     "DELETE FROM guild_members WHERE guild_key = %s AND LOWER(ign) = %s",
-                    (guild_key, ign_lower),
+                    (guild_key, ign.lower()),
                 )
 
-            # Batch upsert, preserving stats columns. De-dupe by lowercased IGN first —
-            # `ign` is CITEXT, so `ON CONFLICT (guild_key, ign)` matches case-insensitively,
-            # and a single INSERT..ON CONFLICT statement can't touch the same conflict-target
-            # row twice (raises CardinalityViolation). Last occurrence wins.
+            # Batch upsert, preserving stats columns.
             if members:
-                deduped = {}
-                for m in members:
-                    deduped[m['ign'].lower()] = m
                 execute_values(
                     cur,
                     "INSERT INTO guild_members (guild_key, ign, uuid, rank) VALUES %s "
@@ -95,6 +101,45 @@ class GuildMembersQueries(BaseQueries):
                     "rank = EXCLUDED.rank",
                     [(guild_key, m['ign'], m.get('uuid') or None, m.get('rank', '')) for m in deduped.values()],
                 )
+            if record:
+                for m in added:
+                    insert_event(cur, guild_key, m['ign'], "joined", m.get('uuid') or None, {"seen": "roster sync"})
+
+    def rename_member(self, guild_key: str, old_ign: str, new_ign: str, uuid: str) -> bool:
+        """Moves a member's roster row, history, excuse and name cache to their new Minecraft name.
+        Returns False (changing nothing) if the new name already belongs to a different player."""
+        with self._cursor() as cur:
+            different = old_ign.lower() != new_ign.lower()
+            if different:
+                cur.execute(
+                    "SELECT uuid FROM guild_members WHERE guild_key = %s AND LOWER(ign::TEXT) = LOWER(%s)",
+                    (guild_key, new_ign),
+                )
+                stub = cur.fetchone()
+                if stub and stub[0] and stub[0] != uuid:
+                    return False
+                if stub:  # a bare row the roster sync made for the new name; the old row has the history
+                    cur.execute(
+                        "DELETE FROM guild_members WHERE guild_key = %s AND LOWER(ign::TEXT) = LOWER(%s)",
+                        (guild_key, new_ign),
+                    )
+            cur.execute(
+                "UPDATE guild_members SET ign = %s WHERE guild_key = %s AND LOWER(ign::TEXT) = LOWER(%s)",
+                (new_ign, guild_key, old_ign),
+            )
+            cur.execute(
+                "UPDATE guild_member_level_history SET ign = %s WHERE guild_key = %s AND (uuid = %s OR LOWER(ign::TEXT) = LOWER(%s))",
+                (new_ign, guild_key, uuid, old_ign),
+            )
+            cur.execute("UPDATE message_counts SET ign = %s WHERE guild_key = %s AND uuid = %s", (new_ign, guild_key, uuid))
+            cur.execute(
+                "UPDATE excused_members SET ign = %s WHERE guild_key = %s AND LOWER(ign::TEXT) = LOWER(%s)",
+                (new_ign, guild_key, old_ign),
+            )
+            cur.execute("UPDATE users SET ign = %s WHERE uuid = %s", (new_ign, uuid))
+            if different:
+                insert_event(cur, guild_key, new_ign, "renamed", uuid, {"from": old_ign, "to": new_ign})
+            return True
 
     def update_guild_member_stats(self, guild_key: str, ign: str, skyblock_level, last_login) -> None:
         with self._cursor() as cur:
@@ -108,6 +153,11 @@ class GuildMembersQueries(BaseQueries):
         with self._cursor() as cur:
             cur.execute(
                 "UPDATE guild_members SET uuid = %s WHERE guild_key = %s AND LOWER(ign) = LOWER(%s)",
+                (uuid, guild_key, ign),
+            )
+            # Events logged before the uuid was known (a fresh join) get it now.
+            cur.execute(
+                "UPDATE member_events SET uuid = %s WHERE uuid IS NULL AND guild_key = %s AND LOWER(ign) = LOWER(%s)",
                 (uuid, guild_key, ign),
             )
 
@@ -147,16 +197,29 @@ class GuildMembersQueries(BaseQueries):
                  Json(slayer_xp) if slayer_xp is not None else None),
             )
 
-    def get_member_history(self, guild_key: str, ign: str, days: int = 90) -> list:
-        """[(recorded_at, level, catacombs_xp, slayer_xp_dict), ...] oldest first, for the member page."""
+    def get_member_history(self, guild_key: str, ign: str, days: int = 90, uuid: Optional[str] = None) -> list:
+        """[(recorded_at, level, catacombs_xp, slayer_xp_dict), ...] oldest first, for the member page.
+        Matches by uuid as well as name, so rows saved under an old name still count."""
         since = int(_time.time()) - days * 86400
         with self._cursor() as cur:
             cur.execute(
                 "SELECT recorded_at, level, catacombs_xp, slayer_xp FROM guild_member_level_history "
-                "WHERE guild_key = %s AND LOWER(ign) = LOWER(%s) AND recorded_at >= %s ORDER BY recorded_at",
-                (guild_key, ign, since),
+                "WHERE guild_key = %s AND (LOWER(ign::TEXT) = LOWER(%s) OR (%s IS NOT NULL AND uuid = %s)) "
+                "AND recorded_at >= %s ORDER BY recorded_at",
+                (guild_key, ign, uuid, uuid, since),
             )
             return cur.fetchall()
+
+    def get_member_first_seen(self, guild_key: str, ign: str, uuid: Optional[str] = None) -> Optional[int]:
+        """Unix time of the member's earliest level snapshot, or None."""
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT MIN(recorded_at) FROM guild_member_level_history "
+                "WHERE guild_key = %s AND (LOWER(ign::TEXT) = LOWER(%s) OR (%s IS NOT NULL AND uuid = %s))",
+                (guild_key, ign, uuid, uuid),
+            )
+            row = cur.fetchone()
+            return row[0] if row else None
 
     def get_member_by_uuid(self, uuid: str) -> Optional[tuple]:
         """(guild_key, rank) of the guild a UUID is on, or None."""

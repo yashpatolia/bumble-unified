@@ -21,13 +21,13 @@ async def fetch_member_stats(session: aiohttp.ClientSession, uuid: str) -> dict:
     """Fetch player last_login, highest Skyblock level, Catacombs XP and slayer XP for a UUID.
 
     Records each API call in the DB. Returns {"skyblock_level": float|None, "last_login": int|None,
-    "catacombs_xp": float|None, "slayer_xp": {boss: xp}|None}. Catacombs and slayer values are the
+    "catacombs_xp": float|None, "slayer_xp": {boss: xp}|None, "name": str|None (current Minecraft name)}. Catacombs and slayer values are the
     best across the player's profiles, read from the same response as the level (no extra call).
     """
     from db import manager
 
     uuid_clean = uuid.replace("-", "")
-    result: dict = {"skyblock_level": None, "last_login": None, "catacombs_xp": None, "slayer_xp": None}
+    result: dict = {"skyblock_level": None, "last_login": None, "catacombs_xp": None, "slayer_xp": None, "name": None}
 
     try:
         async with session.get(
@@ -41,6 +41,7 @@ async def fetch_member_stats(session: aiohttp.ClientSession, uuid: str) -> dict:
             manager.record_api_call("/v2/player", success)
             if success and d.get("player"):
                 result["last_login"] = d["player"].get("lastLogin")
+                result["name"] = d["player"].get("displayname")
     except Exception:
         pass
 
