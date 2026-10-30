@@ -51,9 +51,22 @@ export function AreaChart({ slots, xTicks, yMode, unit, decimals = 0, ariaLabel,
 
   const innerW = width - PAD.left - PAD.right
   const innerH = height - PAD.top - PAD.bottom
+
+  // Tall charts get a gridline roughly every 48px on round numbers, so values can be read off
+  // the axis; the default size keeps three (bottom, middle, top).
+  let ticks = [lo, (lo + hi) / 2, hi]
+  if (height > 260) {
+    const count = Math.min(9, Math.floor(innerH / 48) + 1)
+    const raw = (hi - lo) / (count - 1)
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)))
+    const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(c => c >= raw) as number
+    lo = Math.floor(lo / step) * step
+    hi = Math.ceil(hi / step) * step
+    ticks = []
+    for (let t = lo; t <= hi + step / 2; t += step) ticks.push(+t.toFixed(6))
+  }
   const x = (i: number) => PAD.left + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW)
   const y = (v: number) => PAD.top + innerH - ((v - lo) / (hi - lo)) * innerH
-  const ticks = [lo, (lo + hi) / 2, hi]
 
   const runs: { i: number; v: number }[][] = []
   slots.forEach((s, i) => {
