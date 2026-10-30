@@ -189,7 +189,7 @@ bumble-unified/
         │   ├── bridge.py         # GuildBridge — MC→Discord chat relay + Discord→MC listener
         │   ├── connections.py    # GuildConnections — spawn/disconnect events, auto-reconnect, Hypixel member sync
         │   ├── message_handler.py# GuildMessageHandler: system messages (join/leave/kick/mute/invite), auto-rank on join
-        │   └── skyblock.py       # GuildSkyblock: keeps a 26.1+ bot in SkyBlock (inert on 1.8.9)
+        │   └── skyblock.py       # GuildSkyblock: keeps the warpout guild's (BU) 26.1+ bot in SkyBlock
         │
         └── tasks/
             ├── online_snapshot.py # OnlineSnapshotTask - every 10 min records how many members are online per guild
@@ -232,6 +232,7 @@ bumble-unified/
   - `ranks` — `{bot_rank_key: skyblock_level_requirement}` for auto-rankup
   - `discord_rank_map` — maps Hypixel guild rank names to bot rank keys, used by the background refresh task and auto-rank-on-join
   - `bridge_channel_id` / `officer_channel_id` — which Discord channels feed into this guild's MC chat (`None` = no Discord→MC listener for that guild)
+  - `handles_warpout` (default `False`, `True` on BU): this guild's bot runs every `.warpout` and is the only one `cogs/bridge/skyblock.py` keeps in SkyBlock
 - `GUILD_CONFIGS: dict[str, GuildConfig] = {'bk': BK_CONFIG, 'bu': BU_CONFIG}` — the master registry. **Adding a new guild = adding one entry here.**
 - Also defines `BOT_IPC_PORT` and (read directly via `os.getenv`, not exported as a constant) `BOT_IPC_URL`/`BOT_IPC_SECRET`, consumed by `web/routes/bots.py`.
 
@@ -259,7 +260,7 @@ bumble-unified/
 - `reload_bridge_cogs(client, config)` (module-level function, not a method) removes and re-adds the `connections`, `bridge`, `message_handler` and `skyblock` cogs for one guild key. This re-runs their `__init__`, which creates fresh Mineflayer event bindings against the new bot instance; old bindings on the dead bot instance are abandoned. It's called from both the auto-reconnect path above and `bot_ipc.py`'s manual `/restart/{key}` endpoint — the two are the only places a bot instance gets replaced after startup.
 
 ### `cogs/bridge/skyblock.py`
-- `GuildSkyblock` keeps a bot in SkyBlock when its `state.version` is 26.1+ (Hypixel refuses SkyBlock to older clients: "You must be using Minecraft Version 26.1 or later to play SkyBlock!"); on 1.8.9 its `__init__` returns before binding anything.
+- `GuildSkyblock` keeps the bot of the guild with `handles_warpout` (BU) in SkyBlock when its `state.version` is 26.1+; every other guild's bot stays in the lobby (Hypixel refuses SkyBlock to older clients: "You must be using Minecraft Version 26.1 or later to play SkyBlock!"); for other guilds or on 1.8.9 its `__init__` returns before binding anything.
 - After every `spawn` (world change) it sends `/locraw` 3s later; if the JSON reply's `gametype` isn't `SKYBLOCK` it sends `/skyblock`. Hypixel moves bots on its own (lobby restarts, AFK, getting kicked off a SkyBlock server), so this is what brings it back.
 - "You were kicked while joining that server!" / "You tried to rejoin too fast" start a 60s cooldown, after which it retries `/skyblock` once.
 
@@ -282,8 +283,8 @@ bumble-unified/
 - There is no in-game `.ranks` command anymore — rank auto-updates happen continuously via `cogs/tasks/member_refresh.py` and immediately on join via `message_handler.py`'s `_auto_fetch_and_rank()`.
 
 ### `utils/warpout.py` + `lib/chat_wait.py`
-- `.warpout [ign]` (defaults to the sender) picks a connected bot whose `state.version` supports SkyBlock (this guild's first, else any) and runs `/p invite <ign>` → waits up to 60s for "<ign> joined the party." → `/p warp` → `/p disband`, replying with the outcome. Known invite failures ("Couldn't find a player with that name!", "...since they're not online.", "You cannot invite that player.") are reported directly. On 1.8.9 it refuses, since a 1.8.9 bot can't be in SkyBlock.
-- `state.warpout_lock` allows one warpout per bot at a time; a second request gets "Already warping someone". `_warpout` is the one dispatcher handler that also receives `config`.
+- `.warpout [ign]` (defaults to the sender; from Discord that is the author's linked IGN) always runs on the bot of the guild with `GuildConfig.handles_warpout` (BU), whichever guild or Discord channel it came from. It runs `/p invite <ign>`, waits up to 60s for "<ign> joined the party.", then `/p warp` and `/p disband`, replying with the outcome. Known invite failures ("Couldn't find a player with that name!", "...since they're not online.", "You cannot invite that player.") are reported directly. On 1.8.9 it refuses, since a 1.8.9 bot can't be in SkyBlock.
+- Queue: requests run one at a time in arrival order. `state.warpout_lock` is held for a whole invite/warp/disband and `asyncio.Lock` wakes waiters FIFO, so the lock is the queue; `state.warpout_queue` lists the lowercased IGNs waiting or running, for "Queued <ign> for warpout, N ahead" replies, rejecting an IGN already queued, and a cap of `_MAX_QUEUE` (10). The queued notice goes out through the `notify` callback that `bridge_commands()` hands to `_warpout` (the one handler that takes it), via `_send_reply()`; the final result is the handler's normal return value.
 - It reads Hypixel's replies through `lib/chat_wait.py`: `wait_for_chat(state, predicate, timeout)` registers a `(predicate, future)` in `state.chat_waiters`, and `cogs/bridge/message_handler.py` passes every `messagestr` line to `feed()`, which resolves matching futures on the event loop (Mineflayer callbacks run on the JSPyBridge thread). Use it for any future command that needs to read Hypixel's reply instead of the sleep-then-read-a-buffer pattern the guild list uses.
 
 ### `player/class_average.py`

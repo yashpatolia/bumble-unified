@@ -53,7 +53,9 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
 
         try:
             if handler is _warpout:
-                result = await _warpout(username, parts, client, config)
+                def notify(text):
+                    _send_reply(client, state, webhook, username, text, text, username)
+                result = await _warpout(username, parts, client, notify)
             else:
                 result = await handler(username, parts, client)
         except PlayerNotFoundError as e:
@@ -74,13 +76,19 @@ async def bridge_commands(client, message: str, username: str, guild_rank: str,
             name, mc_response, raw_username = result
             discord_response = mc_response
 
-        try:
-            for state_obj in client.guilds_state.values():
-                if state_obj.bot:
-                    state_obj.bot.chat(f"{state} {name}: {mc_response}")
-            webhook.send(discord_response, username=name, avatar_url=f"https://mc-heads.net/avatar/{raw_username}")
-        except Exception as e:
-            logging.exception(e)
+        _send_reply(client, state, webhook, name, mc_response, discord_response, raw_username)
+    except Exception as e:
+        logging.exception(e)
+
+
+def _send_reply(client, chat_prefix: str, webhook, name: str, mc_response: str,
+                discord_response: str, raw_username: str) -> None:
+    """Posts a command's reply to every guild's in-game chat and the Discord webhook."""
+    try:
+        for state_obj in client.guilds_state.values():
+            if state_obj.bot:
+                state_obj.bot.chat(f"{chat_prefix} {name}: {mc_response}")
+        webhook.send(discord_response, username=name, avatar_url=f"https://mc-heads.net/avatar/{raw_username}")
     except Exception as e:
         logging.exception(e)
 
@@ -319,7 +327,7 @@ async def _petscore(username: str, parts: list, client):
     return f"{player.username}{player.gamemode}", f"Pet Score - {player.pet_score}", username
 
 
-async def _warpout(username: str, parts: list, client, config: GuildConfig = None):
+async def _warpout(username: str, parts: list, client, notify):
     from utils.warpout import warpout
     ign = parts[1] if len(parts) > 1 else username
-    return username, await warpout(client, config, ign), username
+    return username, await warpout(client, ign, notify), username

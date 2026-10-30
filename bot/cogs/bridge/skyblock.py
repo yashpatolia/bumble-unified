@@ -27,11 +27,12 @@ def supports_skyblock(version: str) -> bool:
 
 
 class GuildSkyblock(commands.Cog):
-    """Keeps one guild's bot in SkyBlock when it runs a version Hypixel allows there.
+    """Keeps the warpout guild's bot (GuildConfig.handles_warpout) in SkyBlock when it runs a
+    version Hypixel allows there.
 
     Hypixel moves bots between servers on its own (lobby restarts, AFK, getting kicked off
     SkyBlock), so after every world change the bot checks /locraw and sends /skyblock if it
-    isn't there. Inert on FALLBACK_VERSION (1.8.9)."""
+    isn't there. Inert for other guilds and on FALLBACK_VERSION (1.8.9)."""
 
     def __init__(self, client, config: GuildConfig):
         self.__cog_name__ = f"{config.key}_skyblock"
@@ -39,7 +40,8 @@ class GuildSkyblock(commands.Cog):
         self.client = client
         self.config = config
         state = self.client.guilds_state[config.key]
-        if not supports_skyblock(state.version):
+        # Only the warpout bot needs to be in SkyBlock; the others stay in the lobby.
+        if not config.handles_warpout or not supports_skyblock(state.version):
             return
 
         self._retry_after = 0.0

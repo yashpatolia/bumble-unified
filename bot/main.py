@@ -60,8 +60,11 @@ class GuildState:
     recent_disconnects: deque = field(default_factory=lambda: deque(maxlen=10))
     # (predicate, future) pairs resolved by message_handler.py; see lib/chat_wait.py.
     chat_waiters: list = field(default_factory=list)
-    # Held for the whole of a .warpout so two can't share the bot's party (utils/warpout.py).
+    # .warpout runs one at a time: the lock is held for a whole invite/warp/disband, and
+    # asyncio.Lock wakes waiters in order, so it doubles as the queue. warpout_queue holds the
+    # lowercased IGNs waiting or running, for queue positions and duplicate checks.
     warpout_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    warpout_queue: list = field(default_factory=list)
 
 
 class Client(commands.Bot):
