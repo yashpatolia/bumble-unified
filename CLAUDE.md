@@ -138,7 +138,7 @@ bumble-unified/
     ├── lib/                  # Low-level utility functions (no Discord, no cog state)
     │   ├── guild_settings.py # defaults + DB overrides + validation for rank requirements and attention thresholds; 20s cache for the bot
     │   ├── __init__.py       # Re-exports all lib symbols
-    │   ├── chat_wait.py      # wait_for_chat()/feed() — let async code wait for a specific Minecraft chat line
+    │   ├── chat_wait.py      # wait_for_chat()/feed(): let async code wait for a specific Minecraft chat line
     │   ├── condense.py       # Number formatter: 1_500_000 → "1.5M"
     │   ├── deep_get.py       # Safe nested dict access
     │   ├── fetch.py          # async fetch() and sync request() for HTTP/JSON
@@ -160,8 +160,8 @@ bumble-unified/
     │
     ├── utils/
     │   ├── command_handler.py # bridge_commands() — routes .commands from Minecraft/Discord
-    │   ├── roll_dye.py        # roll_dye() — weighted random dye drop, announces if new
-    │   └── warpout.py         # warpout() — .warpout: party a player and /p warp them to a bot in SkyBlock
+    │   ├── roll_dye.py        # roll_dye(): weighted random dye drop, announces if new
+    │   └── warpout.py         # warpout(): .warpout, party a player and /p warp them to a bot in SkyBlock
     │
     ├── web/                  # FastAPI web panel backend
     │   ├── app.py             # create_app() factory — mounts routers, OAuth2, /api/me, SPA fallback
@@ -188,8 +188,8 @@ bumble-unified/
         ├── bridge/               # One set of cogs handles both guilds via GuildConfig
         │   ├── bridge.py         # GuildBridge — MC→Discord chat relay + Discord→MC listener
         │   ├── connections.py    # GuildConnections — spawn/disconnect events, auto-reconnect, Hypixel member sync
-        │   ├── message_handler.py# GuildMessageHandler — system messages (join/leave/kick/mute/invite), auto-rank on join
-        │   └── skyblock.py       # GuildSkyblock — keeps a 26.1+ bot in SkyBlock (inert on 1.8.9)
+        │   ├── message_handler.py# GuildMessageHandler: system messages (join/leave/kick/mute/invite), auto-rank on join
+        │   └── skyblock.py       # GuildSkyblock: keeps a 26.1+ bot in SkyBlock (inert on 1.8.9)
         │
         └── tasks/
             ├── online_snapshot.py # OnlineSnapshotTask - every 10 min records how many members are online per guild
@@ -228,7 +228,7 @@ bumble-unified/
   - `display_name` / `short_name` — e.g. `'Bumble Kindergarten'` / `'BK'`
   - `mc_options` — passed directly to `mineflayer.createBot()`; `mc_username` property reads the username out of it
   - `guild_name` — matched against `/guild list` output and used for the Hypixel guild API sync
-  - `staff_role_id` — Discord role ID for staff permission checks
+  - `staff_role_id`: Discord role ID for staff permission checks
   - `ranks` — `{bot_rank_key: skyblock_level_requirement}` for auto-rankup
   - `discord_rank_map` — maps Hypixel guild rank names to bot rank keys, used by the background refresh task and auto-rank-on-join
   - `bridge_channel_id` / `officer_channel_id` — which Discord channels feed into this guild's MC chat (`None` = no Discord→MC listener for that guild)
@@ -282,7 +282,7 @@ bumble-unified/
 - There is no in-game `.ranks` command anymore — rank auto-updates happen continuously via `cogs/tasks/member_refresh.py` and immediately on join via `message_handler.py`'s `_auto_fetch_and_rank()`.
 
 ### `utils/warpout.py` + `lib/chat_wait.py`
-- `.warpout [ign]` (defaults to the sender) picks a connected bot whose `state.version` supports SkyBlock — this guild's first, else any — and runs `/p invite <ign>` → waits up to 60s for "<ign> joined the party." → `/p warp` → `/p disband`, replying with the outcome. Known invite failures ("Couldn't find a player with that name!", "...since they're not online.", "You cannot invite that player.") are reported directly. On 1.8.9 it refuses, since a 1.8.9 bot can't be in SkyBlock.
+- `.warpout [ign]` (defaults to the sender) picks a connected bot whose `state.version` supports SkyBlock (this guild's first, else any) and runs `/p invite <ign>` → waits up to 60s for "<ign> joined the party." → `/p warp` → `/p disband`, replying with the outcome. Known invite failures ("Couldn't find a player with that name!", "...since they're not online.", "You cannot invite that player.") are reported directly. On 1.8.9 it refuses, since a 1.8.9 bot can't be in SkyBlock.
 - `state.warpout_lock` allows one warpout per bot at a time; a second request gets "Already warping someone". `_warpout` is the one dispatcher handler that also receives `config`.
 - It reads Hypixel's replies through `lib/chat_wait.py`: `wait_for_chat(state, predicate, timeout)` registers a `(predicate, future)` in `state.chat_waiters`, and `cogs/bridge/message_handler.py` passes every `messagestr` line to `feed()`, which resolves matching futures on the event loop (Mineflayer callbacks run on the JSPyBridge thread). Use it for any future command that needs to read Hypixel's reply instead of the sleep-then-read-a-buffer pattern the guild list uses.
 

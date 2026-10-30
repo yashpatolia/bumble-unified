@@ -66,7 +66,7 @@ class GuildSkyblock(commands.Cog):
                     self._retry_scheduled = True
                     run_coroutine_threadsafe(retry_join_later(), self.client.loop)
                 return
-            logging.info(f"[{config.short_name}] Not in SkyBlock — sending /skyblock")
+            logging.info(f"[{config.short_name}] Not in SkyBlock, sending /skyblock")
             send("/skyblock")
 
         @On(state.bot, "spawn")
@@ -85,7 +85,7 @@ class GuildSkyblock(commands.Cog):
                 if location.get("gametype") != "SKYBLOCK":
                     join_skyblock()
             elif any(phrase in message for phrase in _JOIN_FAILED):
-                logging.info(f"[{config.short_name}] SkyBlock join refused — retrying in {_REJOIN_COOLDOWN}s")
+                logging.info(f"[{config.short_name}] SkyBlock join refused, retrying in {_REJOIN_COOLDOWN}s")
                 self._retry_after = time.time() + _REJOIN_COOLDOWN
                 join_skyblock()
 

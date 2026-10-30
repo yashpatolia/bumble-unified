@@ -107,12 +107,12 @@ class GuildConnections(commands.Cog):
             if fell_back:
                 logging.warning(
                     f"[{config.short_name}] {len(recent)} disconnects on {state.version} in "
-                    f"{_FALLBACK_WINDOW_SECONDS // 60} min — falling back to {FALLBACK_VERSION}"
+                    f"{_FALLBACK_WINDOW_SECONDS // 60} min, falling back to {FALLBACK_VERSION}"
                 )
                 state.version = FALLBACK_VERSION
                 state.recent_disconnects.clear()
 
-            logging.info(f"[{config.short_name}] Disconnected ({event}) — reconnecting in 5s")
+            logging.info(f"[{config.short_name}] Disconnected ({event}), reconnecting in 5s")
             description = (
                 f"**{config.short_name} Bridge Disconnected from:** `{config.mc_options['host']}`\n"
                 f"Reconnecting in 5 seconds..."
