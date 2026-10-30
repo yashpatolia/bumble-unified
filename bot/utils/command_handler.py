@@ -114,7 +114,7 @@ async def _highest_level(username: str, parts: list, client):
     username = parts[1] if len(parts) > 1 else username
     player = skyblock.Player(username=username)
     level, gamemode = player.level.highest
-    return f"{player.username}{gamemode}", f"Highest Skyblock Level - {level:.1f}", username
+    return f"{player.username}{gamemode}", f"Highest Skyblock Level - {level:.2f}", username
 
 
 async def _networth(username: str, parts: list, client):
