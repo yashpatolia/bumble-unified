@@ -107,7 +107,7 @@ async def _help(username: str, parts: list, client):
 async def _skyblock_level(username: str, parts: list, client):
     username = parts[1] if len(parts) > 1 else username
     player = skyblock.Player(username=username)
-    return f"{player.username}{player.gamemode}", f"Skyblock Level - {player.level.current:.1f}", username
+    return f"{player.username}{player.gamemode}", f"Skyblock Level - {player.level.current:.2f}", username
 
 
 async def _highest_level(username: str, parts: list, client):
