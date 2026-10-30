@@ -232,17 +232,15 @@ def create_ipc_app(client):
 
     @app.get("/emojis", dependencies=[Depends(_verify)])
     async def list_emojis():
-        """Emojis the bot can use in messages: the ones uploaded to the application (what
-        POST /emojis creates) plus those of any server it is in, for the dye catalog picker."""
-        found = {}
+        """The bot's application emojis (what POST /emojis creates), for the dye catalog picker."""
         try:
-            for e in await client.fetch_application_emojis():
-                found[e.id] = {"id": str(e.id), "name": e.name, "animated": e.animated, "source": "application"}
+            emojis = await client.fetch_application_emojis()
         except discord.HTTPException as exc:
-            logging.warning(f"Could not fetch application emojis: {exc}")
-        for e in client.emojis:
-            found.setdefault(e.id, {"id": str(e.id), "name": e.name, "animated": e.animated, "source": "server"})
-        return {"emojis": sorted(found.values(), key=lambda e: e["name"].lower())}
+            raise HTTPException(status_code=502, detail=f"Discord refused: {exc.text or exc}")
+        return {"emojis": sorted(
+            ({"id": str(e.id), "name": e.name, "animated": e.animated} for e in emojis),
+            key=lambda e: e["name"].lower(),
+        )}
 
     @app.post("/emojis", dependencies=[Depends(_verify)])
     async def upload_emoji(body: _EmojiBody):
@@ -255,7 +253,7 @@ def create_ipc_app(client):
             emoji = await client.create_application_emoji(name=body.name, image=image)
         except discord.HTTPException as exc:
             raise HTTPException(status_code=400, detail=f"Discord refused the emoji: {exc.text or exc}")
-        return {"id": str(emoji.id), "name": emoji.name, "animated": emoji.animated, "source": "application"}
+        return {"id": str(emoji.id), "name": emoji.name, "animated": emoji.animated}
 
     @app.get("/api-usage", dependencies=[Depends(_verify)])
     def get_api_usage():

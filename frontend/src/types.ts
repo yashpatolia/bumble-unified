@@ -224,5 +224,4 @@ export interface BotEmoji {
   id: string
   name: string
   animated: boolean
-  source: 'application' | 'server'
 }

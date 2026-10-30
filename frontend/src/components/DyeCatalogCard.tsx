@@ -38,19 +38,14 @@ const readBase64 = (file: File) => new Promise<string>((resolve, reject) => {
   reader.readAsDataURL(file)
 })
 
-/** Pick one of the bot's Discord emojis, or upload a new one (saved on the bot as an
+/** Pick one of the bot's application emojis, or upload a new one (saved on the bot as an
  * application emoji, named after the dye id). Falls back to a plain ID box if the bot is offline. */
-function EmojiPicker({ value, onChange, uploadName, canEdit }: {
+function EmojiPicker({ value, onChange, uploadName, canEdit, emojis, offline, onUploaded }: {
   value: string; onChange: (id: string) => void; uploadName: string; canEdit: boolean
+  emojis: BotEmoji[] | null; offline: boolean; onUploaded: (e: BotEmoji) => void
 }) {
-  const [emojis, setEmojis] = useState<BotEmoji[] | null>(null)
-  const [offline, setOffline] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    api.dyeEmojis().then(d => { setEmojis(d.emojis); setOffline(!!d.offline) }).catch(() => { setEmojis([]); setOffline(true) })
-  }, [])
 
   const name = uploadName.replace(/[^A-Za-z0-9_]/g, '').slice(0, 32)
   const upload = async (file: File | undefined) => {
@@ -60,7 +55,7 @@ function EmojiPicker({ value, onChange, uploadName, canEdit }: {
     setUploading(true)
     try {
       const made = await api.uploadDyeEmoji(name, await readBase64(file))
-      setEmojis(list => [...(list ?? []), made].sort((a, b) => a.name.localeCompare(b.name)))
+      onUploaded(made)
       onChange(made.id)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Upload failed')
@@ -84,7 +79,7 @@ function EmojiPicker({ value, onChange, uploadName, canEdit }: {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 132, overflowY: 'auto', padding: 2 }}>
         <button type="button" className={`chip${value === '' ? ' active' : ''}`} onClick={() => onChange('')}>None</button>
         {emojis.map(e => (
-          <button key={e.id} type="button" title={`${e.name} (${e.source})`} aria-label={e.name} aria-pressed={value === e.id}
+          <button key={e.id} type="button" title={e.name} aria-label={e.name} aria-pressed={value === e.id}
             className={`icon-btn${value === e.id ? ' active' : ''}`} style={value === e.id ? { boxShadow: '0 0 0 2px var(--accent)' } : undefined}
             onClick={() => onChange(e.id)}>
             <DyeEmoji id={e.id} size={22} />
@@ -118,9 +113,12 @@ export function DyeCatalogCard({ canEdit }: { canEdit: boolean }) {
   const [busy, setBusy] = useState(false)
   const [modalError, setModalError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [emojis, setEmojis] = useState<BotEmoji[] | null>(null)
+  const [emojisOffline, setEmojisOffline] = useState(false)
 
   useEffect(() => {
     api.dyeCatalog().then(setData).catch(e => setLoadError(e instanceof Error ? e.message : 'Failed to load dyes'))
+    api.dyeEmojis().then(d => { setEmojis(d.emojis); setEmojisOffline(!!d.offline) }).catch(() => { setEmojis([]); setEmojisOffline(true) })
   }, [])
 
   if (loadError) return <p className="error-text">{loadError}</p>
@@ -172,6 +170,26 @@ export function DyeCatalogCard({ canEdit }: { canEdit: boolean }) {
     }
   }
 
+  // A saved emoji id the bot no longer has (deleted or re-uploaded). If an emoji named after the
+  // dye exists, offer it as the fix.
+  const known = new Set((emojis ?? []).map(e => e.id))
+  const missing = (d: CatalogDye) => !!d.emoji_id && !emojisOffline && emojis !== null && !known.has(d.emoji_id)
+  const suggestion = (d: CatalogDye) => {
+    const names = [d.dye_id, d.dye_id.replace(/_dye$/, ''), d.dye_name.replace(/\s+/g, '_')].map(n => n.toLowerCase())
+    return (emojis ?? []).find(e => names.includes(e.name.toLowerCase()))
+  }
+  const useEmoji = async (d: CatalogDye, emojiId: string) => {
+    setBusy(true)
+    try {
+      setData(await api.saveDye(d.dye_id, { dye_name: d.dye_name, weight: d.weight, hex: d.hex, role_id: d.role_id ?? '', emoji_id: emojiId }))
+      setNotice(`Updated the emoji for ${d.dye_name}.`)
+    } catch (e: unknown) {
+      setNotice(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const noDrop = Math.max(0, 100 - data.total_weight)
   return (
     <div className="card reveal" style={{ '--i': 3 } as React.CSSProperties}>
@@ -209,7 +227,17 @@ export function DyeCatalogCard({ canEdit }: { canEdit: boolean }) {
                 <td className="num">{d.weight}</td>
                 <td className="num">{d.odds}</td>
                 <td>{d.role_id ? <span className="mono">{d.role_id}</span> : <span className="badge badge-warn">None</span>}</td>
-                <td>{d.emoji_id ? <span title={d.emoji_id} style={{ display: 'inline-flex' }}><DyeEmoji id={d.emoji_id} /></span> : <span className="badge badge-warn">None</span>}</td>
+                <td>
+                  {!d.emoji_id ? <span className="badge badge-warn">None</span> : missing(d) ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <span className="badge badge-warn" title={`Emoji ${d.emoji_id} no longer exists on the bot`}>Not found</span>
+                      {canEdit && (() => { const s = suggestion(d); return s ? (
+                        <button className="btn btn-sm" disabled={busy} title={`Use the bot's ${s.name} emoji`} onClick={() => useEmoji(d, s.id)}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><DyeEmoji id={s.id} size={16} />Use</button>
+                      ) : null })()}
+                    </span>
+                  ) : <span title={d.emoji_id} style={{ display: 'inline-flex' }}><DyeEmoji id={d.emoji_id} /></span>}
+                </td>
                 <td className="num">{d.unlocked_by}</td>
                 {canEdit && (
                   <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
@@ -271,7 +299,8 @@ export function DyeCatalogCard({ canEdit }: { canEdit: boolean }) {
             <div>
               <div className="form-label">Emoji</div>
               <EmojiPicker value={editing.form.emoji_id} onChange={id => setField('emoji_id', id)}
-                uploadName={editing.form.dye_id} canEdit={canEdit} />
+                uploadName={editing.form.dye_id} canEdit={canEdit} emojis={emojis} offline={emojisOffline}
+                onUploaded={e => setEmojis(l => [...(l ?? []), e].sort((a, b) => a.name.localeCompare(b.name)))} />
             </div>
             <div className="card-sub">Without a role, players can still win the dye but /dyes can't give them its colour. Without an emoji, the /dyes reply just shows the name.</div>
             {err && <p className="error-text" style={{ margin: 0 }}>{err}</p>}
