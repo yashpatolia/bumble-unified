@@ -7,6 +7,7 @@ anyone who has to wait is told their place in the queue straight away."""
 import asyncio
 import logging
 import re
+import time
 from typing import Callable
 
 from cogs.bridge.skyblock import supports_skyblock
@@ -18,6 +19,11 @@ _REPLY_TIMEOUT = 5     # how long to wait for Hypixel to answer a command
 _WARP_TIMEOUT = 10
 _DISBAND_ATTEMPTS = 3
 _SETTLE_AFTER_WARP = 2 # Hypixel ignored a /p disband sent straight after /p warp
+# Hypixel drops commands sent too close together, and the warpout bot is also relaying guild
+# chat, so party commands are spaced out and a rate-limit reply makes the disband back off.
+_COMMAND_GAP = 1.5
+_RATE_LIMIT_BACKOFF = 3
+_RATE_LIMITED = ("too fast", "slow down", "wait before")
 _MAX_QUEUE = 10        # waiting + running; each warpout can take up to ~80s
 
 # Lines Hypixel sends when /p invite fails outright.
@@ -65,19 +71,31 @@ async def warpout(client, ign: str, notify: Callable[[str], None]) -> str:
         state.warpout_queue.remove(lowered)
 
 
+async def _party_command(state, command: str) -> None:
+    """Sends a /p command at least _COMMAND_GAP seconds after the previous one."""
+    wait = state.last_party_command + _COMMAND_GAP - time.monotonic()
+    if wait > 0:
+        await asyncio.sleep(wait)
+    state.bot.chat(command)
+    state.last_party_command = time.monotonic()
+
+
 async def _disband(state) -> bool:
     """Disbands the bot's party and waits for Hypixel to confirm it, retrying a few times.
     Also confirms when there was no party to begin with."""
     for attempt in range(_DISBAND_ATTEMPTS):
-        confirmed = asyncio.ensure_future(wait_for_chat(
+        reply = asyncio.ensure_future(wait_for_chat(
             state,
-            lambda m: "disbanded the party" in m or m in ("You are not in a party right now.", "You are not currently in a party."),
+            lambda m: ("disbanded the party" in m
+                       or m in ("You are not in a party right now.", "You are not currently in a party.")
+                       or any(phrase in m.lower() for phrase in _RATE_LIMITED)),
             _REPLY_TIMEOUT,
         ))
-        state.bot.chat("/p disband")
-        if await confirmed:
+        await _party_command(state, "/p disband")
+        line = await reply
+        if line and not any(phrase in line.lower() for phrase in _RATE_LIMITED):
             return True
-        await asyncio.sleep(2)
+        await asyncio.sleep(_RATE_LIMIT_BACKOFF if line else 0)
     logging.warning(f"Warpout: /p disband wasn't confirmed after {_DISBAND_ATTEMPTS} tries")
     return False
 
@@ -85,7 +103,6 @@ async def _disband(state) -> bool:
 async def _run(state, ign: str) -> str:
     """One invite, warp, disband cycle. Caller holds state.warpout_lock."""
     lowered = ign.lower()
-    bot = state.bot
     try:
         # Start from an empty party even if an earlier warpout's disband didn't go through,
         # so this player isn't warped along with a leftover member (or vice versa).
@@ -101,7 +118,7 @@ async def _run(state, ign: str) -> str:
             lambda m: lowered in m.lower() and (m.endswith("joined the party.") or "has expired" in m),
             _INVITE_TIMEOUT + 5,
         ))
-        bot.chat(f"/p invite {ign}")
+        await _party_command(state, f"/p invite {ign}")
 
         reply = await invite_reply
         if reply in _INVITE_FAILURES:
@@ -122,7 +139,7 @@ async def _run(state, ign: str) -> str:
             lambda m: lowered in m.lower() and ("warp" in m.lower() or "summon" in m.lower()),
             _WARP_TIMEOUT,
         ))
-        bot.chat("/p warp")
+        await _party_command(state, "/p warp")
         warp_line = await warped
         await asyncio.sleep(_SETTLE_AFTER_WARP)
         await _disband(state)
