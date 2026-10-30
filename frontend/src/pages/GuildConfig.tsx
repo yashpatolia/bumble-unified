@@ -51,10 +51,10 @@ function RoleSelect({ value, roles, offline, disabled, label, autoName, onChange
   const selected = roles.find(r => r.id === value) ?? (value === '' ? auto : undefined)
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-      <select className="form-input" style={{ width: 190 }} value={value} disabled={disabled} aria-label={label} onChange={e => onChange(e.target.value)}>
-        <option value="">{auto ? `Automatic (${auto.name})` : `Automatic (no role named ${autoName})`}</option>
+      <select className="form-input" style={{ width: 190 }} value={value} disabled={disabled} aria-label={label} title={value === '' ? (auto ? `Matched by name: ${auto.name}` : `No Discord role is named ${autoName}`) : undefined} onChange={e => onChange(e.target.value)}>
+        <option value="">{auto ? auto.name : 'None'}</option>
         {value && !known && <option value={value}>Unknown role ({value})</option>}
-        {roles.filter(r => r.assignable || r.id === value).map(r => <option key={r.id} value={r.id}>{r.name}{r.assignable ? '' : ' (bot cannot assign)'}</option>)}
+        {roles.filter(r => (r.assignable && r.id !== auto?.id) || r.id === value).map(r => <option key={r.id} value={r.id}>{r.name}{r.assignable ? '' : ' (bot cannot assign)'}</option>)}
       </select>
       {selected && !selected.assignable && <span className="badge badge-warn" title="Move the bot's role above this role in Discord's role list">Too high</span>}
     </span>
