@@ -173,6 +173,8 @@ export interface GuildConfigData {
   attention_defaults: AttentionSettings
   activity: ActivityConfig
   activity_defaults: ActivityConfig
+  member_role_id: string | null
+  guild_role_name: string
   minecraft_version: string
   minecraft_version_default: string
   minecraft_versions: string[]

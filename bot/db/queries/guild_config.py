@@ -12,13 +12,13 @@ class GuildConfigQueries(BaseQueries):
     def get_guild_config(self, guild_key: str) -> Optional[dict]:
         with self._cursor() as cur:
             cur.execute(
-                "SELECT rank_requirements, attention, updated_by, updated_at, activity_tiers, rank_roles FROM guild_config WHERE guild_key = %s",
+                "SELECT rank_requirements, attention, updated_by, updated_at, activity_tiers, rank_roles, member_role FROM guild_config WHERE guild_key = %s",
                 (guild_key,),
             )
             row = cur.fetchone()
         if not row:
             return None
-        return {"rank_requirements": row[0] or {}, "attention": row[1] or {}, "updated_by": row[2], "updated_at": row[3], "activity_tiers": row[4] or {}, "rank_roles": row[5] or {}}
+        return {"rank_requirements": row[0] or {}, "attention": row[1] or {}, "updated_by": row[2], "updated_at": row[3], "activity_tiers": row[4] or {}, "rank_roles": row[5] or {}, "member_role": row[6]}
 
     def set_guild_config(self, guild_key: str, rank_requirements: dict, attention: dict, activity_tiers: dict, updated_by: str) -> None:
         with self._cursor() as cur:
@@ -37,6 +37,15 @@ class GuildConfigQueries(BaseQueries):
                 "ON CONFLICT (guild_key) DO UPDATE SET rank_roles = EXCLUDED.rank_roles, "
                 "updated_by = EXCLUDED.updated_by, updated_at = EXCLUDED.updated_at",
                 (guild_key, Json(rank_roles), updated_by, _dt.datetime.now(_dt.timezone.utc)),
+            )
+
+    def set_member_role(self, guild_key: str, role_id, updated_by: str) -> None:
+        with self._cursor() as cur:
+            cur.execute(
+                "INSERT INTO guild_config (guild_key, member_role, updated_by, updated_at) VALUES (%s, %s, %s, %s) "
+                "ON CONFLICT (guild_key) DO UPDATE SET member_role = EXCLUDED.member_role, "
+                "updated_by = EXCLUDED.updated_by, updated_at = EXCLUDED.updated_at",
+                (guild_key, role_id, updated_by, _dt.datetime.now(_dt.timezone.utc)),
             )
 
     def get_minecraft_version(self, guild_key: str) -> Optional[str]:

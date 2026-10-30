@@ -81,7 +81,7 @@ export const api = {
   levelLeaderboard: (key: string, days: number) => req<LevelLeaderboardData>(`/api/bots/${key}/level-leaderboard?days=${days}`),
 
   guildConfig: (key: string) => req<GuildConfigData>(`/api/bots/${key}/config`),
-  saveGuildConfig: (key: string, data: { ranks: Record<string, number>; attention: AttentionSettings; activity: ActivityConfig; minecraft_version?: string; rank_roles?: Record<string, string> }) =>
+  saveGuildConfig: (key: string, data: { ranks: Record<string, number>; attention: AttentionSettings; activity: ActivityConfig; minecraft_version?: string; rank_roles?: Record<string, string>; member_role?: string }) =>
     req<GuildConfigData>(`/api/bots/${key}/config`, { method: 'PUT', body: JSON.stringify(data) }),
 
   memberDetail: (key: string, ign: string) => req<MemberDetail>(`/api/bots/${key}/members/${encodeURIComponent(ign)}`),

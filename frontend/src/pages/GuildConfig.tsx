@@ -47,14 +47,14 @@ function RoleSelect({ value, roles, offline, disabled, label, autoName, onChange
       disabled={disabled} aria-label={label} onChange={e => onChange(e.target.value.trim())} />
   }
   const known = roles.some(r => r.id === value)
-  const auto = roles.find(r => r.name.toLowerCase() === autoName.toLowerCase())
+  const auto = roles.find(r => r.assignable && r.name.toLowerCase() === autoName.toLowerCase())
   const selected = roles.find(r => r.id === value) ?? (value === '' ? auto : undefined)
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
       <select className="form-input" style={{ width: 190 }} value={value} disabled={disabled} aria-label={label} onChange={e => onChange(e.target.value)}>
         <option value="">{auto ? `Automatic (${auto.name})` : `Automatic (no role named ${autoName})`}</option>
         {value && !known && <option value={value}>Unknown role ({value})</option>}
-        {roles.map(r => <option key={r.id} value={r.id}>{r.name}{r.assignable ? '' : ' (bot cannot assign)'}</option>)}
+        {roles.filter(r => r.assignable || r.id === value).map(r => <option key={r.id} value={r.id}>{r.name}{r.assignable ? '' : ' (bot cannot assign)'}</option>)}
       </select>
       {selected && !selected.assignable && <span className="badge badge-warn" title="Move the bot's role above this role in Discord's role list">Too high</span>}
     </span>
@@ -75,6 +75,7 @@ export default function GuildConfig() {
   const [actForm, setActForm] = useState<Record<Period, Record<string, string>>>({ d90: {}, total: {} })
   const [versionForm, setVersionForm] = useState('')
   const [roleForm, setRoleForm] = useState<Record<string, string>>({})
+  const [memberRoleForm, setMemberRoleForm] = useState('')
   const [roles, setRoles] = useState<DiscordRole[] | null>(null)
   const [rolesOffline, setRolesOffline] = useState(false)
   const [members, setMembers] = useState<GuildMember[] | null>(null)
@@ -93,6 +94,7 @@ export default function GuildConfig() {
     })
     setVersionForm(d.minecraft_version)
     setRoleForm(Object.fromEntries(d.ranks.map(r => [r.key, r.role_id ?? ''])))
+    setMemberRoleForm(d.member_role_id ?? '')
   }
 
   useEffect(() => {
@@ -155,7 +157,8 @@ export default function GuildConfig() {
     ranks: !!data && (
       data.ranks.some(r => r.editable && String(r.level) !== (rankForm[r.key] ?? '')) ||
       ATTENTION_FIELDS.some(f => String(data.attention[f.key]) !== (attnForm[f.key] ?? '')) ||
-      data.ranks.some(r => (r.role_id ?? '') !== (roleForm[r.key] ?? ''))
+      data.ranks.some(r => (r.role_id ?? '') !== (roleForm[r.key] ?? '')) ||
+      (data.member_role_id ?? '') !== memberRoleForm
     ),
     activity: !!data && PERIODS.some(p => TIER_ORDER.some(k => String(data.activity[p.id][k]) !== (actForm[p.id][k] ?? ''))),
     bot: !!data && versionForm !== data.minecraft_version,
@@ -185,7 +188,7 @@ export default function GuildConfig() {
       const ranks = Object.fromEntries(data.ranks.filter(r => r.editable).map(r => [r.key, Number(rankForm[r.key])]))
       const attention = Object.fromEntries(ATTENTION_FIELDS.map(f => [f.key, Number(attnForm[f.key])])) as unknown as AttentionSettings
       const activity = Object.fromEntries(PERIODS.map(p => [p.id, Object.fromEntries(TIER_ORDER.map(k => [k, Number(actForm[p.id][k])]))])) as unknown as ActivityConfig
-      const next = await api.saveGuildConfig(key, { ranks, attention, activity, minecraft_version: versionForm, rank_roles: roleForm })
+      const next = await api.saveGuildConfig(key, { ranks, attention, activity, minecraft_version: versionForm, rank_roles: roleForm, member_role: memberRoleForm })
       setCachedGuildConfig(key, next)
       apply(next)
       setSaved(true)
@@ -243,6 +246,14 @@ export default function GuildConfig() {
           <p className="card-sub" style={{ padding: '0 20px 10px' }}>
             The bot promotes and demotes members automatically to match their level. A member needs a level <b>above</b> the number to hold the rank. Members at or below the lowest rank's number keep whatever rank they have. Linked members are given the Discord role named like their rank (for example "Sweaty Bee") when they link or change rank, and the old rank role is taken away. Only pick a role here if yours is named differently.
           </p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '0 20px 14px', flexWrap: 'wrap' }}>
+            <div>
+              <label className="p-name" htmlFor="member-role">Guild member role</label>
+              <div className="card-sub">Given to every linked member of this guild, next to their rank role.</div>
+            </div>
+            <RoleSelect value={memberRoleForm} roles={roles} offline={rolesOffline} disabled={!canEdit} label="Guild member role"
+              autoName={data.guild_role_name} onChange={id => { setMemberRoleForm(id); setSaved(false) }} />
+          </div>
           <div className="table-wrap">
             <table>
               <thead>

@@ -64,6 +64,21 @@ def get_rank_roles(config) -> dict:
     return {rank: int(saved[rank]) for rank in config.ranks if saved.get(rank)}
 
 
+def get_member_role(config):
+    """The panel's "is in this guild" Discord role id, or None."""
+    saved = _stored(config.key).get("member_role")
+    return int(saved) if saved else None
+
+
+def validate_member_role(raw):
+    raw = str(raw or "").strip()
+    if not raw:
+        return None
+    if not raw.isdigit() or not 17 <= len(raw) <= 20:
+        raise ValueError("The guild role must be a Discord role ID (17-20 digits)")
+    return int(raw)
+
+
 def validate_rank_roles(config, values: dict) -> dict:
     """values is {rank: "role id" | ""}; returns {rank: int} without the blanks."""
     unknown = set(values) - set(config.ranks)

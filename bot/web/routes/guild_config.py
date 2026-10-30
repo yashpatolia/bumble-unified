@@ -22,6 +22,7 @@ class ConfigBody(BaseModel):
     activity: dict[str, dict[str, int]] = {}
     minecraft_version: Optional[str] = None  # None = leave unchanged
     rank_roles: Optional[dict[str, str]] = None  # {rank: Discord role id or ""}; None = leave unchanged
+    member_role: Optional[str] = None  # the guild's membership role id or ""; None = leave unchanged
 
 
 def _guild(key: str):
@@ -57,6 +58,8 @@ def _view(key: str) -> dict:
         "attention_defaults": guild_settings.ATTENTION_DEFAULTS,
         "activity": activity,
         "activity_defaults": guild_settings.ACTIVITY_DEFAULTS,
+        "member_role_id": str(stored.get("member_role") or "") or None,
+        "guild_role_name": config.display_name,
         "minecraft_version": guild_settings.get_minecraft_version(config),
         "minecraft_version_default": VERSION,
         "minecraft_versions": list(guild_settings.MINECRAFT_VERSIONS),
@@ -79,6 +82,7 @@ async def update_config(key: str, body: ConfigBody, claims=Depends(require_manag
         activity = guild_settings.validate_activity(body.activity)
         version = None if body.minecraft_version is None else guild_settings.validate_minecraft_version(body.minecraft_version)
         rank_roles = None if body.rank_roles is None else guild_settings.validate_rank_roles(config, body.rank_roles)
+        member_role = None if body.member_role is None else guild_settings.validate_member_role(body.member_role)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     manager.set_guild_config(key, ranks, attention, activity, claims.get("name", "unknown"))
@@ -86,9 +90,13 @@ async def update_config(key: str, body: ConfigBody, claims=Depends(require_manag
         # Takes effect the next time the bot is restarted (panel restart or deploy).
         manager.set_minecraft_version(key, version, claims.get("name", "unknown"))
     roles_changed = False
+    before = manager.get_guild_config(key) or {}
     if rank_roles is not None:
-        roles_changed = rank_roles != (manager.get_guild_config(key) or {}).get("rank_roles", {})
+        roles_changed = rank_roles != before.get("rank_roles", {})
         manager.set_rank_roles(key, rank_roles, claims.get("name", "unknown"))
+    if body.member_role is not None:
+        roles_changed = roles_changed or member_role != before.get("member_role")
+        manager.set_member_role(key, member_role, claims.get("name", "unknown"))
     guild_settings.invalidate(key)
     if roles_changed:
         try:
