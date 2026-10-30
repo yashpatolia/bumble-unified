@@ -159,7 +159,9 @@ class GuildBridge(commands.Cog):
 
         if command_check.startswith("."):
             run_coroutine_threadsafe(
-                bridge_commands(self.client, command_check, message.author.display_name, "None", chat_state, config=self.config),
+                # `ign` is the linked Minecraft name when there is one, so a bare `.lvl` or
+                # `.warpout` from Discord targets the author's account, not their display name.
+                bridge_commands(self.client, command_check, ign, "None", chat_state, config=self.config),
                 self._loop,
             )
 
