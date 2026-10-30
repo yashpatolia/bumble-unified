@@ -28,6 +28,11 @@ class _InviteBody(BaseModel):
     actor: str = "panel"
 
 
+class _SyncRolesBody(BaseModel):
+    uuid: str = ""       # sync just this member...
+    guild_key: str = ""  # ...or every linked member of this guild
+
+
 class _EmojiBody(BaseModel):
     name: str
     image: str  # base64 of the PNG/JPG/GIF file
@@ -229,6 +234,42 @@ def create_ipc_app(client):
                 state.manual_stop = False
                 raise HTTPException(status_code=500, detail="Failed to stop bot")
         return {"status": "stopped", "key": key}
+
+    @app.get("/roles", dependencies=[Depends(_verify)])
+    async def list_roles():
+        """Discord roles the bot could hand out, for the rank-role pickers on the Config page."""
+        roles = []
+        for server in client.guilds:
+            top = server.me.top_role if server.me else None
+            for role in sorted(server.roles, key=lambda r: r.position, reverse=True):
+                if role.is_default() or role.managed:
+                    continue
+                roles.append({
+                    "id": str(role.id), "name": role.name, "server": server.name,
+                    "color": f"{role.color.value:06x}" if role.color.value else None,
+                    "assignable": bool(top and role < top),
+                })
+        return {"roles": roles}
+
+    @app.post("/sync-roles", dependencies=[Depends(_verify)])
+    async def sync_roles(body: _SyncRolesBody):
+        """Re-applies guild rank roles for one member, or in the background for a whole guild."""
+        from lib.role_sync import sync_member_roles
+
+        if body.uuid:
+            await sync_member_roles(client, body.uuid)
+            return {"status": "synced"}
+        if body.guild_key not in client.guild_configs:
+            raise HTTPException(status_code=404, detail="Unknown guild key")
+
+        async def run():
+            for row in manager.get_guild_members(body.guild_key):
+                if row[4] and row[6]:  # has a uuid and a linked Discord account
+                    await sync_member_roles(client, row[4])
+                    await asyncio.sleep(0.3)  # stay clear of Discord's rate limits
+
+        asyncio.create_task(run())
+        return {"status": "started"}
 
     @app.get("/emojis", dependencies=[Depends(_verify)])
     async def list_emojis():

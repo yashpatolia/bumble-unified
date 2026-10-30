@@ -13,6 +13,7 @@ from lib.guild_settings import get_rank_requirements
 from lib.hypixel import fetch_member_stats
 from lib.rankup import guild_rank_change
 from lib.relay import relay_to_other_guilds
+from lib.role_sync import sync_member_roles
 from player import skyblock
 
 
@@ -110,6 +111,8 @@ class GuildMessageHandler(commands.Cog):
                 m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+was (?:promoted|demoted) from .+? to ([A-Za-z ]+?)(?:[!.]|$)", message, re.IGNORECASE)
                 if m:
                     manager.upsert_guild_member(config.key, m.group(1), m.group(2))
+                    # Move the member's Discord rank role to match (no-op if unlinked or unmapped).
+                    asyncio.run_coroutine_threadsafe(sync_member_roles(self.client, manager.get_member_uuid(config.key, m.group(1))), self.client.loop)
 
             # Invite result messages
             invite_errors = [

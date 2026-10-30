@@ -1,7 +1,7 @@
 import time as _time
 from typing import Optional
 
-from psycopg2.extras import execute_values
+from psycopg2.extras import Json, execute_values
 
 from db.base import BaseQueries
 
@@ -120,8 +120,10 @@ class GuildMembersQueries(BaseQueries):
             )
             return cur.fetchone()
 
-    def record_level_snapshot(self, guild_key: str, ign: str, uuid: Optional[str], level) -> None:
-        """Inserts one level snapshot per member per UTC calendar day (skipped if today's already recorded)."""
+    def record_level_snapshot(self, guild_key: str, ign: str, uuid: Optional[str], level,
+                              catacombs_xp: Optional[float] = None, slayer_xp: Optional[dict] = None) -> None:
+        """Inserts one snapshot per member per UTC calendar day. If today's row already exists it is
+        only topped up with Catacombs/slayer XP it was missing (rows from before those were tracked)."""
         with self._cursor() as cur:
             today_start = int(_time.time()) - (int(_time.time()) % 86400)
             cur.execute(
@@ -130,12 +132,49 @@ class GuildMembersQueries(BaseQueries):
                 (guild_key, ign, today_start),
             )
             if cur.fetchone():
+                if catacombs_xp is not None or slayer_xp is not None:
+                    cur.execute(
+                        "UPDATE guild_member_level_history SET catacombs_xp = COALESCE(catacombs_xp, %s), "
+                        "slayer_xp = COALESCE(slayer_xp, %s) "
+                        "WHERE guild_key = %s AND LOWER(ign) = LOWER(%s) AND recorded_at >= %s",
+                        (catacombs_xp, Json(slayer_xp) if slayer_xp is not None else None, guild_key, ign, today_start),
+                    )
                 return
             cur.execute(
-                "INSERT INTO guild_member_level_history (guild_key, ign, uuid, level, recorded_at) "
-                "VALUES (%s, %s, %s, %s, %s)",
-                (guild_key, ign, uuid, level, int(_time.time())),
+                "INSERT INTO guild_member_level_history (guild_key, ign, uuid, level, recorded_at, catacombs_xp, slayer_xp) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (guild_key, ign, uuid, level, int(_time.time()), catacombs_xp,
+                 Json(slayer_xp) if slayer_xp is not None else None),
             )
+
+    def get_member_history(self, guild_key: str, ign: str, days: int = 90) -> list:
+        """[(recorded_at, level, catacombs_xp, slayer_xp_dict), ...] oldest first, for the member page."""
+        since = int(_time.time()) - days * 86400
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT recorded_at, level, catacombs_xp, slayer_xp FROM guild_member_level_history "
+                "WHERE guild_key = %s AND LOWER(ign) = LOWER(%s) AND recorded_at >= %s ORDER BY recorded_at",
+                (guild_key, ign, since),
+            )
+            return cur.fetchall()
+
+    def get_member_by_uuid(self, uuid: str) -> Optional[tuple]:
+        """(guild_key, rank) of the guild a UUID is on, or None."""
+        with self._cursor() as cur:
+            cur.execute("SELECT guild_key, rank FROM guild_members WHERE uuid = %s LIMIT 1", (uuid,))
+            return cur.fetchone()
+
+    def get_member_row(self, guild_key: str, ign: str) -> Optional[tuple]:
+        """Same columns as get_guild_members, for one member."""
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT gm.ign::TEXT, gm.rank, gm.skyblock_level, gm.last_login, gm.uuid, "
+                "u.discord_name, u.discord_id, u.discord_avatar, gm.stats_fetched_at "
+                "FROM guild_members gm LEFT JOIN users u ON u.uuid = gm.uuid "
+                "WHERE gm.guild_key = %s AND LOWER(gm.ign) = LOWER(%s)",
+                (guild_key, ign),
+            )
+            return cur.fetchone()
 
     def get_average_level_trend(self, guild_key: str, days: int = 30, exclude_igns: tuple = ()) -> list:
         """Returns [(day_start_unix, avg_level, member_count), ...] oldest first, one entry per UTC day

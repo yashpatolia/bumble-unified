@@ -44,7 +44,7 @@ Networth and sack values come from [skyhelper-networth](https://www.npmjs.com/pa
 | `/bk-guild`, `/bu-guild` | Staff | List, invite, kick, mute, unmute, promote and demote members |
 | `/link` | Everyone | Link your Discord to your Minecraft account (verified through Hypixel social links) |
 | `/dyes` | Everyone | Pick a colour role from the armor dyes you've collected |
-| `/apply` | Everyone | Open a private application ticket |
+| `/apply` | Everyone | Open a private application ticket with a stats check against the rank requirements |
 | `/user`, `/staff link` | Staff | Look up or force-link an account |
 | `/admin`, `/bk-exec`, `/bu-exec` | Exec | Manage dyes, run raw Minecraft commands |
 

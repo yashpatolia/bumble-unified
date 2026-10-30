@@ -1,7 +1,8 @@
 import math
 
 from lib import deep_get
-from constants import DUNGEON_XP_TABLE, DUNGEON_INDIVIDUAL_XP_TABLE
+from lib.levels import catacombs_level
+from constants import DUNGEON_XP_TABLE
 
 
 class Catacombs:
@@ -17,16 +18,7 @@ class Catacombs:
         self.__total_runs = self.__get_total_runs()
 
     def __get_cata_level(self) -> float:
-        cata_xp = self.__cata_xp
-        level = [k for k, v in DUNGEON_XP_TABLE.items() if cata_xp >= v][-1]
-
-        if level >= 50:
-            xp_past_50 = cata_xp - DUNGEON_XP_TABLE[50]
-            level = 50 + round(xp_past_50 / 200_000_000, 2)
-        else:
-            level += round((cata_xp - DUNGEON_XP_TABLE[level]) / DUNGEON_INDIVIDUAL_XP_TABLE[level + 1], 2)
-
-        return level
+        return catacombs_level(self.__cata_xp)
 
     def runs_to_level(self, floor_xp: int, target_level: int = 50, mayor_multiplier: float = 1.0,
                       boost: float = 0.0) -> int:

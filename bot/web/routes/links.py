@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from config import GUILD_CONFIGS
 from db import manager
 from web.auth import require_manage_links
+from web.ipc_client import ipc_post_json
 
 router = APIRouter(prefix="/api/bots", tags=["bots"])
 
@@ -27,6 +28,10 @@ async def link_member(key: str, ign: str, body: LinkMemberBody, _=Depends(requir
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid Discord ID")
     manager.link_user(uuid, ign, discord_id, body.discord_name)
+    try:
+        await ipc_post_json("/sync-roles", {"uuid": uuid})  # hand out their rank role right away
+    except HTTPException:
+        pass  # bot offline: the background refresh syncs them within the hour
     return {"status": "linked"}
 
 

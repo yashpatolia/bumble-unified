@@ -400,6 +400,7 @@ export default function GuildMembers() {
                         <PlayerIdentityCell
                           uuid={m.uuid}
                           ign={m.ign}
+                          to={`/guilds/${key}/members/${encodeURIComponent(m.ign)}`}
                           sub={m.rank}
                           badge={<>
                             {flag && <span className={`badge badge-${flag.tone === 'danger' ? 'danger' : 'warn'}`}>{flag.label}</span>}

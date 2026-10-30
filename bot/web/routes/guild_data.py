@@ -7,7 +7,9 @@ import time
 from fastapi import APIRouter, Depends, HTTPException
 
 from config import GUILD_CONFIGS
+from lib import guild_settings
 from lib.censor import censor
+from lib.levels import catacombs_level
 from db import manager
 from web.auth import is_guest, require_auth
 from web.ipc_client import ipc_get, ipc_get_or_raise, LONG_TIMEOUT
@@ -128,3 +130,69 @@ async def get_leaderboard(key: str, period: str = "lifetime", claims=Depends(req
         {"ign": r[0], "count": r[1], "uuid": r[2] or None, "discord_name": r[3] or None, "discord_id": None if is_guest(claims) else (str(r[4]) if r[4] else None), "discord_avatar": r[5] or None}
         for r in rows
     ]}
+
+
+def _last_3_month_keys() -> list:
+    """Current UTC month plus the previous 2: a ~90-day approximation, same as the members list."""
+    now = datetime.datetime.utcnow().replace(day=1)
+    keys = []
+    for _ in range(3):
+        keys.append(now.strftime("%Y-%m"))
+        now = (now - datetime.timedelta(days=1)).replace(day=1)
+    return keys
+
+
+@router.get("/{key}/members/{ign}")
+async def get_member_detail(key: str, ign: str, claims=Depends(require_auth)):
+    """Everything on one member's page: current stats, rank progress, chat activity, dyes and the
+    daily level / Catacombs / slayer history (up to 90 days)."""
+    if key not in GUILD_CONFIGS:
+        raise HTTPException(status_code=404, detail="Unknown guild key")
+    row = manager.get_member_row(key, ign)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"{ign} is not in this guild's roster")
+    ign, rank, level, last_login, uuid, discord_name, discord_id, discord_avatar, fetched_at = row
+    uuid = uuid or None
+    config = GUILD_CONFIGS[key]
+    guest = is_guest(claims)
+
+    ranks = guild_settings.get_rank_requirements(config)
+    labels = {bot_rank: hypixel_rank for hypixel_rank, bot_rank in config.discord_rank_map.items()}
+    order = list(ranks)
+    current = config.discord_rank_map.get(rank)
+    next_rank = None
+    if current in ranks and order.index(current) + 1 < len(order):
+        nxt = order[order.index(current) + 1]
+        next_rank = {"label": labels.get(nxt, nxt), "level": ranks[nxt]}
+
+    messages_90d = messages_total = dyes_owned = None
+    if uuid:
+        messages_90d = manager.get_message_counts_90d(key, _last_3_month_keys()).get(uuid, 0)
+        messages_total = manager.get_message_counts_lifetime(key).get(uuid, 0)
+        dyes_owned = len(manager.get_unlocked_dyes(uuid))
+
+    history = []
+    for recorded_at, lvl, cata_xp, slayer in manager.get_member_history(key, ign, 90):
+        slayer = slayer or None
+        history.append({
+            "t": datetime.datetime.utcfromtimestamp(recorded_at).strftime("%Y-%m-%d"),
+            "level": lvl,
+            "catacombs_xp": cata_xp,
+            "catacombs_level": catacombs_level(cata_xp) if cata_xp is not None else None,
+            "slayer": slayer,
+            "slayer_total": sum(slayer.values()) if slayer else None,
+        })
+
+    excused = manager.get_excused(key).get(ign.lower())
+    if excused and guest:
+        excused = {**excused, "reason": None, "by": None}
+    return {
+        "ign": ign, "rank": rank, "uuid": uuid, "level": level,
+        "last_login": last_login, "stats_fetched_at": fetched_at,
+        "discord": {"name": discord_name, "avatar": discord_avatar, "id": None if guest or not discord_id else str(discord_id)} if discord_name else None,
+        "next_rank": next_rank,
+        "messages_90d": messages_90d, "messages_total": messages_total,
+        "dyes_owned": dyes_owned, "dyes_total": len(manager.get_all_dyes()),
+        "excused": excused,
+        "history": history,
+    }

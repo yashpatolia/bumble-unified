@@ -9,6 +9,7 @@ from lib.get_uuid import get_uuid
 from lib.hypixel import fetch_member_stats
 from lib.guild_settings import get_rank_requirements
 from lib.rankup import guild_rank_change
+from lib.role_sync import sync_member_roles
 
 # Budget: 300 req / 5 min = 60 req/min total.
 # Reserve ~24 req/min for background (2 calls per member every 5 s).
@@ -54,40 +55,13 @@ class MemberRefreshTask(commands.Cog):
             if level is None:
                 return
 
-            manager.record_level_snapshot(guild_key, ign, uuid, level)
-
-            config = self.client.guild_configs.get(guild_key)
-            if config is None:
-                return
-
-            bot_rank = config.discord_rank_map.get(current_rank)
-            if bot_rank is None:
-                return
-
-            state = self.client.guilds_state[guild_key]
-            if not state.bot or getattr(state.bot, "ended", True):
-                return
-
-            ranks = get_rank_requirements(config)
-            result = await guild_rank_change(
-                bot_rank, state.bot, username=ign, uuid=uuid,
-                ranks=ranks, send_msg=False, known_level=level,
+            manager.record_level_snapshot(
+                guild_key, ign, uuid, level,
+                catacombs_xp=stats.get("catacombs_xp"), slayer_xp=stats.get("slayer_xp"),
             )
-            if result and "No rank change" not in result:
-                logging.info(f"[{config.short_name}] Rank update {ign}: {result}")
-                # Update DB rank immediately so next cycle uses the new rank.
-                # Without this, the message_handler regex may store a partial
-                # rank name (e.g. "Sweaty" instead of "Sweaty Bee"), causing
-                # discord_rank_map to miss it and the sync to reset to the old rank.
-                required_bot_ranks = [r for r, req in ranks.items() if req < level]
-                if required_bot_ranks:
-                    reverse_rank_map = {v: k for k, v in config.discord_rank_map.items()}
-                    new_hypixel_rank = reverse_rank_map.get(required_bot_ranks[-1], current_rank)
-                    manager.upsert_guild_member(guild_key, ign, new_hypixel_rank)
-                # Note: no separate logs embed here — the /g promote|demote command
-                # triggers a real Hypixel guild-chat system message ("X was promoted
-                # from Y to Z"), which message_handler.py already forwards to logs.
-                # Sending our own embed too would just duplicate that line.
+
+            await self._auto_rank(guild_key, ign, uuid, current_rank, level)
+            await sync_member_roles(self.client, uuid)
 
         except Exception as e:
             logging.warning(f"[refresh] Failed for {guild_key}/{ign}: {e}")
@@ -95,6 +69,41 @@ class MemberRefreshTask(commands.Cog):
                 manager.update_guild_member_stats(guild_key, ign, None, None)
             except Exception:
                 pass
+
+    async def _auto_rank(self, guild_key, ign, uuid, current_rank, level) -> None:
+        """Promote or demote in game to match the member's level, and record the new rank."""
+        config = self.client.guild_configs.get(guild_key)
+        if config is None:
+            return
+
+        bot_rank = config.discord_rank_map.get(current_rank)
+        if bot_rank is None:
+            return
+
+        state = self.client.guilds_state[guild_key]
+        if not state.bot or getattr(state.bot, "ended", True):
+            return
+
+        ranks = get_rank_requirements(config)
+        result = await guild_rank_change(
+            bot_rank, state.bot, username=ign, uuid=uuid,
+            ranks=ranks, send_msg=False, known_level=level,
+        )
+        if result and "No rank change" not in result:
+            logging.info(f"[{config.short_name}] Rank update {ign}: {result}")
+            # Update DB rank immediately so next cycle uses the new rank.
+            # Without this, the message_handler regex may store a partial
+            # rank name (e.g. "Sweaty" instead of "Sweaty Bee"), causing
+            # discord_rank_map to miss it and the sync to reset to the old rank.
+            required_bot_ranks = [r for r, req in ranks.items() if req < level]
+            if required_bot_ranks:
+                reverse_rank_map = {v: k for k, v in config.discord_rank_map.items()}
+                new_hypixel_rank = reverse_rank_map.get(required_bot_ranks[-1], current_rank)
+                manager.upsert_guild_member(guild_key, ign, new_hypixel_rank)
+            # Note: no separate logs embed here — the /g promote|demote command
+            # triggers a real Hypixel guild-chat system message ("X was promoted
+            # from Y to Z"), which message_handler.py already forwards to logs.
+            # Sending our own embed too would just duplicate that line.
 
     @_refresh_loop.before_loop
     async def _before_refresh(self):

@@ -7,6 +7,8 @@ from constants import MAYOR_XP_MULTIPLIERS
 
 _BASE = "https://api.hypixel.net/v2"
 
+SLAYER_BOSSES = ("zombie", "spider", "wolf", "enderman", "blaze", "vampire")
+
 _MAYOR_TTL = 600
 _mayor_cache: tuple[float, float] | None = None
 
@@ -16,14 +18,16 @@ def _key() -> str:
 
 
 async def fetch_member_stats(session: aiohttp.ClientSession, uuid: str) -> dict:
-    """Fetch player last_login and highest Skyblock level for a UUID.
+    """Fetch player last_login, highest Skyblock level, Catacombs XP and slayer XP for a UUID.
 
-    Records each API call in the DB. Returns {"skyblock_level": float|None, "last_login": int|None}.
+    Records each API call in the DB. Returns {"skyblock_level": float|None, "last_login": int|None,
+    "catacombs_xp": float|None, "slayer_xp": {boss: xp}|None}. Catacombs and slayer values are the
+    best across the player's profiles, read from the same response as the level (no extra call).
     """
     from db import manager
 
     uuid_clean = uuid.replace("-", "")
-    result: dict = {"skyblock_level": None, "last_login": None}
+    result: dict = {"skyblock_level": None, "last_login": None, "catacombs_xp": None, "slayer_xp": None}
 
     try:
         async with session.get(
@@ -51,15 +55,18 @@ async def fetch_member_stats(session: aiohttp.ClientSession, uuid: str) -> dict:
             success = bool(d.get("success"))
             manager.record_api_call("/v2/skyblock/profiles", success)
             if success and d.get("profiles"):
-                highest = max(
-                    (
-                        p.get("members", {}).get(uuid_clean, {}).get("leveling", {}).get("experience", 0)
-                        for p in d["profiles"]
-                    ),
-                    default=0,
-                )
+                members = [p.get("members", {}).get(uuid_clean, {}) for p in d["profiles"]]
+                highest = max((m.get("leveling", {}).get("experience", 0) for m in members), default=0)
                 if highest > 0:
                     result["skyblock_level"] = round(highest / 100, 1)
+                result["catacombs_xp"] = max(
+                    (m.get("dungeons", {}).get("dungeon_types", {}).get("catacombs", {}).get("experience", 0) or 0 for m in members),
+                    default=0,
+                )
+                result["slayer_xp"] = {
+                    boss: max((m.get("slayer", {}).get("slayer_bosses", {}).get(boss, {}).get("xp", 0) or 0 for m in members), default=0)
+                    for boss in SLAYER_BOSSES
+                }
     except Exception:
         pass
 

@@ -1,9 +1,12 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 
 /** Minecraft avatar + IGN (+ optional badge), used by every member/leaderboard table. */
-export function PlayerIdentityCell({ uuid, ign, badge, sub }: {
+export function PlayerIdentityCell({ uuid, ign, badge, sub, to }: {
   uuid: string | null
   ign: string
+  /** Makes the name a link (to the member's page). */
+  to?: string
   badge?: ReactNode
   sub?: ReactNode
 }) {
@@ -11,7 +14,7 @@ export function PlayerIdentityCell({ uuid, ign, badge, sub }: {
     <div className="player">
       {uuid ? <img src={`https://mc-heads.net/avatar/${uuid}/32`} alt="" /> : <div className="ph" />}
       <div style={{ minWidth: 0 }}>
-        <div className="p-name">{ign}{badge}</div>
+        <div className="p-name">{to ? <Link to={to} className="p-link">{ign}</Link> : ign}{badge}</div>
         {sub && <div className="p-sub">{sub}</div>}
       </div>
     </div>

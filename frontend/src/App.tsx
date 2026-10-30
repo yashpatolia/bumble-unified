@@ -14,6 +14,7 @@ import Admin from './pages/Admin'
 import Users from './pages/Users'
 import GuildConfig from './pages/GuildConfig'
 import Dyes from './pages/Dyes'
+import GuildMember from './pages/GuildMember'
 import GlobalSettings from './pages/GlobalSettings'
 
 interface AuthCtx {
@@ -101,6 +102,7 @@ function AppRouter() {
         <Route path="/" element={<Home />} />
         <Route path="/guilds/:key" element={<GuildOverview />} />
         <Route path="/guilds/:key/members" element={<GuildMembers />} />
+        <Route path="/guilds/:key/members/:ign" element={<GuildMember />} />
         <Route path="/guilds/:key/leaderboard" element={<GuildLeaderboard />} />
         <Route path="/dyes" element={<Dyes />} />
         <Route path="/admin" element={<Admin />} />

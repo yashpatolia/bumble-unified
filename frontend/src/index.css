@@ -358,3 +358,5 @@ tbody tr:hover td { background: var(--surface-2); }
   .landing-features { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 560px) { .landing-features { grid-template-columns: 1fr; } .preview-attn { margin-top: 0; width: 100%; } }
+.p-link { color: inherit; text-decoration: none; }
+.p-link:hover { color: var(--accent-ink); text-decoration: underline; }

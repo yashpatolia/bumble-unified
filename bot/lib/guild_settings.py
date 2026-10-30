@@ -58,6 +58,31 @@ def get_rank_requirements(config) -> dict:
     return {rank: int(overrides.get(rank, default_level)) for rank, default_level in config.ranks.items()}
 
 
+def get_rank_roles(config) -> dict:
+    """{bot_rank_key: discord_role_id} for the ranks that have a Discord role saved on the panel."""
+    saved = _stored(config.key).get("rank_roles", {})
+    return {rank: int(saved[rank]) for rank in config.ranks if saved.get(rank)}
+
+
+def validate_rank_roles(config, values: dict) -> dict:
+    """values is {rank: "role id" | ""}; returns {rank: int} without the blanks."""
+    unknown = set(values) - set(config.ranks)
+    if unknown:
+        raise ValueError(f"Unknown rank: {', '.join(sorted(unknown))}")
+    result = {}
+    for rank, raw in values.items():
+        raw = str(raw or "").strip()
+        if not raw:
+            continue
+        if not raw.isdigit() or not 17 <= len(raw) <= 20:
+            raise ValueError(f"{rank}: the Discord role must be a role ID (17-20 digits)")
+        result[rank] = int(raw)
+    ids = list(result.values())
+    if len(ids) != len(set(ids)):
+        raise ValueError("Each rank needs its own Discord role; two ranks can't share one")
+    return result
+
+
 def get_minecraft_version(config) -> str:
     """The protocol version this guild's bot should connect with: the panel's choice, else
     MINECRAFT_VERSION from .env. Read when the bot is (re)started."""

@@ -149,6 +149,15 @@ export interface RankRequirement {
   level: number
   default_level: number
   editable: boolean
+  role_id: string | null
+}
+
+export interface DiscordRole {
+  id: string
+  name: string
+  server: string
+  color: string | null
+  assignable: boolean
 }
 
 export type ActivityTiers = Record<'red' | 'yellow' | 'green' | 'blue' | 'white', number>
@@ -224,4 +233,30 @@ export interface BotEmoji {
   id: string
   name: string
   animated: boolean
+}
+
+export interface MemberHistoryPoint {
+  t: string
+  level: number | null
+  catacombs_xp: number | null
+  catacombs_level: number | null
+  slayer: Record<string, number> | null
+  slayer_total: number | null
+}
+
+export interface MemberDetail {
+  ign: string
+  rank: string
+  uuid: string | null
+  level: number | null
+  last_login: number | null
+  stats_fetched_at: number | null
+  discord: { name: string; avatar: string | null; id: string | null } | null
+  next_rank: { label: string; level: number } | null
+  messages_90d: number | null
+  messages_total: number | null
+  dyes_owned: number | null
+  dyes_total: number
+  excused: { reason: string | null; until: string | null; by: string | null } | null
+  history: MemberHistoryPoint[]
 }

@@ -1,4 +1,4 @@
-import type { BotEmoji, LevelLeaderboardData, ActivityConfig, ActivityPoint, AttentionSettings, DyeCatalog, GuildConfigData, SharedSettings, WarpoutSettings, LevelTrendPoint, ApiUsageStats, DyeDrop, DyeProfile, DyeSearchResult, GuildMember, GuildOverview, GuildStatus, Me, PanelUser } from './types'
+import type { BotEmoji, DiscordRole, MemberDetail, LevelLeaderboardData, ActivityConfig, ActivityPoint, AttentionSettings, DyeCatalog, GuildConfigData, SharedSettings, WarpoutSettings, LevelTrendPoint, ApiUsageStats, DyeDrop, DyeProfile, DyeSearchResult, GuildMember, GuildOverview, GuildStatus, Me, PanelUser } from './types'
 
 function token(): string | null {
   return localStorage.getItem('token')
@@ -81,9 +81,11 @@ export const api = {
   levelLeaderboard: (key: string, days: number) => req<LevelLeaderboardData>(`/api/bots/${key}/level-leaderboard?days=${days}`),
 
   guildConfig: (key: string) => req<GuildConfigData>(`/api/bots/${key}/config`),
-  saveGuildConfig: (key: string, data: { ranks: Record<string, number>; attention: AttentionSettings; activity: ActivityConfig; minecraft_version?: string }) =>
+  saveGuildConfig: (key: string, data: { ranks: Record<string, number>; attention: AttentionSettings; activity: ActivityConfig; minecraft_version?: string; rank_roles?: Record<string, string> }) =>
     req<GuildConfigData>(`/api/bots/${key}/config`, { method: 'PUT', body: JSON.stringify(data) }),
 
+  memberDetail: (key: string, ign: string) => req<MemberDetail>(`/api/bots/${key}/members/${encodeURIComponent(ign)}`),
+  discordRoles: () => req<{ roles: DiscordRole[]; offline?: boolean }>('/api/settings/discord-roles'),
   sharedSettings: () => req<SharedSettings>('/api/settings'),
   saveSharedSettings: (data: { warpout?: WarpoutSettings; censor_words?: string[] }) =>
     req<SharedSettings>('/api/settings', { method: 'PUT', body: JSON.stringify(data) }),

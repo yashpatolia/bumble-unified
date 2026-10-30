@@ -80,9 +80,9 @@ function EmojiPicker({ value, onChange, uploadName, canEdit, emojis, offline, on
         <button type="button" className={`chip${value === '' ? ' active' : ''}`} onClick={() => onChange('')}>None</button>
         {emojis.map(e => (
           <button key={e.id} type="button" title={e.name} aria-label={e.name} aria-pressed={value === e.id}
-            className={`icon-btn${value === e.id ? ' active' : ''}`} style={value === e.id ? { boxShadow: '0 0 0 2px var(--accent)' } : undefined}
+            className={`icon-btn${value === e.id ? ' active' : ''}`} style={{ width: 40, height: 40, ...(value === e.id ? { boxShadow: '0 0 0 2px var(--accent)' } : {}) }}
             onClick={() => onChange(e.id)}>
-            <DyeEmoji id={e.id} size={22} />
+            <DyeEmoji id={e.id} size={30} />
           </button>
         ))}
       </div>
@@ -236,7 +236,7 @@ export function DyeCatalogCard({ canEdit }: { canEdit: boolean }) {
                           style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><DyeEmoji id={s.id} size={16} />Use</button>
                       ) : null })()}
                     </span>
-                  ) : <span title={d.emoji_id} style={{ display: 'inline-flex' }}><DyeEmoji id={d.emoji_id} /></span>}
+                  ) : <span title={d.emoji_id} style={{ display: 'inline-flex' }}><DyeEmoji id={d.emoji_id} size={36} /></span>}
                 </td>
                 <td className="num">{d.unlocked_by}</td>
                 {canEdit && (

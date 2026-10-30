@@ -10,6 +10,7 @@ from config import GUILD_CONFIGS
 from db import manager
 from lib import shared_settings
 from web.auth import require_auth, require_manage_config
+from web.ipc_client import ipc_get
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -30,6 +31,13 @@ def _view() -> dict:
         "updated_by": latest["updated_by"] if latest else None,
         "updated_at": latest["updated_at"].isoformat() if latest else None,
     }
+
+
+@router.get("/discord-roles")
+async def discord_roles(_=Depends(require_auth)):
+    """The Discord server's roles (from the bot), for the rank-role pickers on each guild's Config page."""
+    data = await ipc_get("/roles")
+    return data if data is not None else {"roles": [], "offline": True}
 
 
 @router.get("")

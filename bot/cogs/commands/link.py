@@ -4,6 +4,7 @@ from discord import app_commands
 from lib import get_uuid, fetch
 from config import API_KEY
 from db import manager
+from lib.role_sync import sync_member_roles
 
 
 class Link(commands.Cog):
@@ -37,6 +38,7 @@ class Link(commands.Cog):
 
         avatar_url = str(interaction.user.display_avatar.url) if interaction.user.display_avatar else None
         manager.link_user(uuid, ign, interaction.user.id, discord_name, discord_avatar=avatar_url)
+        await sync_member_roles(self.client, uuid)  # their guild rank role, if the Config page maps one
 
         embed = discord.Embed(
             colour=discord.Colour.dark_green(),

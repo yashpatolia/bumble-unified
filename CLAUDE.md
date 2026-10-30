@@ -141,6 +141,8 @@ bumble-unified/
     │   ├── shared_settings.py # shared panel settings: warpout (bot, queue size, invite timeout) and extra censored words; 20s cache
     │   ├── __init__.py       # Re-exports all lib symbols
     │   ├── chat_wait.py      # wait_for_chat()/feed(): let async code wait for a specific Minecraft chat line
+    │   ├── levels.py         # catacombs_level(xp): level maths shared by player/ and the panel
+    │   ├── role_sync.py      # sync_member_roles(): keeps a linked member's Discord rank role in step with their guild rank
     │   ├── condense.py       # Number formatter: 1_500_000 → "1.5M"
     │   ├── deep_get.py       # Safe nested dict access
     │   ├── fetch.py          # async fetch() and sync request() for HTTP/JSON
@@ -184,7 +186,7 @@ bumble-unified/
         │   ├── user.py           # /user — look up a linked account (staff only)
         │   ├── admin.py          # /admin add-dye, remove-dye (exec role only)
         │   ├── dyes.py           # /dyes — select a dye role from owned dyes
-        │   ├── apply.py          # /apply — create a private application ticket channel
+        │   ├── apply.py          # /apply: create a private application ticket and post a stats check against the rank requirements
         │   └── exec.py           # /bk-exec, /bu-exec — run raw MC commands (exec role only)
         │
         ├── bridge/               # One set of cogs handles both guilds via GuildConfig
@@ -271,6 +273,15 @@ bumble-unified/
 - Sized to the Hypixel budget of 300 req/5min: ~24 req/min reserved for this loop (2 calls per member every 5s), leaving ~36 req/min for user dot-commands. A full ~250-member cycle takes roughly 21 minutes.
 - After updating stats, if the member's rank changed via `guild_rank_change()`, it writes the new Hypixel rank name back to `guild_members` immediately (via `config.discord_rank_map` reversed) — this avoids a race where the next cycle re-reads a stale/partial rank captured by `message_handler.py`'s regex and undoes the promotion.
 - Waits 60s after `wait_until_ready()` before starting, so it doesn't compete with startup traffic.
+- The same Hypixel response that gives the level also gives Catacombs XP and per-boss slayer XP (`lib/hypixel.py::fetch_member_stats`, best across profiles, no extra call). `record_level_snapshot` stores all three once per UTC day in `guild_member_level_history` (`catacombs_xp`, `slayer_xp` JSONB, migration 027; a day's row that predates them is topped up). The member page charts them.
+- After every refresh it calls `lib/role_sync.py::sync_member_roles()`, so a linked member's Discord rank role is reconciled within one cycle of any rank change, however it happened.
+
+### `lib/role_sync.py`
+- `sync_member_roles(client, uuid)` gives a Discord-linked guild member the role for their current rank and removes every other rank role (a demotion swaps the role; moving between BK and BU too). A rank's role is the one named exactly like the Hypixel rank ("Sweaty Bee"), unless the guild's Config page picks another (`guild_config.rank_roles`, migration 027, `lib/guild_settings.py::get_rank_roles`). Only rank roles are ever touched, and a rank with no matching role is skipped. Needs Manage Roles and the bot's role above the rank roles; failures are logged, never raised.
+- Triggered by `/link`, `/staff link`, the panel's link route (via IPC `POST /sync-roles {uuid}`), `message_handler.py` on a promoted/demoted line, the refresh loop, and saving rank roles on the Config page (IPC `POST /sync-roles {guild_key}` runs the whole guild in the background). IPC `GET /roles` lists the server's roles for the pickers.
+
+### `cogs/commands/apply.py`
+- `/apply` reads the applicant's profile off the event loop (`asyncio.to_thread`), answers an unknown IGN or Hypixel error without creating a ticket, and posts an embed in the new ticket: Skyblock level, Catacombs level, slayer levels, which rank they would hold against the guild's live requirements (`get_rank_requirements`), how far the next rank is, and a footer if they are already on a roster.
 
 ### `utils/command_handler.py`
 - `bridge_commands(client, message, username, guild_rank, chat_state, config)` dispatches `.warpout [ign]`, `.help`, `.lvl`, `.hlvl`, `.nw`, `.sacks`/`.sax`, `.slayer`/`.slayers`, `.slayerxp <type>`, `.cata`, `.rtc`, `.rtca`, `.rtcaf`, `.pb`, `.mp`, `.bank`, `.chim <looting> <mf>`, `.petscore`.
@@ -332,6 +343,7 @@ bumble-unified/
 ### `web/routes/guild_data.py` (activity graph route)
 - `GET /api/bots/{key}/overview` censors `recent_chat` messages with `lib/censor.py::censor()` (whole-word match with leetspeak/stretched-letter tolerance; the bot's `recent_chat` deque and the Discord bridge stay uncensored). Extend the list on the Config page (shared settings) or in `_BASE_WORDS`.
 - `GET /api/bots/{key}/level-leaderboard?days=7|30|90` returns the top 50 by level and the top 50 climbers (levels gained over the window, using `get_level_gains`; `days_covered` says how much history actually backs a gain while under the window).
+- `GET /api/bots/{key}/members/{ign}` (`require_auth`) is the member page's payload: roster row, Discord link, rank and next rank, messages (90 days and all time), dyes owned, excused, and `history` (daily level, Catacombs XP and level, per-boss and total slayer XP, up to 90 days). Guests get no Discord ID or excuse notes.
 - `GET /api/bots/{key}/level-trend?days=30` (7 to 90) returns one point per UTC day (the guilds' own bot accounts, taken from every `GuildConfig.mc_username`, are excluded; the members payload carries `is_bot` so the Overview's Average level KPI skips them too): the average of each current member's latest `guild_member_level_history` snapshot as of that day, plus how many members contributed (`GuildMembersQueries.get_average_level_trend`). The graph is sparse until a few days of snapshots exist.
 - `GET /api/bots/{key}/activity?hours=24` (`require_auth`) returns hourly peak members-online points from `online_snapshots` (DB only, no IPC). Gaps (bot offline) are simply absent hours.
 
@@ -382,6 +394,7 @@ bumble-unified/
 - `Login.tsx` - Discord OAuth2 login card, reached at `/login` (OAuth errors redirect here) (plus a dev-only bypass button).
 - `Home.tsx` - guild picker with live connection badges.
 - `GuildOverview.tsx` - KPI row (members, online, average level, Discord linked), the activity graph, the average-level trend graph, Needs attention, guild chat, top climbers, and bot start/stop/restart for permitted users.
+- `GuildMember.tsx` - one member's page at `/guilds/:key/members/:ign` (names on the Members page link to it): KPI row (level, Catacombs, slayer XP, messages, last login), three history charts (`components/HistoryChart.tsx`, which starts at the first recorded day), rank progress, Discord link, dyes and a per-boss slayer table.
 - `GuildMembers.tsx` - shows one Messages column in the form `90d / all time` (each number coloured by its own tier; the header's two labels sort separately; `messages_total` comes from the `lifetime` rows in `message_counts`, so it counts since tracking began); rank sits under the player name and the 90-day level change under the level (always labelled 90d; a tooltip says how many days of history actually back it while under 90), an Updated column shows when stats were last refreshed, Discord avatars hide below 1400px wide (with a narrower sidebar) so the table still fits, Discord Edit/Unlink/Link and the Excuse/Kick actions are icon buttons, and the table is built to fit without horizontal scrolling at 1280px wide; for users with `can_manage_members`: an Invite player modal and a per-row Kick button (confirm modal with a reason box, quick-reason chips and a preview of the exact `/guild kick` command) and an Excuse button (reason plus optional end date; excused members get an Excused badge and are skipped by `getAttention`'s inactivity groups, with an Excused filter chip). Sortable member table with filter chips (All/Online/Offline plus any active attention groups), search, link/unlink modal, and manual stats refresh with progress.
 - `GuildLeaderboard.tsx` - a Levels view (fastest climbers over 7/30/90 days, highest level) and a Messages view (all time / month / week).
 - `GlobalSettings.tsx` - settings shared by both guilds (warpout, extra censored words, dye catalog with emoji picker/upload), reached from the sidebar's Tools section.

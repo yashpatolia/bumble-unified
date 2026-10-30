@@ -4,6 +4,7 @@ from discord import app_commands
 from config import BK_STAFF_ROLE, BU_STAFF_ROLE
 from lib.get_uuid import get_uuid
 from db import manager
+from lib.role_sync import sync_member_roles
 
 
 class StaffCommands(commands.GroupCog, name="staff"):
@@ -19,6 +20,7 @@ class StaffCommands(commands.GroupCog, name="staff"):
         try:
             uuid = get_uuid(ign)
             manager.link_user(uuid, ign, member.id, member.name)
+            await sync_member_roles(self.client, uuid)
             embed = discord.Embed(
                 colour=discord.Colour.dark_green(),
                 description=(
