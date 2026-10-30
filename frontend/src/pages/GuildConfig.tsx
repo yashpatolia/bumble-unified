@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 import { useAuth } from '../App'
 import { TIER_NAMES, TIER_ORDER } from '../lib/activity'
@@ -12,6 +12,16 @@ import type { ActivityConfig, AttentionSettings, GuildConfigData, GuildMember } 
 
 type AttentionKey = keyof AttentionSettings
 type Period = 'd90' | 'total'
+type Tab = 'ranks' | 'activity' | 'bot' | 'dyes'
+
+// Ranks, Activity and the bot's version are this guild's settings (header Save); warpout,
+// chat and dyes are shared by both guilds and save from their own cards.
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'ranks', label: 'Ranks and attention' },
+  { id: 'activity', label: 'Message tiers' },
+  { id: 'bot', label: 'Bot and warpout' },
+  { id: 'dyes', label: 'Dyes' },
+]
 
 const PERIODS: { id: Period; title: string; sub: string; field: 'messages_90d' | 'messages_total' }[] = [
   { id: 'd90', title: 'Messages, last 90 days', sub: 'Colour of the 90-day count on the Members page', field: 'messages_90d' },
@@ -33,6 +43,9 @@ export default function GuildConfig() {
   const { key } = useParams<{ key: string }>()
   const { me } = useAuth()
   const canEdit = !!(me?.can_manage_config || me?.is_admin || me?.is_owner)
+  const [params, setParams] = useSearchParams()
+  const tab: Tab = TABS.some(t => t.id === params.get('tab')) ? params.get('tab') as Tab : 'ranks'
+  const setTab = (t: Tab) => setParams(p => { p.set('tab', t); return p }, { replace: true })
 
   const [data, setData] = useState<GuildConfigData | null>(null)
   const [rankForm, setRankForm] = useState<Record<string, string>>({})
@@ -111,12 +124,16 @@ export default function GuildConfig() {
   const actInvalid = PERIODS.some(p => Object.keys(actErrors[p.id]).length > 0)
 
   const valid = Object.keys(rankErrors).length === 0 && !attnError && !actInvalid
-  const dirty = !!data && (
-    data.ranks.some(r => r.editable && String(r.level) !== (rankForm[r.key] ?? '')) ||
-    ATTENTION_FIELDS.some(f => String(data.attention[f.key]) !== (attnForm[f.key] ?? '')) ||
-    PERIODS.some(p => TIER_ORDER.some(k => String(data.activity[p.id][k]) !== (actForm[p.id][k] ?? ''))) ||
-    versionForm !== data.minecraft_version
-  )
+  const dirtyTabs: Record<Tab, boolean> = {
+    ranks: !!data && (
+      data.ranks.some(r => r.editable && String(r.level) !== (rankForm[r.key] ?? '')) ||
+      ATTENTION_FIELDS.some(f => String(data.attention[f.key]) !== (attnForm[f.key] ?? ''))
+    ),
+    activity: !!data && PERIODS.some(p => TIER_ORDER.some(k => String(data.activity[p.id][k]) !== (actForm[p.id][k] ?? ''))),
+    bot: !!data && versionForm !== data.minecraft_version,
+    dyes: false,
+  }
+  const dirty = Object.values(dirtyTabs).some(Boolean)
 
   // What the draft would do to the current roster, so changes are not made blind.
   const preview = useMemo(() => {
@@ -164,12 +181,21 @@ export default function GuildConfig() {
       <div className="crumb reveal">{key?.toUpperCase()} / Config</div>
       <div className="page-head reveal" style={{ '--i': 1 } as React.CSSProperties}>
         <h1 className="page-title">Config</h1>
-        {canEdit && (
+        {canEdit && tab !== 'dyes' && (
           <div className="head-actions">
             {saved && <span className="badge badge-on">Saved</span>}
-            <button className="btn btn-primary" onClick={save} disabled={!dirty || !valid || saving}>{saving ? 'Saving...' : 'Save changes'}</button>
+            <button className="btn btn-primary" onClick={save} disabled={!dirty || !valid || saving}>{saving ? 'Saving...' : `Save ${key?.toUpperCase()} changes`}</button>
           </div>
         )}
+      </div>
+
+      <div className="tabs reveal" role="tablist" style={{ '--i': 2, marginBottom: 18, flexWrap: 'wrap' } as React.CSSProperties}>
+        {TABS.map(t => (
+          <button key={t.id} role="tab" aria-selected={tab === t.id} className={`tab${tab === t.id ? ' active' : ''}`} onClick={() => setTab(t.id)}>
+            {t.label}
+            {dirtyTabs[t.id] && <span className="tab-dot" title="Unsaved changes" aria-label="Unsaved changes" />}
+          </button>
+        ))}
       </div>
 
       {!canEdit && (
@@ -179,6 +205,7 @@ export default function GuildConfig() {
       )}
       {saveError && <p className="error-text">{saveError}</p>}
 
+      {tab === 'ranks' && (
       <div className="grid-eq">
         <div className="stack">
         <div className="card reveal" style={{ '--i': 2 } as React.CSSProperties}>
@@ -250,7 +277,7 @@ export default function GuildConfig() {
         </div>
 
         <div>
-          <div className="card reveal" style={{ '--i': 3 } as React.CSSProperties}>
+          <div className="card reveal" style={{ '--i': 4 } as React.CSSProperties}>
             <div className="card-head">
               <span className="card-title">Needs attention</span>
               <span className="card-sub">When members get flagged</span>
@@ -279,8 +306,14 @@ export default function GuildConfig() {
               {attnError && <p className="error-text" style={{ marginTop: 10 }}>{attnError}</p>}
             </div>
           </div>
+        </div>
+      </div>
+      )}
 
-          <div className="card reveal" style={{ '--i': 4, marginTop: 16 } as React.CSSProperties}>
+      {tab === 'bot' && (
+      <div className="grid-eq">
+        <div>
+          <div className="card reveal" style={{ '--i': 3 } as React.CSSProperties}>
             <div className="card-head">
               <span className="card-title">Bridge bot</span>
               <span className="card-sub">This guild's Minecraft bot</span>
@@ -307,11 +340,16 @@ export default function GuildConfig() {
               </div>
             </div>
           </div>
-
+        </div>
+        <div>
+          <SharedSettingsCard canEdit={canEdit} />
+          <p className="card-sub" style={{ marginTop: 10 }}>Warpout and chat settings apply to both guilds and save with their own button.</p>
         </div>
       </div>
+      )}
 
-      <div className="grid-eq" style={{ marginTop: 16 }}>
+      {tab === 'activity' && (
+      <div className="grid-eq">
         {PERIODS.map((p, pi) => {
           const thresholds = TIER_ORDER.map(k => toNum(actForm[p.id][k] ?? ''))
           const rows = TIER_NAMES.map((name, t) => {
@@ -324,7 +362,7 @@ export default function GuildConfig() {
             return { name, t, lo, hi, count }
           })
           return (
-            <div key={p.id} className="card reveal" style={{ '--i': 5 + pi } as React.CSSProperties}>
+            <div key={p.id} className="card reveal" style={{ '--i': 3 + pi } as React.CSSProperties}>
               <div className="card-head">
                 <span className="card-title">{p.title}</span>
                 <span className="card-sub">{p.sub}</span>
@@ -364,17 +402,20 @@ export default function GuildConfig() {
           )
         })}
       </div>
+      )}
 
-      {data.updated_by && data.updated_at && (
+      {tab === 'dyes' && (
+        <>
+          <p className="card-sub" style={{ marginBottom: 12 }}>The dye catalog is shared by both guilds. Each change saves straight away.</p>
+          <DyeCatalogCard canEdit={canEdit} />
+        </>
+      )}
+
+      {tab !== 'dyes' && data.updated_by && data.updated_at && (
         <p className="card-sub" style={{ marginTop: 14 }}>
           Last changed by {data.updated_by} on {new Date(data.updated_at).toLocaleString()}.
         </p>
       )}
-
-      <h2 className="section-title reveal" style={{ '--i': 7, marginTop: 28 } as React.CSSProperties}>Shared settings</h2>
-      <p className="card-sub" style={{ marginBottom: 12 }}>These apply to both guilds and save separately from the settings above.</p>
-      <SharedSettingsCard canEdit={canEdit} />
-      <DyeCatalogCard canEdit={canEdit} />
     </div>
   )
 }

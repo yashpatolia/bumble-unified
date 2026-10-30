@@ -322,7 +322,7 @@ bumble-unified/
 ### `web/routes/settings.py` + `lib/shared_settings.py` + dye catalog routes
 - `GET /api/settings` (`require_auth`) / `PUT` (`require_manage_config`): shared settings for both guilds, stored in `bot_settings` (migration 025) as one JSON value per key: `warpout` (`guild`, `max_queue`, `invite_timeout`) and `censor` (`words`, extra words `lib/censor.py` masks in the panel chat feed on top of `_BASE_WORDS`; this replaced the `CHAT_CENSOR_WORDS` env var). Read through a 20s cache in both processes.
 - `GET /api/dyes/catalog` (`require_auth`), `PUT /api/dyes/catalog/{dye_id}` (add or update) and `DELETE` (removes the dye and every player's unlock of it), both `require_manage_config`. Each dye has `weight` (percent chance per guild chat message; all weights together may not exceed 100), `hex`, and `role_id`/`emoji_id` (migration 025, seeded from the old `DYE_ROLES`/`DYE_EMOJIS` constants), read by `/dyes` and `/admin reset-dyes` via `manager.get_dye_roles()`/`get_dye_emoji()`.
-- Frontend: `components/SharedSettingsCard.tsx` and `components/DyeCatalogCard.tsx`, shown under a "Shared settings" heading at the bottom of `GuildConfig.tsx`, each saving on its own. The attention thresholds are read by the frontend (`lib/attention.ts`), not the bot.
+- Frontend: `GuildConfig.tsx` is split into tabs (`?tab=ranks|activity|bot|dyes`): Ranks and attention, Message tiers, Bot and warpout (the guild's Minecraft version next to `components/SharedSettingsCard.tsx`), and Dyes (`components/DyeCatalogCard.tsx`). The header Save covers the guild's own settings across tabs (a dot marks tabs with unsaved edits); the shared cards save on their own. The attention thresholds are read by the frontend (`lib/attention.ts`), not the bot.
 
 ### `web/routes/member_actions.py`
 - `POST /api/bots/{key}/members/{ign}/excuse` (body `{reason, until}`) and `DELETE` the same path mark/unmark a member as excused (`excused_members`, migration 024; `until` is an optional date up to a year out, expired excuses stop counting automatically). Only members on the roster can be excused. Excuses are DB-only, nothing is sent in game. The members payload carries `excused: {reason, until, by} | null`; guests get it with the reason and author stripped.
@@ -369,7 +369,7 @@ bumble-unified/
 
 ### `frontend/src/components/IdentityCell.tsx` + `Modal.tsx`
 - `PlayerIdentityCell` (Minecraft avatar + IGN, optional badge/sub text) and `DiscordIdentityCell` (Discord avatar + name, or a "Not linked" badge) are the two identity-cell shapes used by the member/leaderboard tables.
-- `Modal` is the overlay+card+title+actions shell used by the link/unlink flow and the Users create/edit form.
+- `Modal` is the overlay+card+title+actions shell used by the link/unlink flow and the Users create/edit form. It renders through a portal into `<body>`, because a `.reveal` card's animation transform would otherwise make the fixed overlay position itself inside the card.
 
 ### `frontend/src/hooks/usePolling.ts` + `frontend/src/lib/`
 - `usePolling(callback, intervalMs, deps)` — runs `callback` immediately then every `intervalMs` until unmount or a `deps` change restarts it. Used by `AppShell.tsx` (bot status, 15s), `GuildOverview.tsx` (overview, 15s), and `Admin.tsx`'s `ApiUsagePanel` (API usage, 30s). `GuildMembers.tsx`'s stats-refresh progress poll is a different shape (polls until a "done" flag rather than forever) and stays a local `setInterval` in that file.

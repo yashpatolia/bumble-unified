@@ -88,7 +88,7 @@ export function DyeCatalogCard({ canEdit }: { canEdit: boolean }) {
 
   const noDrop = Math.max(0, 100 - data.total_weight)
   return (
-    <div className="card reveal" style={{ '--i': 9, marginTop: 16 } as React.CSSProperties}>
+    <div className="card reveal" style={{ '--i': 3 } as React.CSSProperties}>
       <div className="card-head">
         <span className="card-title">Dye catalog</span>
         {canEdit && (

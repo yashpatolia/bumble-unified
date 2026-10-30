@@ -65,7 +65,7 @@ export function SharedSettingsCard({ canEdit }: { canEdit: boolean }) {
 
   const d = data.warpout_defaults
   return (
-    <div className="card reveal" style={{ '--i': 8 } as React.CSSProperties}>
+    <div className="card reveal" style={{ '--i': 4 } as React.CSSProperties}>
       <div className="card-head">
         <span className="card-title">Warpout and chat</span>
         {canEdit && (
