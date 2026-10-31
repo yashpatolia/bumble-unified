@@ -10,8 +10,11 @@ from config import GuildConfig
 
 async def bridge_commands(client, message: str, username: str, guild_rank: str,
                            chat_state: str, config: GuildConfig = None):
-    """Route a dot-command from Minecraft or Discord to the appropriate handler."""
+    """Route a dot-command from Minecraft or Discord to the appropriate handler.
+    `?` is accepted as an alternative prefix (`?lvl` runs `.lvl`)."""
     try:
+        if message.startswith("?"):
+            message = "." + message[1:]
         parts = message.lower().split(" ")
         state = "/oc" if chat_state in ("Officer", "oc") else "/gc"
         webhook = client.officer if chat_state in ("Officer", "oc") else client.bridge

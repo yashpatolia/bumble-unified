@@ -95,7 +95,7 @@ class GuildBridge(commands.Cog):
                 relay_state = "/oc" if chat_type == "Officer" else "/gc"
                 relay_to_other_guilds(self.client, config, f"{relay_state} [{config.short_name}] {sender}: {msg_text}")
 
-                if msg_text.startswith("."):
+                if msg_text.startswith((".", "?")):
                     run_coroutine_threadsafe(
                         bridge_commands(self.client, msg_text, sender, guild_rank, chat_type, config=config),
                         self._loop,
@@ -162,7 +162,7 @@ class GuildBridge(commands.Cog):
 
             asyncio.create_task(asyncio.to_thread(roll_dye, resolved_ign, self.client))
 
-        if command_check.startswith("."):
+        if command_check.startswith((".", "?")):
             run_coroutine_threadsafe(
                 # `ign` is the linked Minecraft name when there is one, so a bare `.lvl` or
                 # `.warpout` from Discord targets the author's account, not their display name.

@@ -294,7 +294,7 @@ bumble-unified/
 - `/apply` reads the applicant's profile off the event loop (`asyncio.to_thread`), answers an unknown IGN or Hypixel error without creating a ticket, and posts an embed in the new ticket: Skyblock level, Catacombs level, slayer levels, which rank they would hold against the guild's live requirements (`get_rank_requirements`), how far the next rank is, and a footer if they are already on a roster.
 
 ### `utils/command_handler.py`
-- `bridge_commands(client, message, username, guild_rank, chat_state, config)` dispatches `.warpout [ign]`, `.help`, `.lvl`, `.hlvl`, `.nw`, `.sacks`/`.sax`, `.slayer`/`.slayers`, `.slayerxp <type>`, `.cata`, `.rtc`, `.rtca`, `.rtcaf`, `.pb`, `.mp`, `.bank`, `.chim <looting> <mf>`, `.petscore`.
+- `bridge_commands(client, message, username, guild_rank, chat_state, config)` accepts `?` as an alternative prefix (`?lvl` is rewritten to `.lvl`; `bridge.py` detects both) and dispatches `.warpout [ign]`, `.help`, `.lvl`, `.hlvl`, `.nw`, `.sacks`/`.sax`, `.slayer`/`.slayers`, `.slayerxp <type>`, `.cata`, `.rtc`, `.rtca`, `.rtcaf`, `.pb`, `.mp`, `.bank`, `.chim <looting> <mf>`, `.petscore`.
 - Each handler is a private `async` function that returns `(display_name, response_text, raw_username)`. The dispatcher sends the response to all guild bots and the appropriate webhook.
 - There is no in-game `.ranks` command anymore — rank auto-updates happen continuously via `cogs/tasks/member_refresh.py` and immediately on join via `message_handler.py`'s `_auto_fetch_and_rank()`.
 
