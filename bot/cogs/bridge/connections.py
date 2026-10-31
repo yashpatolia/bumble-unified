@@ -10,6 +10,7 @@ from javascript import Once, On
 from config import GuildConfig, API_KEY, FALLBACK_VERSION
 from db import manager
 from lib.get_username import get_username
+from lib.offload import offload
 
 
 # A modern protocol version that drops this many times inside the window gets swapped for
@@ -86,7 +87,7 @@ class GuildConnections(commands.Cog):
                 description=f"**{config.short_name} Bridge Connected to:** `{config.mc_options['host']}` ({state.version})",
                 color=discord.Color.dark_green(),
             )
-            self.client.bridge.send(embed=embed)
+            offload(f"sys-{config.key}", self.client.bridge.send, embed=embed)
 
         @On(state.bot, "end")
         def on_end(this, event) -> None:
@@ -98,7 +99,7 @@ class GuildConnections(commands.Cog):
                     description=f"**{config.short_name} Bridge stopped manually.**",
                     color=discord.Color.dark_gray(),
                 )
-                self.client.bridge.send(embed=embed)
+                offload(f"sys-{config.key}", self.client.bridge.send, embed=embed)
                 return
 
             now = time.time()
@@ -121,7 +122,7 @@ class GuildConnections(commands.Cog):
             if fell_back:
                 description += f"\nKept disconnecting, so reconnecting on **{FALLBACK_VERSION}** instead."
             embed = discord.Embed(description=description, color=discord.Color.orange())
-            self.client.bridge.send(embed=embed)
+            offload(f"sys-{config.key}", self.client.bridge.send, embed=embed)
 
             async def reconnect():
                 await asyncio.sleep(5)

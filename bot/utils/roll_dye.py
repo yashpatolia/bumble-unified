@@ -43,7 +43,7 @@ def roll_dye(username: str, client) -> None:
         logging.warning(f"{username} unlocked {dye_name}! (1/{drop_rate:,})")
 
         time.sleep(0.5)
-        message = f"/gc DYE DROP: {username} found {dye_name} (1/{drop_rate:,})!"
+        message = f"/gc DYE DROP: {username} found {dye_name} (1/{drop_rate:,})! Claim on Discord: /dyes"
         for state in client.guilds_state.values():
             if state.bot:
                 state.bot.chat(message)

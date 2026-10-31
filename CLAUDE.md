@@ -151,6 +151,7 @@ bumble-unified/
     │   ├── get_username.py   # UUID → IGN, with DB cache
     │   ├── get_uuid.py       # IGN → UUID, with DB cache
     │   ├── guild_list.py     # parse_guild_list() / parse_online_igns() — parses raw /guild list & /guild online text
+    │   ├── offload.py        # offload(lane, fn, ...): runs blocking work on a per-lane worker thread so Mineflayer callbacks never block the bridge thread
     │   ├── hypixel.py        # fetch_member_stats() / fetch_mayor_multiplier() / fetch_key_info() — Hypixel player+key lookups, records api_calls
     │   └── rankup.py         # guild_rank_change() — promotes/demotes a player in-game
     │
@@ -197,6 +198,7 @@ bumble-unified/
         │   └── message_handler.py# GuildMessageHandler: system messages (join/leave/kick/mute/invite), auto-rank on join
         │
         └── tasks/
+            ├── bridge_watchdog.py # every 30s probes each Mineflayer bot; exits the process (pm2 restarts it) if the Python<->Node bridge stays wedged
             ├── online_snapshot.py # OnlineSnapshotTask - every 10 min records how many members are online per guild
             └── member_refresh.py # MemberRefreshTask — background loop that continuously refreshes one member's
                                    # stats at a time and auto-ranks them (see "Background member refresh" below)
@@ -673,6 +675,9 @@ Panel permissions are per-flag (`can_control_bots`, `can_fetch_api`, `can_manage
 
 ### The `javascript` bridge is threaded
 All Mineflayer event handlers (`@On`, `@Once`) run in their own thread. Accessing `client` attributes from inside them is safe for reads, but any mutation of shared state (like `state.guild_list`) must be treated carefully. Currently the only writes are appends to lists and simple flag assignments, which is safe enough in CPython due to the GIL.
+
+### Never block inside a Mineflayer callback
+The `chat`, `messagestr`, `spawn` and `end` callbacks run on JSPyBridge's loop thread, which also reads every reply coming back from Node. If a callback blocks (a Discord webhook rate limit, a slow Hypixel/Mojang request, a DB stall), all bridge calls from every thread time out ("Timed out accessing 'chat'") and Node eventually raises "Python didn't respond in time (100000ms)". The process stays alive, so pm2 never restarts it. Keep callbacks to cheap work (parsing, buffer appends, `feed()`) and hand webhook sends, DB writes and Hypixel calls to `lib/offload.py::offload(lane, fn, ...)` (one single-thread lane per guild and purpose, so order is kept). `cogs/tasks/bridge_watchdog.py` is the safety net: if every bot's probe fails 3 rounds in a row (~90s) it kills the Node child and exits so pm2 restarts the bot.
 
 ### Reconnect reloads bridge extensions
 `cogs/bridge/connections.py::reload_bridge_cogs(client, config)` removes and re-adds the `connections`, `bridge`, and `message_handler` cogs for that guild key, always immediately after `client.start_mineflayer(account=config.key)` creates a fresh bot object. This re-runs their `__init__`, which creates fresh Mineflayer event bindings against the new bot instance. Old bindings on the dead bot instance are abandoned. If you add new bridge modules, add their reload to `reload_bridge_cogs()`'s suffix list.

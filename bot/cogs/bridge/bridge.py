@@ -10,6 +10,7 @@ from javascript import On
 from config import GuildConfig
 from db import manager
 from lib import relay_to_other_guilds
+from lib.offload import offload
 from utils.command_handler import bridge_commands
 from utils.roll_dye import roll_dye
 
@@ -31,11 +32,9 @@ class GuildBridge(commands.Cog):
         self._loop = asyncio.get_event_loop()
         state = self.client.guilds_state[config.key]
 
-        @On(state.bot, "chat")
-        def handle_minecraft_message(this, username, message, *args):
-            if username not in ("Guild", "Officer"):
-                return
-
+        def process_minecraft_message(username, message):
+            # Runs on this guild's offload lane, not the Mineflayer callback thread: it
+            # does blocking webhook, DB and Hypixel work (see lib/offload.py).
             try:
                 # Online/offline join-leave system messages (no colon, not bot itself)
                 if (
@@ -103,6 +102,12 @@ class GuildBridge(commands.Cog):
                     )
             except Exception as e:
                 logging.exception(e)
+
+        @On(state.bot, "chat")
+        def handle_minecraft_message(this, username, message, *args):
+            if username not in ("Guild", "Officer"):
+                return
+            offload(f"chat-{config.key}", process_minecraft_message, username, message)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message) -> None:

@@ -11,6 +11,7 @@ from lib.chat_wait import feed as feed_chat_waiters
 from lib.get_uuid import get_uuid
 from lib.guild_settings import get_rank_requirements
 from lib.hypixel import fetch_member_stats
+from lib.offload import offload
 from lib.rankup import guild_rank_change
 from lib.relay import relay_to_other_guilds
 from lib.role_sync import sync_member_roles
@@ -67,6 +68,8 @@ class GuildMessageHandler(commands.Cog):
 
         @On(state.bot, "messagestr")
         def on_messagestr(this, message, *args) -> None:
+            # Runs on the Mineflayer callback thread, so only cheap, non-blocking work
+            # happens here; webhooks, DB and Hypixel calls go to an offload lane (lib/offload.py).
             if not message:
                 return
 
@@ -93,112 +96,119 @@ class GuildMessageHandler(commands.Cog):
             if message.split(" ")[0] in ("Guild", "Officer"):
                 return
 
-            logs = state.logs
+            offload(f"sys-{config.key}", self._process_system_message, message)
 
-            if message.lower().startswith("you cannot say the same message twice!"):
-                embed = discord.Embed(colour=discord.Colour.dark_red(), description="Duplicate message!")
-                self.client.bridge.send(embed=embed)
+    def _process_system_message(self, message: str) -> None:
+        """Reacts to one system message (join/leave/kick/mute/invite/promote...). Runs on the
+        guild's offload lane, where blocking webhook, DB and Hypixel calls are safe."""
+        config = self.config
+        state = self.client.guilds_state[config.key]
+        logs = state.logs
 
-            if message.lower().endswith("not found."):
-                embed = discord.Embed(colour=discord.Colour.red(), description=message)
-                self.client.bridge.send(embed=embed)
-                logs.send(embed=embed)
+        if message.lower().startswith("you cannot say the same message twice!"):
+            embed = discord.Embed(colour=discord.Colour.dark_red(), description="Duplicate message!")
+            self.client.bridge.send(embed=embed)
 
-            if "was promoted from" in message.lower() or "was demoted from" in message.lower():
-                embed = discord.Embed(colour=discord.Colour.dark_teal(), description=message)
-                self.client.bridge.send(embed=embed)
-                logs.send(embed=embed)
-                m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+was (promoted|demoted) from (.+?) to ([A-Za-z ]+?)(?:[!.]|$)", message, re.IGNORECASE)
-                if m:
-                    manager.upsert_guild_member(config.key, m.group(1), m.group(4))
-                    manager.record_member_event(config.key, m.group(1), m.group(2).lower(), detail={"from": m.group(3), "to": m.group(4)})
-                    # Move the member's Discord rank role to match (no-op if unlinked or unmapped).
-                    asyncio.run_coroutine_threadsafe(sync_member_roles(self.client, manager.get_member_uuid(config.key, m.group(1))), self.client.loop)
+        if message.lower().endswith("not found."):
+            embed = discord.Embed(colour=discord.Colour.red(), description=message)
+            self.client.bridge.send(embed=embed)
+            logs.send(embed=embed)
 
-            # Invite result messages
-            invite_errors = [
-                "is already in another guild!",
-                "cannot invite this player to your guild!",
-                "can't find a player by the name of",
-            ]
-            for phrase in invite_errors:
-                if phrase in message.lower():
-                    state.guild_invite = message
-                    embed = discord.Embed(colour=discord.Colour.dark_red(), description=message)
-                    logs.send(embed=embed)
-                    break
+        if "was promoted from" in message.lower() or "was demoted from" in message.lower():
+            embed = discord.Embed(colour=discord.Colour.dark_teal(), description=message)
+            self.client.bridge.send(embed=embed)
+            logs.send(embed=embed)
+            m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+was (promoted|demoted) from (.+?) to ([A-Za-z ]+?)(?:[!.]|$)", message, re.IGNORECASE)
+            if m:
+                manager.upsert_guild_member(config.key, m.group(1), m.group(4))
+                manager.record_member_event(config.key, m.group(1), m.group(2).lower(), detail={"from": m.group(3), "to": m.group(4)})
+                # Move the member's Discord rank role to match (no-op if unlinked or unmapped).
+                asyncio.run_coroutine_threadsafe(sync_member_roles(self.client, manager.get_member_uuid(config.key, m.group(1))), self.client.loop)
 
-            invite_ok = [
-                "was invited to the",
-                "to your guild",
-                "you sent an offline invite",
-            ]
-            if any(p in message.lower() for p in invite_ok):
+        # Invite result messages
+        invite_errors = [
+            "is already in another guild!",
+            "cannot invite this player to your guild!",
+            "can't find a player by the name of",
+        ]
+        for phrase in invite_errors:
+            if phrase in message.lower():
                 state.guild_invite = message
-                embed = discord.Embed(colour=discord.Colour.orange(), description=message)
+                embed = discord.Embed(colour=discord.Colour.dark_red(), description=message)
                 logs.send(embed=embed)
+                break
 
-            if "joined the guild!" in message.lower():
-                embed = discord.Embed(colour=discord.Colour.dark_green(), description=f"[{config.short_name}] {message}")
-                self.client.officer.send(embed=embed)
-                self.client.bridge.send(embed=embed)
-                logs.send(embed=embed)
-                relay_to_other_guilds(self.client, config, f"/gc [{config.short_name}] {message}")
-                m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+joined the guild", message, re.IGNORECASE)
-                if m:
-                    ign = m.group(1)
-                    manager.upsert_guild_member(config.key, ign, '')
-                    manager.record_member_event(config.key, ign, "joined")
-                    asyncio.run_coroutine_threadsafe(
-                        _auto_fetch_and_rank(self.client, config, ign),
-                        self._loop,
+        invite_ok = [
+            "was invited to the",
+            "to your guild",
+            "you sent an offline invite",
+        ]
+        if any(p in message.lower() for p in invite_ok):
+            state.guild_invite = message
+            embed = discord.Embed(colour=discord.Colour.orange(), description=message)
+            logs.send(embed=embed)
+
+        if "joined the guild!" in message.lower():
+            embed = discord.Embed(colour=discord.Colour.dark_green(), description=f"[{config.short_name}] {message}")
+            self.client.officer.send(embed=embed)
+            self.client.bridge.send(embed=embed)
+            logs.send(embed=embed)
+            relay_to_other_guilds(self.client, config, f"/gc [{config.short_name}] {message}")
+            m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+joined the guild", message, re.IGNORECASE)
+            if m:
+                ign = m.group(1)
+                manager.upsert_guild_member(config.key, ign, '')
+                manager.record_member_event(config.key, ign, "joined")
+                asyncio.run_coroutine_threadsafe(
+                    _auto_fetch_and_rank(self.client, config, ign),
+                    self._loop,
+                )
+
+        if "left the guild!" in message.lower():
+            embed = discord.Embed(colour=discord.Colour.red(), description=f"[{config.short_name}] {message}")
+            self.client.bridge.send(embed=embed)
+            self.client.officer.send(embed=embed)
+            logs.send(embed=embed)
+            m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+left the guild", message, re.IGNORECASE)
+            if m:
+                manager.record_member_event(config.key, m.group(1), "left")
+                manager.remove_guild_member(config.key, m.group(1))
+
+        if "has muted" in message.lower() and "for" in message.lower():
+            embed = discord.Embed(colour=discord.Colour.dark_purple(), description=message)
+            self.client.bridge.send(embed=embed)
+            logs.send(embed=embed)
+
+        if "has unmuted" in message.lower():
+            embed = discord.Embed(colour=discord.Colour.dark_magenta(), description=message)
+            self.client.bridge.send(embed=embed)
+            logs.send(embed=embed)
+
+        if "was kicked from the guild" in message.lower():
+            embed = discord.Embed(colour=discord.Colour.dark_red(), description=f"[{config.short_name}] {message}")
+            self.client.bridge.send(embed=embed)
+            self.client.officer.send(embed=embed)
+            logs.send(embed=embed)
+            m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+was kicked from the guild", message, re.IGNORECASE)
+            if m:
+                manager.record_member_event(config.key, m.group(1), "kicked")
+                manager.remove_guild_member(config.key, m.group(1))
+
+        if "has requested to join the guild!" in message.lower():
+            match = re.search(r"(?:\[(?P<rank>\w+)\]\s+)?(?P<player>\w+)\s+has requested to join the Guild!", message)
+            if match:
+                username = match.group("player")
+                try:
+                    player = skyblock.Player(username=username)
+                    skyblock_level, gamemode = player.level.highest
+                    embed = discord.Embed(
+                        colour=discord.Colour.dark_blue(),
+                        description=f"{gamemode}`{player.username}` requested to join [{config.short_name}]! [Level: {skyblock_level:.1f}]",
                     )
-
-            if "left the guild!" in message.lower():
-                embed = discord.Embed(colour=discord.Colour.red(), description=f"[{config.short_name}] {message}")
-                self.client.bridge.send(embed=embed)
-                self.client.officer.send(embed=embed)
-                logs.send(embed=embed)
-                m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+left the guild", message, re.IGNORECASE)
-                if m:
-                    manager.record_member_event(config.key, m.group(1), "left")
-                    manager.remove_guild_member(config.key, m.group(1))
-
-            if "has muted" in message.lower() and "for" in message.lower():
-                embed = discord.Embed(colour=discord.Colour.dark_purple(), description=message)
-                self.client.bridge.send(embed=embed)
-                logs.send(embed=embed)
-
-            if "has unmuted" in message.lower():
-                embed = discord.Embed(colour=discord.Colour.dark_magenta(), description=message)
-                self.client.bridge.send(embed=embed)
-                logs.send(embed=embed)
-
-            if "was kicked from the guild" in message.lower():
-                embed = discord.Embed(colour=discord.Colour.dark_red(), description=f"[{config.short_name}] {message}")
-                self.client.bridge.send(embed=embed)
-                self.client.officer.send(embed=embed)
-                logs.send(embed=embed)
-                m = re.search(r"(?:\[[\w+]+\]\s+)?(\w+)\s+was kicked from the guild", message, re.IGNORECASE)
-                if m:
-                    manager.record_member_event(config.key, m.group(1), "kicked")
-                    manager.remove_guild_member(config.key, m.group(1))
-
-            if "has requested to join the guild!" in message.lower():
-                match = re.search(r"(?:\[(?P<rank>\w+)\]\s+)?(?P<player>\w+)\s+has requested to join the Guild!", message)
-                if match:
-                    username = match.group("player")
-                    try:
-                        player = skyblock.Player(username=username)
-                        skyblock_level, gamemode = player.level.highest
-                        embed = discord.Embed(
-                            colour=discord.Colour.dark_blue(),
-                            description=f"{gamemode}`{player.username}` requested to join [{config.short_name}]! [Level: {skyblock_level:.1f}]",
-                        )
-                        self.client.officer.send(embed=embed)
-                        logs.send(embed=embed)
-                    except Exception as e:
-                        logging.error(e)
+                    self.client.officer.send(embed=embed)
+                    logs.send(embed=embed)
+                except Exception as e:
+                    logging.error(e)
 
 
 async def setup(client):
