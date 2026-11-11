@@ -1,4 +1,5 @@
 import logging
+from lib.dupe_notice import note_command_reply
 from constants import DUNGEON_CLASS_DISPLAY, DUNGEON_CLASS_LETTERS, DUNGEON_CLASSES, DUNGEON_FLOOR_XP
 from lib import condense
 from lib.hypixel import fetch_mayor_multiplier
@@ -89,6 +90,7 @@ def _send_reply(client, chat_prefix: str, webhook, name: str, mc_response: str,
                 discord_response: str, raw_username: str) -> None:
     """Posts a command's reply to every guild's in-game chat and the Discord webhook."""
     try:
+        note_command_reply()
         for state_obj in client.guilds_state.values():
             if state_obj.bot:
                 state_obj.bot.chat(f"{chat_prefix} {name}: {mc_response}")

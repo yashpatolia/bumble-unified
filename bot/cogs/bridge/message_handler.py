@@ -7,10 +7,12 @@ from discord.ext import commands
 from javascript import On
 from config import GuildConfig
 from db import manager
+from lib.dupe_notice import should_post_duplicate_notice
 from lib.chat_wait import feed as feed_chat_waiters
 from lib.get_uuid import get_uuid
 from lib.guild_settings import get_rank_requirements
 from lib.hypixel import fetch_member_stats
+from lib.mute_sync import parse_mute, parse_unmute, on_mute, on_unmute
 from lib.offload import offload
 from lib.rankup import guild_rank_change
 from lib.relay import relay_to_other_guilds
@@ -106,8 +108,14 @@ class GuildMessageHandler(commands.Cog):
         logs = state.logs
 
         if message.lower().startswith("you cannot say the same message twice!"):
-            embed = discord.Embed(colour=discord.Colour.dark_red(), description="Duplicate message!")
-            self.client.bridge.send(embed=embed)
+            # Both bots report the same dupe, and a repeated command's reply is assumed to be
+            # a dupe too, so Discord only gets one notice (see lib/dupe_notice.py).
+            should_post = should_post_duplicate_notice()
+            if should_post:
+                    _DUPLICATE_LAST[0] = now
+            if should_post:
+                embed = discord.Embed(colour=discord.Colour.dark_red(), description="Duplicate message!")
+                self.client.bridge.send(embed=embed)
 
         if message.lower().endswith("not found."):
             embed = discord.Embed(colour=discord.Colour.red(), description=message)
@@ -178,11 +186,17 @@ class GuildMessageHandler(commands.Cog):
             embed = discord.Embed(colour=discord.Colour.dark_purple(), description=message)
             self.client.bridge.send(embed=embed)
             logs.send(embed=embed)
+            muted = parse_mute(message)
+            if muted:
+                asyncio.run_coroutine_threadsafe(on_mute(self.client, config.key, muted[0], muted[1]), self.client.loop)
 
         if "has unmuted" in message.lower():
             embed = discord.Embed(colour=discord.Colour.dark_magenta(), description=message)
             self.client.bridge.send(embed=embed)
             logs.send(embed=embed)
+            unmuted = parse_unmute(message)
+            if unmuted:
+                asyncio.run_coroutine_threadsafe(on_unmute(self.client, config.key, unmuted), self.client.loop)
 
         if "was kicked from the guild" in message.lower():
             embed = discord.Embed(colour=discord.Colour.dark_red(), description=f"[{config.short_name}] {message}")
