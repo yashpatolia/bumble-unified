@@ -51,14 +51,16 @@ async def set_timeout(client, guild_key: str, ign: str, until) -> None:
     from now), or lifts it if `until` is None. Does nothing if it already matches. Never raises: a
     missing permission or an unlinked member is only logged."""
     try:
-        discord_id = _discord_id_for(guild_key, ign)
+        discord_id = await asyncio.to_thread(_discord_id_for, guild_key, ign)
         if not discord_id:
+            logging.info(f"[mute] {ign} has no linked Discord account, nothing to time out")
             return
         if until is not None:
             until = min(until, discord.utils.utcnow() + _MAX_TIMEOUT)
         for server in client.guilds:
             member = server.get_member(discord_id)
             if member is None:
+                logging.info(f"[mute] Discord user {discord_id} ({ign}) is not in {server.name}")
                 continue
             current = member.timed_out_until
             if until is None and current is None:
@@ -67,6 +69,7 @@ async def set_timeout(client, guild_key: str, ign: str, until) -> None:
                 continue
             try:
                 await member.timeout(until, reason=f"Guild {'mute' if until else 'unmute'} for {ign}")
+                logging.info(f"[mute] {'Timed out ' + ign + ' until ' + str(until) if until else 'Lifted timeout for ' + ign} in {server.name}")
             except discord.Forbidden:
                 logging.warning(f"[mute] Cannot time out {ign} in {server.name} (needs Moderate Members and a role above theirs)")
             except discord.HTTPException as e:
@@ -76,12 +79,20 @@ async def set_timeout(client, guild_key: str, ign: str, until) -> None:
 
 
 async def on_mute(client, guild_key: str, ign: str, duration) -> None:
-    await asyncio.to_thread(manager.record_mute, guild_key, ign, duration)
+    logging.info(f"[mute] {ign} muted in {guild_key} for {duration}")
+    try:
+        await asyncio.to_thread(manager.record_mute, guild_key, ign, duration)
+    except Exception as e:  # the timeout below must not depend on the record being saved
+        logging.warning(f"[mute] Could not record mute for {ign}: {e}")
     await set_timeout(client, guild_key, ign, discord.utils.utcnow() + duration)
 
 
 async def on_unmute(client, guild_key: str, ign: str) -> None:
-    await asyncio.to_thread(manager.clear_mute, guild_key, ign)
+    logging.info(f"[mute] {ign} unmuted in {guild_key}")
+    try:
+        await asyncio.to_thread(manager.clear_mute, guild_key, ign)
+    except Exception as e:
+        logging.warning(f"[mute] Could not clear mute for {ign}: {e}")
     await set_timeout(client, guild_key, ign, None)
 
 

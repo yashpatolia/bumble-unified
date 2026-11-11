@@ -112,8 +112,6 @@ class GuildMessageHandler(commands.Cog):
             # a dupe too, so Discord only gets one notice (see lib/dupe_notice.py).
             should_post = should_post_duplicate_notice()
             if should_post:
-                    _DUPLICATE_LAST[0] = now
-            if should_post:
                 embed = discord.Embed(colour=discord.Colour.dark_red(), description="Duplicate message!")
                 self.client.bridge.send(embed=embed)
 
