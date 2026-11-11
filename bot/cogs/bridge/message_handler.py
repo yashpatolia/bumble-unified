@@ -12,7 +12,6 @@ from lib.chat_wait import feed as feed_chat_waiters
 from lib.get_uuid import get_uuid
 from lib.guild_settings import get_rank_requirements
 from lib.hypixel import fetch_member_stats
-from lib.mute_sync import parse_mute, parse_unmute, on_mute, on_unmute
 from lib.offload import offload
 from lib.rankup import guild_rank_change
 from lib.relay import relay_to_other_guilds
@@ -184,17 +183,11 @@ class GuildMessageHandler(commands.Cog):
             embed = discord.Embed(colour=discord.Colour.dark_purple(), description=message)
             self.client.bridge.send(embed=embed)
             logs.send(embed=embed)
-            muted = parse_mute(message)
-            if muted:
-                asyncio.run_coroutine_threadsafe(on_mute(self.client, config.key, muted[0], muted[1]), self.client.loop)
 
         if "has unmuted" in message.lower():
             embed = discord.Embed(colour=discord.Colour.dark_magenta(), description=message)
             self.client.bridge.send(embed=embed)
             logs.send(embed=embed)
-            unmuted = parse_unmute(message)
-            if unmuted:
-                asyncio.run_coroutine_threadsafe(on_unmute(self.client, config.key, unmuted), self.client.loop)
 
         if "was kicked from the guild" in message.lower():
             embed = discord.Embed(colour=discord.Colour.dark_red(), description=f"[{config.short_name}] {message}")
