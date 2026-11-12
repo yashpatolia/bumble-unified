@@ -10,6 +10,7 @@ from javascript import On
 from config import GuildConfig
 from db import manager
 from lib import relay_to_other_guilds
+from lib.mentions import allowed_mentions_for, resolve_mentions
 from lib.offload import offload
 from utils.command_handler import bridge_commands
 from utils.roll_dye import roll_dye
@@ -66,15 +67,18 @@ class GuildBridge(commands.Cog):
                     return
 
                 webhook = self.client.officer if chat_type == "Officer" else self.client.bridge
+                discord_text, ping_ids = resolve_mentions(self.client, match.group("message").strip())
                 webhook.send(
-                    msg_text,
+                    discord_text,
                     username=f"[{config.short_name}] {sender}",
                     avatar_url=f"https://mc-heads.net/avatar/{sender}",
+                    allowed_mentions=allowed_mentions_for(ping_ids),
                 )
                 self.client.message_logs.send(
                     f"{sender} | {msg_text}",
                     username=sender,
                     avatar_url=f"https://mc-heads.net/avatar/{sender}",
+                    allowed_mentions=allowed_mentions_for([]),
                 )
 
                 if chat_type == "Guild":

@@ -24,6 +24,22 @@ class UsersQueries(BaseQueries):
             )
             return cur.fetchone()
 
+    def find_discord_ids_by_name(self, name: str) -> tuple[list[int], list[int]]:
+        """Linked members matching `name` exactly (case-insensitive): returns
+        (ids matched by Minecraft name, ids matched by Discord name)."""
+        with self._cursor() as cur:
+            cur.execute(
+                "SELECT DISTINCT discord_id FROM users WHERE discord_id IS NOT NULL AND LOWER(ign) = LOWER(%s)",
+                (name,),
+            )
+            by_ign = [r[0] for r in cur.fetchall()]
+            cur.execute(
+                "SELECT DISTINCT discord_id FROM users WHERE discord_id IS NOT NULL AND LOWER(discord_name) = LOWER(%s)",
+                (name,),
+            )
+            by_name = [r[0] for r in cur.fetchall()]
+        return by_ign, by_name
+
     def get_ign(self, discord_id: int) -> Optional[str]:
         with self._cursor() as cur:
             cur.execute("SELECT ign FROM users WHERE discord_id = %s", (discord_id,))

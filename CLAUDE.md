@@ -142,6 +142,7 @@ bumble-unified/
     │   ├── shared_settings.py # shared panel settings: warpout (bot, queue size, invite timeout) and extra censored words; 20s cache
     │   ├── __init__.py       # Re-exports all lib symbols
     │   ├── chat_wait.py      # wait_for_chat()/feed(): let async code wait for a specific Minecraft chat line
+    │   ├── mentions.py       # resolve_mentions(): turns @name in guild chat into safe Discord pings (max 3, allowed_mentions whitelist)
     │   ├── levels.py         # catacombs_level(xp): level maths shared by player/ and the panel
     │   ├── roster.py         # detect_renames(): recognise a renamed member from a /guild list so their history is kept
     │   ├── role_sync.py      # sync_member_roles(): keeps a linked member's Discord rank role in step with their guild rank
@@ -256,6 +257,7 @@ bumble-unified/
 - `GuildBridge` is instantiated once per guild by its `setup()`. Each instance registers a Mineflayer `On(state.bot, "chat")` handler scoped to that guild's bot.
 - **MC → Discord**: parses rank/player/message from guild chat, sends to the shared bridge or officer webhook, logs to `message_logs`, appends to `state.recent_chat` (guild chat only), increments the sender's message count via `manager.increment_message_count`, then relays to all *other* guild bots with a `[BK]`/`[BU]` prefix.
 - **Discord → MC**: only active when `config.bridge_channel_id` is not `None` (currently only BK). Resolves the author's IGN from DB, formats the message (handling replies), sends to every guild bot, and increments the message count for the resolved guild.
+- **@name pings**: `lib/mentions.py::resolve_mentions()` turns `@name` in guild chat into a real `<@id>` for the Discord relay only (in-game relay, panel chat and message logs stay ping-free). A name matches a linked member's Minecraft name, then a linked member's Discord name, then a server member's username/display name; zero or several matches means no ping. At most 3 distinct pings per message. `@everyone`, `@here`, `<@&role>` and hand-typed `<@id>` are defused with a zero-width space, and every webhook send passes `allowed_mentions_for(ids)` so Discord refuses anything else. Muted players need no handling: Hypixel blocks their guild chat before it reaches the bot.
 - `.commands` in Minecraft or Discord chat are routed to `bridge_commands()` via `run_coroutine_threadsafe` (Mineflayer callbacks run in a thread, not the asyncio event loop).
 
 ### `cogs/bridge/connections.py`
